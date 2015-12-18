@@ -74,35 +74,66 @@ static void vectormap_check_error(const char *msg, const char *file, const int l
   }
 }
 
-#if 0
-template <class Funct, typename BV, class... Args>
+/* (Single argument mapping) */
+
+template <class CA, class V3, class BT, class BT_ATTR, class Funct, class... Args>
 __global__
-void vectormap_cuda_kernel1(BV* v0, size_t n0,
-                            Funct f, Args... args) {
+void vectormap_cuda_kernel1(const CA c_attr, const V3 c_center,
+                            const BT* b, BT_ATTR* b_attr,
+                            size_t sz, Funct f, Args... args) {
   int index = (blockDim.x * blockIdx.x + threadIdx.x);
-  if (index < n0) {
-    BV p0 = v0[index];
-    f(p0, args...);
+  if (index < sz) {
+    f(c_attr, c_center, (b + index), (b_attr + index), args...);
   }
 }
-#endif
+
+template <class Funct, class BT, class BT_ATTR, class CELL_ATTR, class VEC,
+          template <class T> class CELLDATA, class... Args>
+__global__
+void vectormap_cuda_pack_kernel1(int nmapdata, size_t nbodies,
+                                 CELLDATA<BT>* body_list,
+                                 CELLDATA<BT_ATTR>* attr_list,
+                                 CELL_ATTR* cell_attrs,
+                                 VEC* cell_centers,
+                                 Funct f, Args... args) {
+  static_assert(std::is_same<BT_ATTR, kvec4>::value, "attribute type=kvec4");
+
+  int index = (blockDim.x * blockIdx.x + threadIdx.x);
+  if (index < nbodies) {
+    int bodycount = 0;
+    int nth = -1;
+    for (size_t i = 0; i < nmapdata; i++) {
+      if (index < (bodycount + body_list[i].size)) {
+        nth = i;
+        break;
+      } else {
+        bodycount += body_list[i].size;
+      }
+    }
+    assert(nth != -1);
+    int nthbody = index - bodycount;
+    f(cell_attrs[nth], cell_centers[nth],
+      (body_list[nth].data + nthbody), (attr_list[nth].data + nthbody),
+      args...);
+  }
+}
 
 /* (Two argument mapping (each pair)) */
 
 /* Accumulates partial acceleration for the 1st vector.  Blocking
    size of the 2nd vector is passed as TILESIZE. */
 
-template <class Funct, class BV, class BA, class... Args>
+template <class Funct, class BT, class BT_ATTR, class... Args>
 __global__
-void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
+void vectormap_cuda_plain_kernel2(BT* v0, BT* v1, BT_ATTR* a0,
                                   size_t n0, size_t n1, int tilesize,
                                   Funct f, Args... args) {
   assert(tilesize <= blockDim.x);
   int index = (blockDim.x * blockIdx.x + threadIdx.x);
-  extern __shared__ BV scratchpad[];
+  extern __shared__ BT scratchpad[];
   int ntiles = TAPAS_CEILING(n1, tilesize);
-  BV* p0 = ((index < n0) ? &v0[index] : &v0[0]);
-  BA q0 = ((index < n0) ? a0[index] : a0[0]);
+  BT* p0 = ((index < n0) ? &v0[index] : &v0[0]);
+  BT_ATTR q0 = ((index < n0) ? a0[index] : a0[0]);
   for (int t = 0; t < ntiles; t++) {
     if ((tilesize * t + threadIdx.x) < n1 && threadIdx.x < tilesize) {
       scratchpad[threadIdx.x] = v1[tilesize * t + threadIdx.x];
@@ -111,9 +142,9 @@ void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
 
     if (index < n0) {
       unsigned int jlim = min(tilesize, (int)(n1 - tilesize * t));
-      /*AHO*/ //#pragma unroll 128
+#pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
-        BV* p1 = &scratchpad[j];
+        BT* p1 = &scratchpad[j];
         if (!(v0 == v1 && index == (tilesize * t + j))) {
           f(p0, p1, q0, args...);
         }
@@ -156,18 +187,18 @@ static double atomicAdd(float* address, float val) {
   return __int_as_float(old);
 }
 
-template <class Funct, class BV, class BA,
+template <class Funct, class BT, class BT_ATTR,
           template <class T> class CELLDATA, class... Args>
 __global__
-void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
+void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
                                  size_t nc,
-                                 int rsize, BV* rdata, int tilesize,
+                                 int rsize, BT* rdata, int tilesize,
                                  Funct f, Args... args) {
-  static_assert(std::is_same<BA, kvec4>::value, "attribute type=kvec4");
+  static_assert(std::is_same<BT_ATTR, kvec4>::value, "attribute type=kvec4");
 
   assert(tilesize <= blockDim.x);
   int index = (blockDim.x * blockIdx.x + threadIdx.x);
-  extern __shared__ BV scratchpad[];
+  extern __shared__ BT scratchpad[];
 
   int cell = -1;
   int item = 0;
@@ -182,8 +213,8 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
   }
 
   int ntiles = TAPAS_CEILING(rsize, tilesize);
-  BV &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0];
-  BA q0 = {0.0f, 0.0f, 0.0f, 0.0f};
+  BT &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0];
+  BT_ATTR q0 = {0.0f, 0.0f, 0.0f, 0.0f};
 
   for (int t = 0; t < ntiles; t++) {
     if ((tilesize * t + threadIdx.x) < rsize && threadIdx.x < tilesize) {
@@ -195,7 +226,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
       unsigned int jlim = min(tilesize, (int)(rsize - tilesize * t));
 #pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
-        BV &p1 = scratchpad[j];
+        BT &p1 = scratchpad[j];
         f(&p0, &p1, q0, args...);
       }
     }
@@ -204,7 +235,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
 
   if (cell != -1) {
     assert(item < a[cell].size);
-    BA &a0 = a[cell].data[item];
+    BT_ATTR &a0 = a[cell].data[item];
     atomicAdd(&(a0[0]), q0[0]);
     atomicAdd(&(a0[1]), q0[1]);
     atomicAdd(&(a0[2]), q0[2]);
@@ -220,8 +251,11 @@ struct cellcompare_r {
   }
 };
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
-struct Vectormap_CUDA_Simple {
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Base {
+  typedef typename _BI::type BT;
+  typedef _BT_ATTR BT_ATTR;
+  typedef _CELL_ATTR CELL_ATTR;
 
   /** Memory allocator for the unified memory.  It will replace the
       vector allocators.  (N.B. Its name should be generic because it
@@ -337,61 +371,89 @@ struct Vectormap_CUDA_Simple {
 
   static void vectormap_start() {}
 
-  template <class Funct, class... Args>
-  static void vectormap_finish(Funct f, Args... args) {
+  static void vectormap_end() {
     vectormap_check_error("vectormap_end", __FILE__, __LINE__);
     cudaError_t ce;
     ce = cudaDeviceSynchronize();
     if (ce != cudaSuccess) {
       fprintf(stderr,
               "%s:%i (%s): CUDA ERROR (%d): %s.\n",
-              __FILE__, __LINE__, "cudaDeviceSynchronize", (int)ce, cudaGetErrorString(ce));
+              __FILE__, __LINE__, "cudaDeviceSynchronize",
+              (int)ce, cudaGetErrorString(ce));
       assert(ce == cudaSuccess);
     }
   }
 
+  template <class Funct, class... Args>
+  static void vectormap_finish(Funct f, Args... args) {}
+};
+
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Simple_Map1
+  : Vectormap_CUDA_Base<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR> {
+  typedef typename _BI::type BT;
+  typedef _BT_ATTR BT_ATTR;
+  typedef _CELL_ATTR CELL_ATTR;
+
   /* (One argument mapping) */
 
-  /* NOTE IT RUNS ON CPUs.  The kernel "tapas_kernel::L2P()" is not
-     coded to be run on GPUs, since it accesses the cell. */
-
   template <class Funct, class Cell, class... Args>
-  static void vector_map1(Funct f, BodyIterator<Cell> iter,
+  static void vector_map1(Funct f, BodyIterator<Cell> b0,
                           Args... args) {
-    int sz = iter.size();
-    for (int i = 0; i < sz; i++) {
-      f(*(iter + i), args...);
-    }
-  }
+    typedef typename Cell::TSPClass TSP;
 
-#if 0
-  template <class Funct, class Cell, class... Args>
-  static void vector_map1(Funct f,
-                          BodyIterator<Cell> b0,
-                          Args... args) {
     static std::mutex mutex0;
     static struct cudaFuncAttributes tesla_attr0;
     if (tesla_attr0.binaryVersion == 0) {
       mutex0.lock();
       cudaError_t ce = cudaFuncGetAttributes(
         &tesla_attr0,
-        &vectormap_cuda_kernel1<Funct, typename Cell::BodyType, Args...>);
+        &vectormap_cuda_kernel1<typename Cell::ATTR,
+        tapas::Vec<TSP::Dim, typename TSP::FP>,
+        typename Cell::BodyType, typename Cell::BodyAttrType,
+        Funct, Args...>);
       assert(ce == cudaSuccess);
       mutex0.unlock();
     }
     assert(tesla_attr0.binaryVersion != 0);
 
-    size_t n0 = b0.size();
-    int n0up = (TAPAS_CEILING(n0, 256) * 256);
-    int ctasize = std::min(n0up, tesla_attr0.maxThreadsPerBlock);
-    size_t nblocks = TAPAS_CEILING(n0, ctasize);
+    int sz = b0.size();
+    const Cell c = (*b0).cell();
+    const typename Cell::ATTR c_attr = c.attr();
+    const tapas::Vec<TSP::Dim, typename TSP::FP> c_center = c.center();
+    const typename Cell::BodyType* b = b0.as_body();
+    typename Cell::BodyAttrType* b_attr = &b0.attr();
+    if (0) {
+      /*AHO*/ /* (Run on CPU). */
+      for (int i = 0; i < sz; i++) {
+        f(c_attr, c_center, (b + i), (b_attr + i), args...);
+      }
+    } else {
+      int szup = (TAPAS_CEILING(sz, 256) * 256);
+      int ctasize = std::min(szup, tesla_attr0.maxThreadsPerBlock);
+      size_t nblocks = TAPAS_CEILING(sz, ctasize);
 
-    streamid++;
-    int s = (streamid % tesla_dev.n_streams);
-    vectormap_cuda_kernel1<<<nblocks, ctasize, 0, tesla_dev.streams[s]>>>
-      (b0, n0, f, args...);
+      /*AHO*/
+      if (0) {
+        fprintf(stderr, "launch array=(%p/%d, %p/%d) blks=%ld cta=%d\n",
+                b, sz, b_attr, sz, nblocks, ctasize);
+        fflush(0);
+      }
+
+      streamid++;
+      int s = (streamid % tesla_dev.n_streams);
+      vectormap_cuda_kernel1<<<nblocks, ctasize, 0, tesla_dev.streams[s]>>>
+        (c_attr, c_center, b, b_attr, sz, f, args...);
+    }
   }
-#endif
+};
+
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Simple_Map2
+  : Vectormap_CUDA_Base<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR> {
+  typedef typename _BI::type BT;
+  typedef _BT_ATTR BT_ATTR;
+  typedef _CELL_ATTR CELL_ATTR;
 
   /* (Two argument mapping) */
 
@@ -406,8 +468,9 @@ struct Vectormap_CUDA_Simple {
   template <class Funct, class Cell, class... Args>
   static void vectormap_cuda_plain(Funct f, Cell &c0, Cell &c1,
                                    Args... args) {
-    typedef typename Cell::BT::type BV;
-    typedef typename Cell::BT_ATTR BA;
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
+                  "inconsistent template arguments");
 
     static std::mutex mutex1;
     static struct cudaFuncAttributes tesla_attr1;
@@ -415,7 +478,7 @@ struct Vectormap_CUDA_Simple {
       mutex1.lock();
       cudaError_t ce = cudaFuncGetAttributes(
         &tesla_attr1,
-        &vectormap_cuda_plain_kernel2<Funct, BV, BA, Args...>);
+        &vectormap_cuda_plain_kernel2<Funct, BT, BT_ATTR, Args...>);
       assert(ce == cudaSuccess);
       mutex1.unlock();
     }
@@ -423,9 +486,9 @@ struct Vectormap_CUDA_Simple {
 
     assert(c0.IsLeaf() && c1.IsLeaf());
     /* (Cast to drop const, below). */
-    BV* v0 = (BV*)&(c0.body(0));
-    BV* v1 = (BV*)&(c1.body(0));
-    BA* a0 = (BA*)&(c0.body_attr(0));
+    BT* v0 = (BT*)&(c0.body(0));
+    BT* v1 = (BT*)&(c1.body(0));
+    BT_ATTR* a0 = (BT_ATTR*)&(c0.body_attr(0));
     size_t n0 = c0.nb();
     size_t n1 = c1.nb();
     assert(n0 != 0 && n1 != 0);
@@ -445,11 +508,13 @@ struct Vectormap_CUDA_Simple {
     int scratchpadsize = (sizeof(typename Cell::BodyType) * tilesize);
     size_t nblocks = TAPAS_CEILING(n0, ctasize);
 
-#if 0 /*AHO*/
-    fprintf(stderr, "launch arrays=(%p/%ld, %p/%ld, %p/%ld) blks=%ld cta=%d\n",
-            v0, n0, v1, n1, a0, n0, nblocks, ctasize);
-    fflush(0);
-#endif
+    /*AHO*/
+    if (0) {
+      fprintf(stderr, "launch arrays=(%p/%ld, %p/%ld, %p/%ld)"
+              " blks=%ld cta=%d\n",
+              v0, n0, v1, n1, a0, n0, nblocks, ctasize);
+      fflush(0);
+    }
 
     int s = (((unsigned long)&c0 >> 4) % tesla_dev.n_streams);
     vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
@@ -476,8 +541,16 @@ struct Vectormap_CUDA_Simple {
       vectormap_cuda_plain(f, c1, c0, args...);
     }
   }
-
 };
+
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Simple
+: Vectormap_CUDA_Simple_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,
+  Vectormap_CUDA_Simple_Map2<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>
+{};
+
+/* Vector of data (mainly bodies and body attrs) copied between the
+   host and the device. */
 
 template <class T>
 struct Cell_Data {
@@ -485,159 +558,184 @@ struct Cell_Data {
   T* data;
 };
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
-struct Vectormap_CUDA_Packed
-  : Vectormap_CUDA_Simple<_DIM, _FP, _BT, _BT_ATTR> {
-  typedef typename _BT::type BV;
-  typedef _BT_ATTR BA;
+/* Allocated data for copying between the host and the device; One for
+   the host and the other for the device. */
+
+template <class T>
+struct Mirror_Data {
+  T* ddata;
+  T* hdata;
+  size_t size;
+
+  void assure_size(size_t n) {
+    if (size < n) {
+      free_data();
+      size = n;
+      cudaError_t ce;
+      ce = cudaMalloc(&this->ddata, (sizeof(T) * n));
+      assert(ce == cudaSuccess);
+      ce = cudaMallocHost(&this->hdata, (sizeof(T) * n));
+      assert(ce == cudaSuccess);
+    }
+  }
+
+  void free_data() {
+    cudaError_t ce;
+    ce = cudaFree(this->ddata);
+    assert(ce == cudaSuccess);
+    ce = cudaFree(this->hdata);
+    assert(ce == cudaSuccess);
+  }
+
+  void copy_in(size_t n) {
+    assert(size == n);
+    cudaError_t ce;
+    ce = cudaMemcpy(this->ddata, this->hdata, (sizeof(T) * size),
+                    cudaMemcpyHostToDevice);
+    assert(ce == cudaSuccess);
+  }
+};
+
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Packed_Map1
+  : Vectormap_CUDA_Base<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR> {
+  typedef typename _BI::type BT;
+  typedef _BT_ATTR BT_ATTR;
+  typedef _CELL_ATTR CELL_ATTR;
+
+  typedef tapas::Vec<_DIM, _FP> VEC;
+  typedef Cell_Data<BT> Body_List;
+  typedef Cell_Data<BT_ATTR> Attr_List;
+  typedef std::tuple<Body_List, Attr_List, CELL_ATTR, VEC> MapData1;
+
+  /* Limit of the number of threads in grids. */
+
+  static const int N0 = (16 * 1024);
+
+  /* (Single argument mapping.) */
 
   /* STATIC MEMBER FIELDS. (It is a trick.  See:
      http://stackoverflow.com/questions/11709859/) */
 
-  static std::vector<std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>>
-    &cellpairs() {
-    static std::vector<std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>>
-      cellpairs_;
-    return cellpairs_;
+  static std::mutex &pack1_mutex() {
+    static std::mutex pack1_mutex_;
+    return pack1_mutex_;
   }
 
-  static std::mutex &pairs_mutex() {
-    static std::mutex pairs_mutex_;
-    return pairs_mutex_;
+  static std::vector<MapData1> &mapdata1() {
+    static std::vector<MapData1> mapdata1_;
+    return mapdata1_;
   }
 
-  static size_t &npairs() {
-    static size_t npairs_ = 0;
-    return npairs_;
+  static Mirror_Data<Body_List> &body_lists() {
+    static Mirror_Data<Body_List> body_lists_;
+    return body_lists_;
   }
 
-  static Cell_Data<BV>* &dvcells() {
-    static Cell_Data<BV>* dvcells_ = 0;
-    return dvcells_;
+  static Mirror_Data<Attr_List> &attr_lists() {
+    static Mirror_Data<Attr_List> attr_lists_;
+    return attr_lists_;
   }
 
-  static Cell_Data<BV>* &hvcells() {
-    static Cell_Data<BV>* hvcells_ = 0;
-    return hvcells_;
+  static Mirror_Data<_CELL_ATTR> &cell_attrs() {
+    static Mirror_Data<_CELL_ATTR> cell_attrs_;
+    return cell_attrs_;
   }
 
-  static Cell_Data<BA>* &dacells() {
-    static Cell_Data<BA>* dacells_ = 0;
-    return dacells_;
+  static Mirror_Data<VEC> &cell_centers() {
+    static Mirror_Data<VEC> cell_centers_;
+    return cell_centers_;
   }
 
-  static Cell_Data<BA>* &hacells() {
-    static Cell_Data<BA>* hacells_ = 0;
-    return hacells_;
-  }
-
-  static void vectormap_start() {
-    //printf(";; vectormap_start\n"); fflush(0);
-    cellpairs().clear();
-  }
-
-  /* (Two argument mapping with left packing.) */
+  /* (Single argument mapping.) */
 
   template <class Funct, class Cell, class... Args>
-  static void vector_map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
+  static void vector_map1(Funct f, BodyIterator<Cell> b0,
                           Args... args) {
-    typedef typename Cell::BT::type BV;
-    typedef typename Cell::BT_ATTR BA;
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value
+                   && std::is_same<_CELL_ATTR, typename Cell::ATTR>::value),
+                  "inconsistent template arguments");
 
-    const Cell &c0 = prod.first().cell();
-    const Cell &c1 = prod.second().cell();
-    assert(c0.IsLeaf() && c1.IsLeaf());
+    const Cell c = (*b0).cell();
+    if (c.nb() == 0) {return;}
 
-    if (c0.nb() == 0 || c1.nb() == 0) return;
-    
     /* (Cast to drop const, below). */
-    Cell_Data<BV> d0;
-    Cell_Data<BV> d1;
-    Cell_Data<BA> a0;
-    Cell_Data<BA> a1;
-    d0.size = c0.nb();
-    d0.data = (BV*)&(c0.body(0));
-    a0.size = c0.nb();
-    a0.data = (BA*)&(c0.body_attr(0));
-    d1.size = c1.nb();
-    d1.data = (BV*)&(c1.body(0));
-    a1.size = c1.nb();
-    a1.data = (BA*)&(c1.body_attr(0));
-    if (c0 == c1) {
 
-      pairs_mutex().lock();
-      cellpairs().push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d0, a0, d1));
-      pairs_mutex().unlock();
-    } else {
-      pairs_mutex().lock();
-      cellpairs().push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d0, a0, d1));
-      cellpairs().push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d1, a1, d0));
-      pairs_mutex().unlock();
-    }
+    const typename Cell::ATTR c_attr = c.attr();
+    const VEC c_center = c.center();
+    /*const typename Cell::BodyType* b = b0.as_body();*/
+    /*typename Cell::BodyAttrType* b_attr = &b0.attr();*/
+    Cell_Data<BT> d0;
+    Cell_Data<BT_ATTR> a0;
+    size_t sz = c.nb();
+    d0.data = (BT*)&(c.body(0));
+    d0.size = sz;
+    a0.data = (BT_ATTR*)&(c.body_attr(0));
+    a0.size = sz;
+
+    pack1_mutex().lock();
+    mapdata1().push_back(MapData1(d0, a0, c_attr, c_center));
+    pack1_mutex().unlock();
   }
 
   /* Launches a kernel on Tesla. */
 
   template <class Funct, class Cell, class... Args>
-  static void vectormap_invoke(int start, int nc, Cell_Data<BV> &r,
-                               int tilesize,
-                               size_t nblocks, int ctasize, int scratchpadsize,
-                               Cell &dummy, Funct f, Args... args) {
-    typedef typename Cell::BT::type BV;
-    typedef typename Cell::BT_ATTR BA;
+  static void vectormap_invoke1(int nmapdata, size_t nbodies,
+                                size_t nblocks, int ctasize,
+                                int scratchpadsize,
+                                Cell &dummy, Funct f, Args... args) {
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value
+                   && std::is_same<_CELL_ATTR, typename Cell::ATTR>::value),
+                  "inconsistent template arguments");
 
     /*AHO*/
     if (0) {
       printf("kernel(nblocks=%ld ctasize=%d scratchpadsize=%d tilesize=%d\n",
-             nblocks, ctasize, scratchpadsize, tilesize);
-      printf("invoke(start=%d ncells=%d)\n", start, nc);
-      for (int i = 0; i < nc; i++) {
-        Cell_Data<BV> &lc = std::get<0>(cellpairs()[start + i]);
-        Cell_Data<BA> &ac = std::get<1>(cellpairs()[start + i]);
-        Cell_Data<BV> &rc = std::get<2>(cellpairs()[start + i]);
-        assert(rc.data == r.data);
-        assert(ac.size == lc.size);
-        printf("pair(celll=%p[%d] cellr=%p[%d])\n",
-               lc.data, lc.size, rc.data, rc.size);
+             nblocks, ctasize, scratchpadsize, 0);
+      printf("invoke1(ncells=%d, nbodies=%ld)\n", nmapdata, nbodies);
+      for (int i = 0; i < nmapdata; i++) {
+        Cell_Data<BT> &c = std::get<0>(mapdata1()[i]);
+        printf("celll=%p[%d]\n", c.data, c.size);
       }
       fflush(0);
     }
 
     streamid++;
     int s = (streamid % tesla_dev.n_streams);
-    vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
+    vectormap_cuda_pack_kernel1<<<nblocks, ctasize, scratchpadsize,
       tesla_dev.streams[s]>>>
-      (&(dvcells()[start]), &(dacells()[start]), nc, r.size, r.data,
-       tilesize, f, args...);
+      (nmapdata, nbodies,
+       body_lists().ddata, attr_lists().ddata,
+       cell_attrs().ddata, cell_centers().ddata, f, args...);
   }
-
-  /* Limit of the number of threads in grids. */
-
-  static const int N0 = (16 * 1024);
 
   /* Starts launching a kernel on collected cells. */
 
   template <class Funct, class Cell, class... Args>
-  static void vectormap_on_collected(Funct f, Cell dummy, Args... args) {
-    typedef typename Cell::BT::type BV;
-    typedef typename Cell::BT_ATTR BA;
+  static void vectormap_on_collected1(Funct f, Cell dummy, Args... args) {
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value
+                   && std::is_same<_CELL_ATTR, typename Cell::ATTR>::value),
+                  "inconsistent template arguments");
 
-    if (cellpairs().size() == 0) {
-      return;
-    }
-    cudaError_t ce;
+    assert(mapdata1().size() != 0);
+
     static std::mutex mutex2;
     static struct cudaFuncAttributes tesla_attr2;
     if (tesla_attr2.binaryVersion == 0) {
       mutex2.lock();
       cudaError_t ce = cudaFuncGetAttributes(
         &tesla_attr2,
-        &vectormap_cuda_pack_kernel2<Funct, BV, BA, Cell_Data, Args...>);
+        &vectormap_cuda_pack_kernel1<Funct, BT, BT_ATTR, CELL_ATTR, VEC,
+        Cell_Data, Args...>);
       assert(ce == cudaSuccess);
       mutex2.unlock();
       if (0) {
         /*GOMI*/
-        printf((";; vectormap_cuda_pack_kernel2:"
+        printf((";; vectormap_cuda_pack_kernel1:"
                 " binaryVersion=%d, cacheModeCA=%d, constSizeBytes=%zd,"
                 " localSizeBytes=%zd, maxThreadsPerBlock=%d, numRegs=%d,"
                 " ptxVersion=%d, sharedSizeBytes=%zd\n"),
@@ -650,10 +748,198 @@ struct Vectormap_CUDA_Packed
     }
     assert(tesla_attr2.binaryVersion != 0);
 
-    //printf(";; pairs=%ld\n", cellpairs().size());
+    //printf(";; pairs=%ld\n", mapdata1().size());
+
+    size_t nn = mapdata1().size();
+    size_t nbodies = 0;
+    for (size_t i = 0; i < nn; i++) {
+      MapData1 &c = mapdata1()[i];
+      nbodies += std::get<0>(c).size;
+    }
 
     int cta0 = (TAPAS_CEILING(tesla_dev.cta_size, 32) * 32);
     int ctasize = std::min(cta0, tesla_attr2.maxThreadsPerBlock);
+    assert(ctasize == tesla_dev.cta_size);
+
+    size_t nblocks = TAPAS_CEILING(nbodies, ctasize);
+
+    body_lists().assure_size(nn);
+    attr_lists().assure_size(nn);
+    cell_attrs().assure_size(nn);
+    cell_centers().assure_size(nn);
+
+    for (size_t i = 0; i < nn; i++) {
+      MapData1 &c = mapdata1()[i];
+      body_lists().hdata[i] = std::get<0>(c);
+      attr_lists().hdata[i] = std::get<1>(c);
+      cell_attrs().hdata[i] = std::get<2>(c);
+      cell_centers().hdata[i] = std::get<3>(c);
+    }
+    body_lists().copy_in(nn);
+    attr_lists().copy_in(nn);
+    cell_attrs().copy_in(nn);
+    cell_centers().copy_in(nn);
+
+    vectormap_invoke1(nn, nbodies, nblocks, ctasize, 0,
+                      dummy, f, args...);
+  }
+};
+
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Packed_Map2
+  : Vectormap_CUDA_Base<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR> {
+  typedef typename _BI::type BT;
+  typedef _BT_ATTR BT_ATTR;
+
+  typedef Cell_Data<BT> Body_List;
+  typedef Cell_Data<BT_ATTR> Attr_List;
+  typedef std::tuple<Body_List, Attr_List, Body_List> MapData2;
+
+  /* Limit of the number of threads in grids. */
+
+  static const int N0 = (16 * 1024);
+
+  /* STATIC MEMBER FIELDS. (It is a trick.  See:
+     http://stackoverflow.com/questions/11709859/) */
+
+  static std::mutex &pack2_mutex() {
+    static std::mutex pack2_mutex_;
+    return pack2_mutex_;
+  }
+
+  static std::vector<MapData2> &cellpairs() {
+    static std::vector<MapData2> cellpairs_;
+    return cellpairs_;
+  }
+
+  static Mirror_Data<Body_List> &body_lists2() {
+    static Mirror_Data<Body_List> body_lists2_;
+    return body_lists2_;
+  }
+
+  static Mirror_Data<Attr_List> &attr_lists2() {
+    static Mirror_Data<Attr_List> attr_lists2_;
+    return attr_lists2_;
+  }
+
+  /* (Two argument mapping with left packing.) */
+
+  template <class Funct, class Cell, class... Args>
+  static void vector_map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
+                          Args... args) {
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
+                  "inconsistent template arguments");
+
+    const Cell &c0 = prod.first().cell();
+    const Cell &c1 = prod.second().cell();
+    assert(c0.IsLeaf() && c1.IsLeaf());
+
+    if (c0.nb() == 0 || c1.nb() == 0) return;
+
+    /* (Cast to drop const, below). */
+
+    Cell_Data<BT> d0;
+    Cell_Data<BT> d1;
+    Cell_Data<BT_ATTR> a0;
+    Cell_Data<BT_ATTR> a1;
+    d0.size = c0.nb();
+    d0.data = (BT*)&(c0.body(0));
+    a0.size = c0.nb();
+    a0.data = (BT_ATTR*)&(c0.body_attr(0));
+    d1.size = c1.nb();
+    d1.data = (BT*)&(c1.body(0));
+    a1.size = c1.nb();
+    a1.data = (BT_ATTR*)&(c1.body_attr(0));
+
+    if (c0 == c1) {
+      pack2_mutex().lock();
+      cellpairs().push_back(MapData2(d0, a0, d1));
+      pack2_mutex().unlock();
+    } else {
+      pack2_mutex().lock();
+      cellpairs().push_back(MapData2(d0, a0, d1));
+      cellpairs().push_back(MapData2(d1, a1, d0));
+      pack2_mutex().unlock();
+    }
+  }
+
+  /* Launches a kernel on Tesla. */
+
+  template <class Funct, class Cell, class... Args>
+  static void vectormap_invoke2(int start, int nc, Cell_Data<BT> &r,
+                                int tilesize,
+                                size_t nblocks, int ctasize,
+                                int scratchpadsize,
+                                Cell &dummy, Funct f, Args... args) {
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
+                  "inconsistent template arguments");
+
+    /*AHO*/
+    if (0) {
+      printf("kernel(nblocks=%ld ctasize=%d scratchpadsize=%d tilesize=%d\n",
+             nblocks, ctasize, scratchpadsize, tilesize);
+      printf("invoke(start=%d ncells=%d)\n", start, nc);
+      for (int i = 0; i < nc; i++) {
+        Cell_Data<BT> &lc = std::get<0>(cellpairs()[start + i]);
+        Cell_Data<BT_ATTR> &ac = std::get<1>(cellpairs()[start + i]);
+        Cell_Data<BT> &rc = std::get<2>(cellpairs()[start + i]);
+        assert(rc.data == r.data);
+        assert(ac.size == lc.size);
+        printf("pair(celll=%p[%d] cellr=%p[%d])\n",
+               lc.data, lc.size, rc.data, rc.size);
+      }
+      fflush(0);
+    }
+
+    streamid++;
+    int s = (streamid % tesla_dev.n_streams);
+    vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
+      tesla_dev.streams[s]>>>
+      (&(body_lists2().ddata[start]), &(attr_lists2().ddata[start]),
+       nc, r.size, r.data,
+       tilesize, f, args...);
+  }
+
+  /* Starts launching a kernel on collected cells. */
+
+  template <class Funct, class Cell, class... Args>
+  static void vectormap_on_collected2(Funct f, Cell dummy, Args... args) {
+    static_assert((std::is_same<BT, typename Cell::BT::type>::value
+                   && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
+                  "inconsistent template arguments");
+
+    assert(cellpairs().size() != 0);
+
+    static std::mutex mutex3;
+    static struct cudaFuncAttributes tesla_attr3;
+    if (tesla_attr3.binaryVersion == 0) {
+      mutex3.lock();
+      cudaError_t ce = cudaFuncGetAttributes(
+        &tesla_attr3,
+        &vectormap_cuda_pack_kernel2<Funct, BT, BT_ATTR, Cell_Data, Args...>);
+      assert(ce == cudaSuccess);
+      mutex3.unlock();
+      if (0) {
+        /*GOMI*/
+        printf((";; vectormap_cuda_pack_kernel2:"
+                " binaryVersion=%d, cacheModeCA=%d, constSizeBytes=%zd,"
+                " localSizeBytes=%zd, maxThreadsPerBlock=%d, numRegs=%d,"
+                " ptxVersion=%d, sharedSizeBytes=%zd\n"),
+               tesla_attr3.binaryVersion, tesla_attr3.cacheModeCA,
+               tesla_attr3.constSizeBytes, tesla_attr3.localSizeBytes,
+               tesla_attr3.maxThreadsPerBlock, tesla_attr3.numRegs,
+               tesla_attr3.ptxVersion, tesla_attr3.sharedSizeBytes);
+        fflush(0);
+      }
+    }
+    assert(tesla_attr3.binaryVersion != 0);
+
+    //printf(";; pairs=%ld\n", cellpairs().size());
+
+    int cta0 = (TAPAS_CEILING(tesla_dev.cta_size, 32) * 32);
+    int ctasize = std::min(cta0, tesla_attr3.maxThreadsPerBlock);
     assert(ctasize == tesla_dev.cta_size);
 
     int tile0 = (tesla_dev.scratchpad_size / sizeof(typename Cell::BodyType));
@@ -664,66 +950,42 @@ struct Vectormap_CUDA_Packed
     int scratchpadsize = (sizeof(typename Cell::BodyType) * tilesize);
     size_t nblocks = TAPAS_CEILING(N0, ctasize);
 
-    if (npairs() < cellpairs().size()) {
-      ce = cudaFree(dvcells());
-      assert(ce == cudaSuccess);
-      ce = cudaFree(dacells());
-      assert(ce == cudaSuccess);
-      ce = cudaFree(hvcells());
-      assert(ce == cudaSuccess);
-      ce = cudaFree(hacells());
-      assert(ce == cudaSuccess);
-
-      npairs() = cellpairs().size();
-      ce = cudaMalloc(&dvcells(), (sizeof(Cell_Data<BV>) * npairs()));
-      assert(ce == cudaSuccess);
-      ce = cudaMalloc(&dacells(), (sizeof(Cell_Data<BA>) * npairs()));
-      assert(ce == cudaSuccess);
-      ce = cudaMallocHost(&hvcells(), (sizeof(Cell_Data<BV>) * npairs()));
-      assert(ce == cudaSuccess);
-      ce = cudaMallocHost(&hacells(), (sizeof(Cell_Data<BA>) * npairs()));
-      assert(ce == cudaSuccess);
-    }
+    size_t nn = cellpairs().size();
+    body_lists2().assure_size(nn);
+    attr_lists2().assure_size(nn);
 
     std::sort(cellpairs().begin(), cellpairs().end(),
-              cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>());
-    for (size_t i = 0; i < npairs(); i++) {
-      std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>> &c = cellpairs()[i];
-      hvcells()[i] = std::get<0>(c);
+              cellcompare_r<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>());
+    for (size_t i = 0; i < nn; i++) {
+      MapData2 &c = cellpairs()[i];
+      body_lists2().hdata[i] = std::get<0>(c);
+      attr_lists2().hdata[i] = std::get<1>(c);
     }
-    ce = cudaMemcpy(dvcells(), hvcells(), (sizeof(Cell_Data<BV>) * npairs()),
-                    cudaMemcpyHostToDevice);
-    assert(ce == cudaSuccess);
-    for (size_t i = 0; i < npairs(); i++) {
-      std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>> &c = cellpairs()[i];
-      hacells()[i] = std::get<1>(c);
-    }
-    ce = cudaMemcpy(dacells(), hacells(), (sizeof(Cell_Data<BA>) * npairs()),
-                    cudaMemcpyHostToDevice);
-    assert(ce == cudaSuccess);
+    body_lists2().copy_in(nn);
+    attr_lists2().copy_in(nn);
 
-    Cell_Data<BV> xr = std::get<2>(cellpairs()[0]);
+    Cell_Data<BT> xr = std::get<2>(cellpairs()[0]);
     int xncells = 0;
     int xndata = 0;
-    for (size_t i = 0; i < npairs(); i++) {
-      std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>> &c = cellpairs()[i];
-      Cell_Data<BV> &r = std::get<2>(c);
+    for (size_t i = 0; i < nn; i++) {
+      MapData2 &c = cellpairs()[i];
+      Cell_Data<BT> &r = std::get<2>(c);
       if (xr.data != r.data) {
         assert(i != 0 && xncells > 0);
-        vectormap_invoke((i - xncells), xncells, xr,
-                         tilesize, nblocks, ctasize, scratchpadsize,
-                         dummy, f, args...);
+        vectormap_invoke2((i - xncells), xncells, xr,
+                          tilesize, nblocks, ctasize, scratchpadsize,
+                          dummy, f, args...);
         xncells = 0;
         xndata = 0;
         xr = r;
       }
-      Cell_Data<BV> &l = std::get<0>(c);
+      Cell_Data<BT> &l = std::get<0>(c);
       size_t nb = TAPAS_CEILING((xndata + l.size), ctasize);
       if (nb > nblocks) {
         assert(i != 0 && xncells > 0);
-        vectormap_invoke((i - xncells), xncells, xr,
-                         tilesize, nblocks, ctasize, scratchpadsize,
-                         dummy, f, args...);
+        vectormap_invoke2((i - xncells), xncells, xr,
+                          tilesize, nblocks, ctasize, scratchpadsize,
+                          dummy, f, args...);
         xncells = 0;
         xndata = 0;
         xr = r;
@@ -732,23 +994,44 @@ struct Vectormap_CUDA_Packed
       xndata += (TAPAS_CEILING(l.size, 32) * 32);
     }
     assert(xncells > 0);
-    vectormap_invoke((npairs() - xncells), xncells, xr,
-                     tilesize, nblocks, ctasize, scratchpadsize,
-                     dummy, f, args...);
+    vectormap_invoke2((nn - xncells), xncells, xr,
+                      tilesize, nblocks, ctasize, scratchpadsize,
+                      dummy, f, args...);
+  }
+};
+
+template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
+struct Vectormap_CUDA_Packed
+#if 1
+  : Vectormap_CUDA_Packed_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,
+#else
+  : Vectormap_CUDA_Simple_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,
+#endif
+  Vectormap_CUDA_Packed_Map2<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR> {
+  typedef Vectormap_CUDA_Packed_Map1<_DIM, _FP, _BI, _BT_ATTR,
+                                     _CELL_ATTR> Map1;
+  typedef Vectormap_CUDA_Packed_Map2<_DIM, _FP, _BI, _BT_ATTR,
+                                     _CELL_ATTR> Map2;
+
+  static void vectormap_start() {
+    //printf(";; vectormap_start\n"); fflush(0);
+    Map1::mapdata1().clear();
+    Map2::cellpairs().clear();
   }
 
   template <class Funct, class Cell, class... Args>
-  static void vectormap_finish(Funct f, Cell dummy, Args... args) {
-    //printf(";; vectormap_finish\n"); fflush(0);
-    vectormap_on_collected(f, dummy, args...);
-    vectormap_check_error("vectormap_end", __FILE__, __LINE__);
-    cudaError_t ce;
-    ce = cudaDeviceSynchronize();
-    if (ce != cudaSuccess) {
-      fprintf(stderr,
-              "%s:%i (%s): CUDA ERROR (%d): %s.\n",
-              __FILE__, __LINE__, "cudaDeviceSynchronize", (int)ce, cudaGetErrorString(ce));
-      assert(ce == cudaSuccess);
+  static void vectormap_finish1(Funct f, Cell dummy, Args... args) {
+    //printf(";; vectormap_finish1\n"); fflush(0);
+    if (Map1::mapdata1().size() != 0) {
+      Map1::vectormap_on_collected1(f, dummy, args...);
+    }
+  }
+
+  template <class Funct, class Cell, class... Args>
+  static void vectormap_finish2(Funct f, Cell dummy, Args... args) {
+    //printf(";; vectormap_finish2\n"); fflush(0);
+    if (Map2::cellpairs().size() != 0) {
+      Map2::vectormap_on_collected2(f, dummy, args...);
     }
   }
 };

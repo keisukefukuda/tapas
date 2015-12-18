@@ -31,7 +31,7 @@ private:
 #endif
       real_t x = 1.0 / theta;                                   //  Inverse of theta
       assert(theta != 1.0);                                     //  Newton-Raphson won't work for theta==1
-      real_t a = c * powf(std::abs(C->M[0]),1.0/3);             //  Cell coefficient
+      real_t a = c * powf(std__abs(C->M[0]),1.0/3);             //  Cell coefficient
       for (int i=0; i<5; i++) {                                 //  Loop for Newton-Raphson iteration
 	real_t f = x * x - 2 * x + 1 - a * std::pow(x,-P);      //   Function value
 	real_t df = (P + 2) * x - 2 * (P + 1) + P / x;          //   Function derivative value
@@ -137,7 +137,7 @@ public:
       C_iter C0 = cells.begin();                                //  Set iterator of target root cell
       PostOrderTraversal postOrderTraversal(C0, C0, theta, useRmax); // Instantiate recursive functor
       postOrderTraversal();                                     //  Recursive call for upward pass
-      real_t c = (1 - theta) * (1 - theta) / std::pow(theta,P+2) / powf(std::abs(C0->M[0]),1.0/3); // Root coefficient
+      real_t c = (1 - theta) * (1 - theta) / std::pow(theta,P+2) / powf(std__abs(C0->M[0]),1.0/3); // Root coefficient
       if (useRopt) {                                            //  If using error optimized theta
         SetRopt setRopt(C0, C0, c, theta);                      //   Instantiate recursive functor
         setRopt();                                              //   Error optimization of R

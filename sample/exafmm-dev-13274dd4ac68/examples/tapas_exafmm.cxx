@@ -87,7 +87,7 @@ static inline void FMM_Downward(Tapas::Cell &c) {
   //if (c.nb() == 0) return;
   if (!c.IsRoot()) L2L(c);
   if (c.IsLeaf() && c.nb() > 0) {
-    tapas::Map(L2P, c.bodies());
+    tapas::Map(L2P(), c.bodies());
   }
 }
 
@@ -117,11 +117,7 @@ struct FMM_DTT {
       numM2L++;
       M2L(Ci, Cj, Xperiodic, mutual);                   //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-#ifdef TAPAS_USE_VECTORMAP
       tapas::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic, mutual);
-#else
-      tapas::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic, mutual);
-#endif /*TAPAS_USE_VECTORMAP*/
 
       numP2P++;
     } else {                                                    // Else if cells are close but not bodies
@@ -498,9 +494,9 @@ int main(int argc, char ** argv) {
 #ifdef TAPAS_USE_VECTORMAP
     vec3 Xperiodic = 0; // dummy; periodic not ported
     int mutual = 0;     // dummy; mutual interaction is not ported to CUDA
-    Tapas::Cell::TSPClass::Vectormap::vectormap_finish(P2P(),
-                                                       *root,
-                                                       Xperiodic, mutual);
+    Tapas::Cell::TSPClass::Vectormap::vectormap_finish2(P2P(), *root,
+                                                        Xperiodic, mutual);
+    Tapas::Cell::TSPClass::Vectormap::vectormap_end();
 #endif /*TAPAS_USE_VECTORMAP*/
     
     logger::stopTimer("Traverse");
@@ -513,7 +509,18 @@ int main(int argc, char ** argv) {
 #endif
 
     logger::startTimer("Downward pass");
+
+#ifdef TAPAS_USE_VECTORMAP
+    Tapas::Cell::TSPClass::Vectormap::vectormap_start();
+#endif /*TAPAS_USE_VECTORMAP*/
+
     tapas::DownwardMap(FMM_Downward, *root);
+
+#ifdef TAPAS_USE_VECTORMAP
+    Tapas::Cell::TSPClass::Vectormap::vectormap_finish1(L2P(), *root);
+    Tapas::Cell::TSPClass::Vectormap::vectormap_end();
+#endif /*TAPAS_USE_VECTORMAP*/
+
     logger::stopTimer("Downward pass");
     
     TAPAS_LOG_DEBUG() << "L2P done\n";

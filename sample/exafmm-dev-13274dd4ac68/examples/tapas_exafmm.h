@@ -38,16 +38,16 @@ using Threading = tapas::threading::MassiveThreads;
 using Threading = tapas::threading::Default;
 #endif /* MTHREADS */
 
+#if defined(__CUDACC__) && defined(TAPAS_USE_VECTORMAP)
+using VectormapImpl = tapas::Vectormap_CUDA_Packed<3, real_t, BodyInfo, kvec4,
+                                                   CellAttr>;
+#else
+using VectormapImpl = tapas::Vectormap_CPU<3, real_t, BodyInfo, kvec4,
+                                           CellAttr>;
+#endif /*defined(__CUDACC__) && defined(TAPAS_USE_VECTORMAP)*/
+
 typedef tapas::Tapas<3, real_t, BodyInfo, kvec4, CellAttr,
-                     HOT, Threading
-#ifdef TAPAS_USE_VECTORMAP
-#  ifdef __CUDACC__
-                     , tapas::Vectormap_CUDA_Packed<3, real_t, BodyInfo, kvec4>
-#  else
-                     , tapas::Vectormap_CPU<3, real_t, BodyInfo, kvec4>
-#  endif /*__CUDACC__*/
-#endif /*TAPAS_USE_VECTORMAP*/
-                     > Tapas;
+                     HOT, Threading, VectormapImpl> Tapas;
 
 typedef Tapas::Region Region;
 
@@ -59,11 +59,7 @@ void M2M(Tapas::Cell &C);
 void M2L(Tapas::Cell &Ci, Tapas::Cell &Cj, vec3 Xperiodic, bool mutual);
 void L2L(Tapas::Cell &C);
 void L2P(Tapas::BodyIterator &B);
-#ifdef TAPAS_USE_VECTORMAP
-struct P2P;
-#else
 void P2P(Tapas::BodyIterator &Ci, Tapas::BodyIterator &Cj, vec3 Xperiodic);
-#endif /*TAPAS_USE_VECTORMAP*/
 
 } // tapas_kernel
 #endif /* if 0 */

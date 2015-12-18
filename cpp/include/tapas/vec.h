@@ -43,6 +43,10 @@ class Vec {
   FP &operator[](int i) {
     return x_[i];
   }
+#ifdef __CUDACC__
+/* It is used in tovec() in L2P. */
+__host__ __device__
+#endif
   const FP &operator[](int i) const {
     return x_[i];
   }
