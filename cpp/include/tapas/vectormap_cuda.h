@@ -74,6 +74,8 @@ static void vectormap_check_error(const char *msg, const char *file, const int l
   }
 }
 
+/* (Single argument mapping) */
+
 template <class CA, class V3, class BV, class BA, class Funct, class... Args>
 __global__
 void vectormap_cuda_kernel1(const CA c_attr, const V3 c_center,
@@ -109,7 +111,7 @@ void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
 
     if (index < n0) {
       unsigned int jlim = min(tilesize, (int)(n1 - tilesize * t));
-      /*AHO*/ //#pragma unroll 128
+#pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
         BV* p1 = &scratchpad[j];
         if (!(v0 == v1 && index == (tilesize * t + j))) {
@@ -335,17 +337,21 @@ struct Vectormap_CUDA_Simple {
 
   static void vectormap_start() {}
 
-  template <class Funct, class... Args>
-  static void vectormap_finish(Funct f, Args... args) {
+  static void vectormap_end() {
     vectormap_check_error("vectormap_end", __FILE__, __LINE__);
     cudaError_t ce;
     ce = cudaDeviceSynchronize();
     if (ce != cudaSuccess) {
       fprintf(stderr,
               "%s:%i (%s): CUDA ERROR (%d): %s.\n",
-              __FILE__, __LINE__, "cudaDeviceSynchronize", (int)ce, cudaGetErrorString(ce));
+              __FILE__, __LINE__, "cudaDeviceSynchronize",
+              (int)ce, cudaGetErrorString(ce));
       assert(ce == cudaSuccess);
     }
+  }
+
+  template <class Funct, class... Args>
+  static void vectormap_finish(Funct f, Args... args) {
   }
 
   /* (One argument mapping) */
@@ -372,11 +378,11 @@ struct Vectormap_CUDA_Simple {
 
     int sz = b0.size();
     const Cell c = (*b0).cell();
-    const typename Cell::ATTR &c_attr = c.attr();
+    const typename Cell::ATTR c_attr = c.attr();
     const tapas::Vec<TSP::Dim, typename TSP::FP> c_center = c.center();
     const typename Cell::BodyType* b = b0.as_body();
     typename Cell::BodyAttrType* b_attr = &b0.attr();
-    if (1) {
+    if (0) {
       for (int i = 0; i < sz; i++) {
         f(c_attr, c_center, (b + i), (b_attr + i), args...);
       }
@@ -384,6 +390,13 @@ struct Vectormap_CUDA_Simple {
       int szup = (TAPAS_CEILING(sz, 256) * 256);
       int ctasize = std::min(szup, tesla_attr0.maxThreadsPerBlock);
       size_t nblocks = TAPAS_CEILING(sz, ctasize);
+
+      /*AHO*/
+      if (0) {
+        fprintf(stderr, "launch array=(%p/%d, %p/%d) blks=%ld cta=%d\n",
+                b, sz, b_attr, sz, nblocks, ctasize);
+        fflush(0);
+      }
 
       streamid++;
       int s = (streamid % tesla_dev.n_streams);
@@ -444,11 +457,13 @@ struct Vectormap_CUDA_Simple {
     int scratchpadsize = (sizeof(typename Cell::BodyType) * tilesize);
     size_t nblocks = TAPAS_CEILING(n0, ctasize);
 
-#if 0 /*AHO*/
-    fprintf(stderr, "launch arrays=(%p/%ld, %p/%ld, %p/%ld) blks=%ld cta=%d\n",
-            v0, n0, v1, n1, a0, n0, nblocks, ctasize);
-    fflush(0);
-#endif
+    /*AHO*/
+    if (0) {
+      fprintf(stderr, "launch arrays=(%p/%ld, %p/%ld, %p/%ld)"
+              " blks=%ld cta=%d\n",
+              v0, n0, v1, n1, a0, n0, nblocks, ctasize);
+      fflush(0);
+    }
 
     int s = (((unsigned long)&c0 >> 4) % tesla_dev.n_streams);
     vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
@@ -535,6 +550,19 @@ struct Vectormap_CUDA_Packed
     cellpairs().clear();
   }
 
+  static void vectormap_end() {
+    vectormap_check_error("vectormap_end", __FILE__, __LINE__);
+    cudaError_t ce;
+    ce = cudaDeviceSynchronize();
+    if (ce != cudaSuccess) {
+      fprintf(stderr,
+              "%s:%i (%s): CUDA ERROR (%d): %s.\n",
+              __FILE__, __LINE__, "cudaDeviceSynchronize",
+              (int)ce, cudaGetErrorString(ce));
+      assert(ce == cudaSuccess);
+    }
+  }
+
   /* (Two argument mapping with left packing.) */
 
   template <class Funct, class Cell, class... Args>
@@ -548,7 +576,7 @@ struct Vectormap_CUDA_Packed
     assert(c0.IsLeaf() && c1.IsLeaf());
 
     if (c0.nb() == 0 || c1.nb() == 0) return;
-    
+
     /* (Cast to drop const, below). */
     Cell_Data<BV> d0;
     Cell_Data<BV> d1;
@@ -740,15 +768,6 @@ struct Vectormap_CUDA_Packed
   static void vectormap_finish(Funct f, Cell dummy, Args... args) {
     //printf(";; vectormap_finish\n"); fflush(0);
     vectormap_on_collected(f, dummy, args...);
-    vectormap_check_error("vectormap_end", __FILE__, __LINE__);
-    cudaError_t ce;
-    ce = cudaDeviceSynchronize();
-    if (ce != cudaSuccess) {
-      fprintf(stderr,
-              "%s:%i (%s): CUDA ERROR (%d): %s.\n",
-              __FILE__, __LINE__, "cudaDeviceSynchronize", (int)ce, cudaGetErrorString(ce));
-      assert(ce == cudaSuccess);
-    }
   }
 };
 

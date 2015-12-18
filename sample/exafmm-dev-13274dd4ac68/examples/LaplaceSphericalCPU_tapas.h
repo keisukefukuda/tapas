@@ -22,6 +22,9 @@ namespace {
 const complex_t I(0.,1.);                                       // Imaginary
                                                                 // unit
 template <int DIM, class FP> inline
+#ifdef __CUDACC__
+__host__ __device__
+#endif
 vec<DIM, FP> tovec(const tapas::Vec<DIM, FP> &src) {
   vec<DIM, FP> dst;
   for (int i = 0; i < DIM; ++i) {
@@ -31,6 +34,9 @@ vec<DIM, FP> tovec(const tapas::Vec<DIM, FP> &src) {
 }
 
 //! Get r,theta,phi from x,y,z
+#ifdef __CUDACC__
+__host__ __device__ __forceinline__
+#endif
 void cart2sph(real_t & r, real_t & theta, real_t & phi, vec3 dX) {
   r = sqrt(norm(dX));                                           // r = sqrt(x^2 + y^2 + z^2)
   theta = r == 0 ? 0 : acos(dX[2] / r);                         // theta = acos(z / r)
@@ -39,6 +45,9 @@ void cart2sph(real_t & r, real_t & theta, real_t & phi, vec3 dX) {
 
 //! Spherical to cartesian coordinates
 template<typename T>
+#ifdef __CUDACC__
+__host__ __device__ __forceinline__
+#endif
 void sph2cart(real_t r, real_t theta, real_t phi, T spherical, T & cartesian) {
   cartesian[0] = sin(theta) * cos(phi) * spherical[0]           // x component (not x itself)
     + cos(theta) * cos(phi) / r * spherical[1]
@@ -51,20 +60,24 @@ void sph2cart(real_t r, real_t theta, real_t phi, T spherical, T & cartesian) {
 }
 
 //! Evaluate solid harmonics \f$ r^n Y_{n}^{m} \f$
+#ifdef __CUDACC__
+__host__ __device__ __forceinline__
+#endif
 void evalMultipole(real_t rho, real_t alpha, real_t beta, complex_t * Ynm, complex_t * YnmTheta) {
   real_t x = std::cos(alpha);                                   // x = cos(alpha)
   real_t y = std::sin(alpha);                                   // y = sin(alpha)
   real_t fact = 1;                                              // Initialize 2 * m + 1
   real_t pn = 1;                                                // Initialize Legendre polynomial Pn
   real_t rhom = 1;                                              // Initialize rho^m
-  complex_t ei = std::exp(I * beta);                            // exp(i * beta)
+  const complex_t II(0.,1.);
+  complex_t ei = std__exp(II * beta);                            // exp(i * beta)
   complex_t eim = 1.0;                                          // Initialize exp(i * m * beta)
   for (int m=0; m<P; m++) {                                     // Loop over m in Ynm
     real_t p = pn;                                              //  Associated Legendre polynomial Pnm
     int npn = m * m + 2 * m;                                    //  Index of Ynm for m > 0
     int nmn = m * m;                                            //  Index of Ynm for m < 0
     Ynm[npn] = rhom * p * eim;                                  //  rho^m * Ynm for m > 0
-    Ynm[nmn] = std::conj(Ynm[npn]);                             //  Use conjugate relation for m < 0
+    Ynm[nmn] = std__conj(Ynm[npn]);                             //  Use conjugate relation for m < 0
     real_t p1 = p;                                              //  Pnm-1
     p = x * (2 * m + 1) * p1;                                   //  Pnm using recurrence relation
     YnmTheta[npn] = rhom * (p - (m + 1) * x * p1) / y * eim;    //  theta derivative of r^n * Ynm
@@ -75,7 +88,7 @@ void evalMultipole(real_t rho, real_t alpha, real_t beta, complex_t * Ynm, compl
       int nmm = n * n + n - m;                                  //   Index of Ynm for m < 0
       rhon /= -(n + m);                                         //   Update factorial
       Ynm[npm] = rhon * p * eim;                                //   rho^n * Ynm
-      Ynm[nmm] = std::conj(Ynm[npm]);                           //   Use conjugate relation for m < 0
+      Ynm[nmm] = std__conj(Ynm[npm]);                           //   Use conjugate relation for m < 0
       real_t p2 = p1;                                           //   Pnm-2
       p1 = p;                                                   //   Pnm-1
       p = (x * (2 * n + 1) * p1 - (n + m) * p2) / (n - m + 1);  //   Pnm using recurrence relation
@@ -97,14 +110,14 @@ void evalLocal(real_t rho, real_t alpha, real_t beta, complex_t * Ynm) {
   real_t pn = 1;                                                // Initialize Legendre polynomial Pn
   real_t invR = -1.0 / rho;                                     // - 1 / rho
   real_t rhom = -invR;                                          // Initialize rho^(-m-1)
-  complex_t ei = std::exp(I * beta);                            // exp(i * beta)
+  complex_t ei = std__exp(I * beta);                            // exp(i * beta)
   complex_t eim = 1.0;                                          // Initialize exp(i * m * beta)
   for (int m=0; m<P; m++) {                                     // Loop over m in Ynm
     real_t p = pn;                                              //  Associated Legendre polynomial Pnm
     int npn = m * m + 2 * m;                                    //  Index of Ynm for m > 0
     int nmn = m * m;                                            //  Index of Ynm for m < 0
     Ynm[npn] = rhom * p * eim;                                  //  rho^(-m-1) * Ynm for m > 0
-    Ynm[nmn] = std::conj(Ynm[npn]);                             //  Use conjugate relation for m < 0
+    Ynm[nmn] = std__conj(Ynm[npn]);                             //  Use conjugate relation for m < 0
     real_t p1 = p;                                              //  Pnm-1
     p = x * (2 * m + 1) * p1;                                   //  Pnm using recurrence relation
     rhom *= invR;                                               //  rho^(-m-1)
@@ -113,7 +126,7 @@ void evalLocal(real_t rho, real_t alpha, real_t beta, complex_t * Ynm) {
       int npm = n * n + n + m;                                  //   Index of Ynm for m > 0
       int nmm = n * n + n - m;                                  //   Index of Ynm for m < 0
       Ynm[npm] = rhon * p * eim;                                //   rho^n * Ynm for m > 0
-      Ynm[nmm] = std::conj(Ynm[npm]);                           //   Use conjugate relation for m < 0
+      Ynm[nmm] = std__conj(Ynm[npm]);                           //   Use conjugate relation for m < 0
       real_t p2 = p1;                                           //   Pnm-2
       p1 = p;                                                   //   Pnm-1
       p = (x * (2 * n + 1) * p1 - (n + m) * p2) / (n - m + 1);  //   Pnm using recurrence relation
@@ -179,7 +192,7 @@ void M2M(Tapas::Cell & C) {
           for (int m=k; m<=std::min(n,j+k-n); m++) {
             int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
             int nm    = n * n + n - m;
-            M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+            M += std__conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
           }
         }
         C.attr().M[jks] += M;
@@ -228,10 +241,10 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
         for (int m=-n; m<0; m++) {
           int nms  = n * (n + 1) / 2 - m;
           int jnkm = (j + n) * (j + n) + j + n + m - k;
-          Li += std::conj(Cj.attr().M[nms]) * Cnm * Ynmi[jnkm];
+          Li += std__conj(Cj.attr().M[nms]) * Cnm * Ynmi[jnkm];
           //std::cerr << "M: " << Cj.attr().M[nms] << std::conj(Cj.attr().M[nms]) << std::endl;
           //std::cerr << "Y: " << Ynmi[jnkm] << std::endl;
-          if (mutual) Lj += std::conj(Ci.attr().M[nms]) * Cnm * Ynmj[jnkm];
+          if (mutual) Lj += std__conj(Ci.attr().M[nms]) * Cnm * Ynmj[jnkm];
         }
         for (int m=0; m<=n; m++) {
           int nms  = n * (n + 1) / 2 + m;
@@ -265,7 +278,7 @@ struct L2P {
      cell-attr are passed to the GPU as value). */
 
 #ifdef __CUDACC__
-  __host__ __device__ __forceinline__
+__host__ __device__ __forceinline__
 #endif
 void operator() /*(const Tapas::Cell::ATTR c_attr,
                  const tapas::Vec<Tapas::Cell::TSPClass::Dim,
@@ -274,6 +287,7 @@ void operator() /*(const Tapas::Cell::ATTR c_attr,
                  Tapas::Cell::BodyAttrType* b_attr)*/
   (const CellAttr c_attr, const tapas::Vec<3, real_t> c_center,
    const Body* B, kvec4* b_attr) {
+  const complex_t II(0.,1.);
   complex_t Ynm[P*P], YnmTheta[P*P];
   /*const Tapas::Cell &C = B.cell();*/
   vec3 dX = B->X - tovec(c_center);
@@ -287,17 +301,17 @@ void operator() /*(const Tapas::Cell::ATTR c_attr,
     int nm  = n * n + n;
     int nms = n * (n + 1) / 2;
     //B->TRG[0] += std::real(c_attr.L[nms] * Ynm[nm]);
-    (*b_attr)[0] += std::real(c_attr.L[nms] * Ynm[nm]);
-    spherical[0] += std::real(c_attr.L[nms] * Ynm[nm]) / r * n;
-    spherical[1] += std::real(c_attr.L[nms] * YnmTheta[nm]);
-    for( int m=1; m<=n; m++) {
+    (*b_attr)[0] += std__real(c_attr.L[nms] * Ynm[nm]);
+    spherical[0] += std__real(c_attr.L[nms] * Ynm[nm]) / r * n;
+    spherical[1] += std__real(c_attr.L[nms] * YnmTheta[nm]);
+    for (int m=1; m<=n; m++) {
       nm  = n * n + n + m;
       nms = n * (n + 1) / 2 + m;
       //B->TRG[0] += 2 * std::real(c_attr.L[nms] * Ynm[nm]);
-      (*b_attr)[0] += 2 * std::real(c_attr.L[nms] * Ynm[nm]);
-      spherical[0] += 2 * std::real(c_attr.L[nms] * Ynm[nm]) / r * n;
-      spherical[1] += 2 * std::real(c_attr.L[nms] * YnmTheta[nm]);
-      spherical[2] += 2 * std::real(c_attr.L[nms] * Ynm[nm] * I) * m;
+      (*b_attr)[0] += 2 * std__real(c_attr.L[nms] * Ynm[nm]);
+      spherical[0] += 2 * std__real(c_attr.L[nms] * Ynm[nm]) / r * n;
+      spherical[1] += 2 * std__real(c_attr.L[nms] * YnmTheta[nm]);
+      spherical[2] += 2 * std__real(c_attr.L[nms] * Ynm[nm] * II) * m;
     }
   }
   sph2cart(r, theta, phi, spherical, cartesian);
@@ -367,7 +381,7 @@ void L2L(Tapas::Cell &C) {
         for (int m=j+k-n; m<0; m++) {
           int jnkm = (n - j) * (n - j) + n - j + m - k;
           int nms  = n * (n + 1) / 2 - m;
-          L += std::conj(Cj.attr().L[nms]) * Ynm[jnkm] * real_t(ODDEVEN(k));
+          L += std__conj(Cj.attr().L[nms]) * Ynm[jnkm] * real_t(ODDEVEN(k));
         }
         for (int m=0; m<=n; m++) {
           if( n-j >= abs(m-k) ) {

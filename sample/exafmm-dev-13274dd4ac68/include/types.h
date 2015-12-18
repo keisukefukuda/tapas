@@ -1,7 +1,11 @@
 #ifndef types_h
 #define types_h
 #include "align.h"
+#ifdef __CUDACC__
+#include <thrust/complex.h>
+#else
 #include <complex>
+#endif
 #include "kahan.h"
 #include "macros.h"
 #include <stdint.h>
@@ -16,7 +20,22 @@ const real_t EPS = 1e-16;                                       //!< Double prec
 typedef float                real_t;                            //!< Floating point type is single precision
 const real_t EPS = 1e-8;                                        //!< Single precision epsilon
 #endif
+#ifdef __CUDACC__
+typedef thrust::complex<real_t> complex_t;
+#define std__exp thrust::exp
+#define std__conj thrust::conj
+#define std__real(X) ((X).real())
+#define std__pow thrust::pow
+#define std__abs thrust::abs
+#else
 typedef std::complex<real_t> complex_t;                         //!< Complex type
+#define std__exp std::exp
+#define std__conj std::conj
+#define std__real std::real
+#define std__pow std::pow
+#define std__abs std::abs
+#endif
+
 typedef vec<3,real_t>        vec3;                              //!< Vector of 3 real_t types
 
 // SIMD vector types for MIC, AVX, and SSE

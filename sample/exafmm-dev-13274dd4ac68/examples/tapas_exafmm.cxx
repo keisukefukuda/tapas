@@ -494,9 +494,9 @@ int main(int argc, char ** argv) {
 #ifdef TAPAS_USE_VECTORMAP
     vec3 Xperiodic = 0; // dummy; periodic not ported
     int mutual = 0;     // dummy; mutual interaction is not ported to CUDA
-    Tapas::Cell::TSPClass::Vectormap::vectormap_finish(P2P(),
-                                                       *root,
+    Tapas::Cell::TSPClass::Vectormap::vectormap_finish(P2P(), *root,
                                                        Xperiodic, mutual);
+    Tapas::Cell::TSPClass::Vectormap::vectormap_end();
 #endif /*TAPAS_USE_VECTORMAP*/
     
     logger::stopTimer("Traverse");
@@ -509,7 +509,17 @@ int main(int argc, char ** argv) {
 #endif
 
     logger::startTimer("Downward pass");
+
+#ifdef TAPAS_USE_VECTORMAP
+    Tapas::Cell::TSPClass::Vectormap::vectormap_start();
+#endif /*TAPAS_USE_VECTORMAP*/
+
     tapas::DownwardMap(FMM_Downward, *root);
+
+#ifdef TAPAS_USE_VECTORMAP
+    Tapas::Cell::TSPClass::Vectormap::vectormap_end();
+#endif /*TAPAS_USE_VECTORMAP*/
+
     logger::stopTimer("Downward pass");
     
     TAPAS_LOG_DEBUG() << "L2P done\n";
