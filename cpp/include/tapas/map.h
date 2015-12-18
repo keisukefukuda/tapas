@@ -182,18 +182,26 @@ void Map(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args...args) {
   }
 }
   
-#ifdef TAPAS_USE_VECTORMAP
-
 /* (Specialization of the Map() below by a general ProductIterator<T>
    with ProductIterator<BodyIterator<T>>). */
 
-template <class Funct, class Cell, class...Args>
-void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args...args) {
-  typedef typename Cell::TSPClass::Vectormap Vectormap;
-  Vectormap::vector_map2(f, prod, args...);
+template <class Funct, class CellType, class...Args>
+void Map(Funct f, ProductIterator<BodyIterator<CellType>> prod, Args...args) {
+  TAPAS_LOG_DEBUG() << "map product iterator size: "
+                    << prod.size() << std::endl;
+  typedef typename CellType::TSPClass TSP;
+  typedef tapas::Vectormap_CPU<TSP::Dim, typename TSP::FP,
+    typename TSP::BT, typename TSP::BT_ATTR> CPUMAP;
+  if (std::is_same<typename TSP::Vectormap, CPUMAP>::value) {
+  if (prod.size() > 0) {
+    product_map(prod.t1_, 0, prod.t1_.size(),
+                prod.t2_, 0, prod.t2_.size(),
+                f, args...);
+  }
+  } else {
+    TSP::Vectormap::vector_map2(f, prod, args...);
+  }
 }
-
-#endif /*TAPAS_USE_VECTORMAP*/
 
 template <class Funct, class T1_Iter, class...Args>
 void Map(Funct f, ProductIterator<T1_Iter> prod, Args...args) {
@@ -228,9 +236,25 @@ template <class Funct, class CellType, class... Args>
 void Map(Funct f, iter::BodyIterator<CellType> iter, Args...args) {
   TAPAS_LOG_DEBUG() << "map non-product body iterator size: "
                     << iter.size() << std::endl;
+  typedef typename CellType::TSPClass TSP;
+  typedef tapas::Vectormap_CPU<TSP::Dim, typename TSP::FP,
+    typename TSP::BT, typename TSP::BT_ATTR> CPUMAP;
+  if (std::is_same<typename TSP::Vectormap, CPUMAP>::value) {
   for (int i = 0; i < iter.size(); ++i) {
+#ifdef TAPAS_USE_VECTORMAP
+    const CellType c = (*iter).cell();
+    const typename CellType::ATTR &c_attr = c.attr();
+    const tapas::Vec<TSP::Dim, typename TSP::FP> c_center = c.center();
+    const typename CellType::BodyType* b = &(c.body(i));
+    typename CellType::BodyAttrType* b_attr0 = &((*iter).attr());
+    f(c_attr, c_center, b, (b_attr0 + i), args...);
+#else
     f(*iter, args...);
+#endif /*TAPAS_USE_VECTORMAP*/
     iter++;
+  }
+  } else {
+    TSP::Vectormap::vector_map1(f, *iter, args...);
   }
 }
 
@@ -266,9 +290,6 @@ inline void DownwardMap(Funct f, T &x, Args...args) {
 //   T::Map(lambda, x);
 // }
 
-#ifdef TAPAS_USE_VECTORMAP
-/*EMPTY*/
-#else
 template <class Funct, class T, class... Args>
 void Map(Funct f, T &&x, Args...args) {
   TAPAS_LOG_DEBUG() << "map non-iterator (r-value version)"  << std::endl;
@@ -279,7 +300,6 @@ void Map(Funct f, T &&x, Args...args) {
   
   T2::Map(lambda, std::forward<T>(x));
 }
-#endif /*TAPAS_USE_VECTORMAP*/
 
 } // namespace tapas
 

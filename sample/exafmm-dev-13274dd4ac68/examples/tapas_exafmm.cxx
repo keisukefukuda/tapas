@@ -87,7 +87,7 @@ static inline void FMM_Downward(Tapas::Cell &c) {
   //if (c.nb() == 0) return;
   if (!c.IsRoot()) L2L(c);
   if (c.IsLeaf() && c.nb() > 0) {
-    tapas::Map(L2P, c.bodies());
+    tapas::Map(L2P(), c.bodies());
   }
 }
 
@@ -117,11 +117,7 @@ struct FMM_DTT {
       numM2L++;
       M2L(Ci, Cj, Xperiodic, mutual);                   //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-#ifdef TAPAS_USE_VECTORMAP
       tapas::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic, mutual);
-#else
-      tapas::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic, mutual);
-#endif /*TAPAS_USE_VECTORMAP*/
 
       numP2P++;
     } else {                                                    // Else if cells are close but not bodies

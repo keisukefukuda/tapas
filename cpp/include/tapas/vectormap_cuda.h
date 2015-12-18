@@ -74,18 +74,16 @@ static void vectormap_check_error(const char *msg, const char *file, const int l
   }
 }
 
-#if 0
-template <class Funct, typename BV, class... Args>
+template <class CA, class V3, class BV, class BA, class Funct, class... Args>
 __global__
-void vectormap_cuda_kernel1(BV* v0, size_t n0,
-                            Funct f, Args... args) {
+void vectormap_cuda_kernel1(const CA c_attr, const V3 c_center,
+                            const BV* b, BA* b_attr,
+                            size_t sz, Funct f, Args... args) {
   int index = (blockDim.x * blockIdx.x + threadIdx.x);
-  if (index < n0) {
-    BV p0 = v0[index];
-    f(p0, args...);
+  if (index < sz) {
+    f(c_attr, c_center, (b + index), (b_attr + index), args...);
   }
 }
-#endif
 
 /* (Two argument mapping (each pair)) */
 
@@ -352,46 +350,47 @@ struct Vectormap_CUDA_Simple {
 
   /* (One argument mapping) */
 
-  /* NOTE IT RUNS ON CPUs.  The kernel "tapas_kernel::L2P()" is not
-     coded to be run on GPUs, since it accesses the cell. */
-
   template <class Funct, class Cell, class... Args>
-  static void vector_map1(Funct f, BodyIterator<Cell> iter,
+  static void vector_map1(Funct f, BodyIterator<Cell> b0,
                           Args... args) {
-    int sz = iter.size();
-    for (int i = 0; i < sz; i++) {
-      f(*(iter + i), args...);
-    }
-  }
+    typedef typename Cell::TSPClass TSP;
 
-#if 0
-  template <class Funct, class Cell, class... Args>
-  static void vector_map1(Funct f,
-                          BodyIterator<Cell> b0,
-                          Args... args) {
     static std::mutex mutex0;
     static struct cudaFuncAttributes tesla_attr0;
     if (tesla_attr0.binaryVersion == 0) {
       mutex0.lock();
       cudaError_t ce = cudaFuncGetAttributes(
         &tesla_attr0,
-        &vectormap_cuda_kernel1<Funct, typename Cell::BodyType, Args...>);
+        &vectormap_cuda_kernel1<typename Cell::ATTR,
+        tapas::Vec<TSP::Dim, typename TSP::FP>,
+        typename Cell::BodyType, typename Cell::BodyAttrType,
+        Funct, Args...>);
       assert(ce == cudaSuccess);
       mutex0.unlock();
     }
     assert(tesla_attr0.binaryVersion != 0);
 
-    size_t n0 = b0.size();
-    int n0up = (TAPAS_CEILING(n0, 256) * 256);
-    int ctasize = std::min(n0up, tesla_attr0.maxThreadsPerBlock);
-    size_t nblocks = TAPAS_CEILING(n0, ctasize);
+    int sz = b0.size();
+    const Cell c = (*b0).cell();
+    const typename Cell::ATTR &c_attr = c.attr();
+    const tapas::Vec<TSP::Dim, typename TSP::FP> c_center = c.center();
+    const typename Cell::BodyType* b = b0.as_body();
+    typename Cell::BodyAttrType* b_attr = &b0.attr();
+    if (1) {
+      for (int i = 0; i < sz; i++) {
+        f(c_attr, c_center, (b + i), (b_attr + i), args...);
+      }
+    } else {
+      int szup = (TAPAS_CEILING(sz, 256) * 256);
+      int ctasize = std::min(szup, tesla_attr0.maxThreadsPerBlock);
+      size_t nblocks = TAPAS_CEILING(sz, ctasize);
 
-    streamid++;
-    int s = (streamid % tesla_dev.n_streams);
-    vectormap_cuda_kernel1<<<nblocks, ctasize, 0, tesla_dev.streams[s]>>>
-      (b0, n0, f, args...);
+      streamid++;
+      int s = (streamid % tesla_dev.n_streams);
+      vectormap_cuda_kernel1<<<nblocks, ctasize, 0, tesla_dev.streams[s]>>>
+        (c_attr, c_center, b, b_attr, sz, f, args...);
+    }
   }
-#endif
 
   /* (Two argument mapping) */
 

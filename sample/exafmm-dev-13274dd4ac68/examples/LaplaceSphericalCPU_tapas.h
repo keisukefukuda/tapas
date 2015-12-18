@@ -256,6 +256,61 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   if (mutual) Cj.attr() = attr_j;
 }
 
+#ifdef TAPAS_USE_VECTORMAP
+
+struct L2P {
+  typedef void result_type;
+
+  /* (Here assumes body and body-attr are on the GPU, cell and
+     cell-attr are passed to the GPU as value). */
+
+#ifdef __CUDACC__
+  __host__ __device__ __forceinline__
+#endif
+void operator() /*(const Tapas::Cell::ATTR c_attr,
+                 const tapas::Vec<Tapas::Cell::TSPClass::Dim,
+                 const Tapas::Cell::TSPClass::FP> c_center,
+                 const Tapas::Cell::BodyType* B,
+                 Tapas::Cell::BodyAttrType* b_attr)*/
+  (const CellAttr c_attr, const tapas::Vec<3, real_t> c_center,
+   const Body* B, kvec4* b_attr) {
+  complex_t Ynm[P*P], YnmTheta[P*P];
+  /*const Tapas::Cell &C = B.cell();*/
+  vec3 dX = B->X - tovec(c_center);
+  vec3 spherical = 0;
+  vec3 cartesian = 0;
+  real_t r, theta, phi;
+  cart2sph(r, theta, phi, dX);
+  evalMultipole(r, theta, phi, Ynm, YnmTheta);
+  *b_attr /= B->SRC;
+  for (int n=0; n<P; n++) {
+    int nm  = n * n + n;
+    int nms = n * (n + 1) / 2;
+    //B->TRG[0] += std::real(c_attr.L[nms] * Ynm[nm]);
+    (*b_attr)[0] += std::real(c_attr.L[nms] * Ynm[nm]);
+    spherical[0] += std::real(c_attr.L[nms] * Ynm[nm]) / r * n;
+    spherical[1] += std::real(c_attr.L[nms] * YnmTheta[nm]);
+    for( int m=1; m<=n; m++) {
+      nm  = n * n + n + m;
+      nms = n * (n + 1) / 2 + m;
+      //B->TRG[0] += 2 * std::real(c_attr.L[nms] * Ynm[nm]);
+      (*b_attr)[0] += 2 * std::real(c_attr.L[nms] * Ynm[nm]);
+      spherical[0] += 2 * std::real(c_attr.L[nms] * Ynm[nm]) / r * n;
+      spherical[1] += 2 * std::real(c_attr.L[nms] * YnmTheta[nm]);
+      spherical[2] += 2 * std::real(c_attr.L[nms] * Ynm[nm] * I) * m;
+    }
+  }
+  sph2cart(r, theta, phi, spherical, cartesian);
+  (*b_attr)[1] += cartesian[0];
+  //B->TRG[2] += cartesian[1];
+  (*b_attr)[2] += cartesian[1];
+  //B->TRG[3] += cartesian[2];
+  (*b_attr)[3] += cartesian[2]; 
+}
+};
+
+#else /*TAPAS_USE_VECTORMAP*/
+
 void L2P(Tapas::BodyIterator &B) {
   complex_t Ynm[P*P], YnmTheta[P*P];
   const Tapas::Cell &C = B.cell();
@@ -290,6 +345,8 @@ void L2P(Tapas::BodyIterator &B) {
   //B->TRG[3] += cartesian[2];
   B.attr()[3] += cartesian[2]; 
 }
+
+#endif /*TAPAS_USE_VECTORMAP*/
 
 void L2L(Tapas::Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];

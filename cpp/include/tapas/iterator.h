@@ -85,6 +85,12 @@ class BodyIterator {
   bool AllowMutualInteraction(const BodyIterator &x) const {
     return c_.GetOptMutual() && c_ == x.c_;
   }
+
+#ifdef TAPAS_USE_VECTORMAP
+  typename CellType::BodyType* as_body() const {
+    return &(c_.body(idx_));
+  }
+#endif /*TAPAS_USE_VECTORMAP*/
 };
 
 template <class CELL>

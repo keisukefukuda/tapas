@@ -6,6 +6,7 @@ const real_t EPS2 = 0.0;                                        //!< Softening p
 #ifdef TAPAS_USE_VECTORMAP
 
 struct P2P {
+  typedef void result_type;
 
   P2P() {}
 

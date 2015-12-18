@@ -1382,6 +1382,7 @@ Partitioner<TSP>::Partition(typename TSP::BT::type *b, index_t num_bodies) {
   SamplingOctree<TSP, SFC> stree(b, num_bodies, data, max_nb_);
   stree.Build();
     
+  /*AHO*/
 #ifdef TAPAS_USE_VECTORMAP
   using BodyType = typename TSP::BT::type;
   using BodyAttrType = typename TSP::BT_ATTR;
@@ -1460,11 +1461,7 @@ struct HOT {
 template <int DIM, class FP, class BT,
           class BT_ATTR, class CELL_ATTR,
           class PartitionAlgorithm,
-          class Threading
-#ifdef TAPAS_USE_VECTORMAP
-          , class Vectormap
-#endif /*TAPAS_USE_VECTORMAP*/
-          >
+          class Threading, class Vectormap>
 class Tapas;
 
 #if 0
@@ -1474,23 +1471,19 @@ class Tapas;
 template <int DIM, class FP, class BT,
           class BT_ATTR, class CELL_ATTR,
           class Threading>
-class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, MortonHOT, Threading
-#ifdef TAPAS_USE_VECTORMAP
+class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, MortonHOT, Threading,
 #  ifdef __CUDACC__
-            , tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR>
+            tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR>
 #  else
-            , tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR>
+            tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR>
 #  endif /*__CUDACC__*/
-#endif /*TAPAS_USE_VECTORMAP*/
             > {
-  typedef TapasStaticParams<DIM, FP, BT, BT_ATTR, CELL_ATTR, Threading
-#ifdef TAPAS_USE_VECTORMAP
+  typedef TapasStaticParams<DIM, FP, BT, BT_ATTR, CELL_ATTR, Threading,
 #  ifdef __CUDACC__
-                            , tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR>
+                            tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR>
 #  else
-                            , tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR>
+                            tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR>
 #  endif /*__CUDACC__*/
-#endif /*TAPAS_USE_VECTORMAP*/
                             > TSP; // Tapas static params
  public:
   using Region = tapas::Region<TSP>;
@@ -1516,25 +1509,13 @@ class MassiveThreads;
  * @brief Specialization of Tapas for HOT (Morton HOT) algorithm
  */
 template <int DIM, class FP, class BT,
-          class BT_ATTR, class CELL_ATTR, class Threading
-#ifdef TAPAS_USE_VECTORMAP
-          , class Vectormap
-#endif /*TAPAS_USE_VECTORMAP*/
->
-class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, HOT<DIM, tapas::sfc::Morton>, Threading
-#ifdef TAPAS_USE_VECTORMAP
-            , Vectormap
-#endif /*TAPAS_USE_VECTORMAP*/
-> {
+          class BT_ATTR, class CELL_ATTR, class Threading, class Vectormap>
+class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, HOT<DIM, tapas::sfc::Morton>, Threading, Vectormap> {
   
   typedef HOT<DIM, tapas::sfc::Morton> MortonHOT;
   
   typedef TapasStaticParams<DIM, FP, BT, BT_ATTR, CELL_ATTR, Threading,
-                            typename MortonHOT::SFC
-#ifdef TAPAS_USE_VECTORMAP
-                            , Vectormap
-#endif /*TAPAS_USE_VECTORMAP*/
-                            > TSP; // Tapas static params
+                            typename MortonHOT::SFC, Vectormap> TSP; // Tapas static params
  public:
   using Region = tapas::Region<TSP>;
   using Cell = hot::Cell<TSP>;
