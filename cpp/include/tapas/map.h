@@ -194,9 +194,14 @@ void Map(Funct f, ProductIterator<BodyIterator<CellType>> prod, Args...args) {
     typename TSP::BT, typename TSP::BT_ATTR> CPUMAP;
   if (std::is_same<typename TSP::Vectormap, CPUMAP>::value) {
   if (prod.size() > 0) {
+#ifdef TAPAS_USE_VECTORMAP
+    /* (DELETE THIS, WHEN P2P KERNEL API'S CONVERGE). */
+    /*AHO*/ assert(0);
+#else
     product_map(prod.t1_, 0, prod.t1_.size(),
                 prod.t2_, 0, prod.t2_.size(),
                 f, args...);
+#endif /*TAPAS_USE_VECTORMAP*/
   }
   } else {
     TSP::Vectormap::vector_map2(f, prod, args...);

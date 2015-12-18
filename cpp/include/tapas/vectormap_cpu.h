@@ -7,10 +7,11 @@
 /** @file vectormap_cpu.h @brief A mock direct part working similar
     way to the GPU implementation. */
 
-/* NOTES: This is a dummy now; See the uses in "map.h".  This class is
-   a selector of a mapping on bodies: vector_map1() and vector_map2().
-   It is not parametrized on the "Cell" type, because it is not
-   available yet at the use of this class. */
+/* NOTES: This is a dummy; See "map.h", where the mappings are
+   open-coded.  This class is a selector of mappings on bodies:
+   vector_map1() and vector_map2().  It is not parametrized on the
+   "Cell" type, because it is not available yet at the use of this
+   class. */
 
 namespace tapas {
 
