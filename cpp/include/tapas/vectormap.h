@@ -54,10 +54,10 @@ public:
   ~vectormap_allocator__() throw() {}
 };
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CUDA_Simple;
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CUDA_Packed;
 
 #else /*__CUDACC__*/
@@ -67,7 +67,7 @@ using vectormap_allocator__ = std::allocator<T>;
 
 #endif /*__CUDACC__*/
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CPU;
 
 }

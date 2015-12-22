@@ -39,9 +39,11 @@ using Threading = tapas::threading::Default;
 #endif /* MTHREADS */
 
 #if defined(__CUDACC__) && defined(TAPAS_USE_VECTORMAP)
-using VectormapImpl = tapas::Vectormap_CUDA_Packed<3, real_t, BodyInfo, kvec4>;
+using VectormapImpl = tapas::Vectormap_CUDA_Packed<3, real_t, BodyInfo, kvec4,
+                                                   CellAttr>;
 #else
-using VectormapImpl = tapas::Vectormap_CPU<3, real_t, BodyInfo, kvec4>;
+using VectormapImpl = tapas::Vectormap_CPU<3, real_t, BodyInfo, kvec4,
+                                           CellAttr>;
 #endif /*defined(__CUDACC__) && defined(TAPAS_USE_VECTORMAP)*/
 
 typedef tapas::Tapas<3, real_t, BodyInfo, kvec4, CellAttr,

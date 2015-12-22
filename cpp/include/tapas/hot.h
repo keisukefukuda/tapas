@@ -1473,16 +1473,16 @@ template <int DIM, class FP, class BT,
           class Threading>
 class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, MortonHOT, Threading,
 #  ifdef __CUDACC__
-            tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR>
+            tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR, CELL_ATTR>
 #  else
-            tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR>
+            tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR, CELL_ATTR>
 #  endif /*__CUDACC__*/
             > {
   typedef TapasStaticParams<DIM, FP, BT, BT_ATTR, CELL_ATTR, Threading,
 #  ifdef __CUDACC__
-                            tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR>
+                            tapas::Vectormap_CUDA_Packed<DIM, FP, BT, BT_ATTR, CELL_ATTR>
 #  else
-                            tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR>
+                            tapas::Vectormap_CPU<DIM, FP, BT, BT_ATTR, CELL_ATTR>
 #  endif /*__CUDACC__*/
                             > TSP; // Tapas static params
  public:

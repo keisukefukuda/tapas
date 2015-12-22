@@ -13,7 +13,7 @@ struct P2P {
 #ifdef __CUDACC__
   __host__ __device__ __forceinline__
 #endif
-  void operator() (Body* Bi, Body* Bj, kvec4 &biattr, vec3 Xperiodic, int /*mutual*/) {
+  void operator() (Body* Bi, Body* Bj, kvec4 &biattr, vec3 Xperiodic, int mutual) {
     vec3 dX = Bi->X - Bj->X - Xperiodic;
     real_t R2 = norm(dX) + EPS2;
     if (R2 != 0) {

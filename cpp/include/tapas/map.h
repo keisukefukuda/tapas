@@ -191,7 +191,7 @@ void Map(Funct f, ProductIterator<BodyIterator<CellType>> prod, Args...args) {
                     << prod.size() << std::endl;
   typedef typename CellType::TSPClass TSP;
   typedef tapas::Vectormap_CPU<TSP::Dim, typename TSP::FP,
-    typename TSP::BT, typename TSP::BT_ATTR> CPUMAP;
+    typename TSP::BT, typename TSP::BT_ATTR, typename TSP::ATTR> CPUMAP;
   if (std::is_same<typename TSP::Vectormap, CPUMAP>::value) {
   if (prod.size() > 0) {
 #ifdef TAPAS_USE_VECTORMAP
@@ -243,7 +243,7 @@ void Map(Funct f, iter::BodyIterator<CellType> iter, Args...args) {
                     << iter.size() << std::endl;
   typedef typename CellType::TSPClass TSP;
   typedef tapas::Vectormap_CPU<TSP::Dim, typename TSP::FP,
-    typename TSP::BT, typename TSP::BT_ATTR> CPUMAP;
+    typename TSP::BT, typename TSP::BT_ATTR, typename TSP::ATTR> CPUMAP;
   if (std::is_same<typename TSP::Vectormap, CPUMAP>::value) {
   for (int i = 0; i < iter.size(); ++i) {
 #ifdef TAPAS_USE_VECTORMAP
