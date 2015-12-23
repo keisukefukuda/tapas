@@ -2,6 +2,17 @@
 set -u
 set -e
 
+unset TMPFILE
+
+atexit() {
+    [[ -n "${TMPFILE-}" ]] && rm -f "$TMPFILE"
+}
+
+trap atexit EXIT
+trap 'trap - EXIT; atexit; exit -1' INT PIPE TERM
+
+TMPFILE=$(mktemp "/tmp/${0##*/}.tmp.XXXXXXX")
+echo TMPFILE=${TMPFILE}
 
 function echoRed() {
     echo -en "\e[0;31m"
@@ -21,7 +32,7 @@ function echoCyan() {
     echo -en "\e[0;39m"
 }
 
-function get-script-dir() {
+function get_script_dir() {
     pushd `dirname $0` >/dev/null
     DIR=`pwd`
     popd >/dev/null
@@ -33,7 +44,11 @@ echo --------------------------------------------------------------------
 # setup
 #------------------------------------------------------------------------
 TMP_DIR=/tmp/tapas-build
-SRC_ROOT=`get-script-dir`
+SRC_ROOT=`get_script_dir`
+
+if [[ -z "${SCALE-}" ]]; then
+    SCALE=s
+fi
 
 STATUS=0
 MAX_ERR="5e-2"
@@ -80,8 +95,8 @@ if mpicxx --showme:version 2>/dev/null | grep "Open MPI"; then
     echo Looks like Open MPI.
 else
     # mpich family (mpich and mvapich)
-    MPICC="env MPICH_CXX=${CXX} MPICH_CC=${CXX} mpicc"
-    MPICXX="env MPICH_CXX=${CXX} MPICH_CC=${CXX} mpicxx"
+    MPICC="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicc"
+    MPICXX="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicxx"
     echo Looks like Mpich.
 fi
 
@@ -105,7 +120,7 @@ make MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=release -C $SRC_DIR clea
 for t in $SRC_DIR/test_*; do
     if [[ -x $t ]]; then
         echoCyan $t 
-        $t 
+        $t
     fi
 done
 
@@ -139,11 +154,11 @@ make VERBOSE=1 MODE=release -C $SRC_DIR clean all
 
 for np in ${NP[@]}; do
     for nb in ${NB[@]}; do
-        echoCyan mpirun -n $np $SRC_DIR/bh_mpi -w $nb
-        mpirun -n $np $SRC_DIR/bh_mpi -w $nb | tee log.txt
+        echoCyan mpiexec -n $np $SRC_DIR/bh_mpi -w $nb
+        mpiexec -n $np $SRC_DIR/bh_mpi -w $nb | tee $TMPFILE
 
-        PERR=$(grep "P ERR" log.txt | grep -oE "[0-9.e+-]+")
-        FERR=$(grep "F ERR" log.txt | grep -oE "[0-9.e+-]+")
+        PERR=$(grep "P ERR" $TMPFILE | grep -oE "[0-9.e+-]+")
+        FERR=$(grep "F ERR" $TMPFILE | grep -oE "[0-9.e+-]+")
 
         if [[ $(python -c "print $PERR > $MAX_ERR") == "True" ]]; then
             echoRed "*** Error check failed. P ERR $PERR > $MAX_ERR"
@@ -166,7 +181,7 @@ echo --------------------------------------------------------------------
 echo ExaFMM
 echo --------------------------------------------------------------------
 
-MAX_ERR=6e-2
+MAX_ERR=5e-3
 
 if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
     NP=(1)
@@ -174,18 +189,18 @@ if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
     DIST=(c)
     NCRIT=(16)
 elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
-    NP=(1 4)
+    NP=(1 2)
     NB=(1000)
     DIST=(c)
     NCRIT=(16)
 elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
     NP=(1 2 3 4 5 6)
-    NB=(1000 2000)
+    NB=(10000 20000)
     DIST=(l s p c)
     NCRIT=(16 64)
 elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
     NP=(1 2 4 8 16 32)
-    NB=(1000 2000 4000 8000 16000)
+    NB=(10000 20000 40000 80000 160000)
     DIST=(l s p c)
     NCRIT=(16 64)
 else
@@ -194,32 +209,51 @@ else
 fi
     
 SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
-BIN=$SRC_DIR/bh_mpi
 
 make VERBOSE=1 MODE=release -C $SRC_DIR clean tapas
 
+function accuracyCheck() {
+    local fname=$1
+    PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+    AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+
+    if [[ $(python -c "print $PERR > $MAX_ERR") == "True" ]]; then
+        echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
+        STATUS=$(expr $STATUS + 1)
+    else
+        echoGreen pot check OK
+    fi
+    if [[ $(python -c "print $AERR > $MAX_ERR") == "True" ]]; then
+        echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
+        STATUS=$(expr $STATUS + 1)
+    else
+        echoGreen acc check OK
+    fi
+}
+
 for dist in ${DIST[@]}; do
     for nb in ${NB[@]}; do
-        for ncrit in NCRIT ${NCRIT[@]}; do
+        for ncrit in ${NCRIT[@]}; do
             for mutual in 0 1; do
-                echoCyan $SRC_DIR/serial_tapas -n $nb -c $ncrit -d $dist --mutual $mutual
-                $SRC_DIR/serial_tapas -n $nb -c $ncrit -d $dist --mutual $mutual | tee log.txt
+                rm -f $TMPFILE; sleep 1s
                 
-                PERR=$(grep "Rel. L2 Error" log.txt | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
-                AERR=$(grep "Rel. L2 Error" log.txt | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+                echoCyan $SRC_DIR/serial_tapas -n $nb -c $ncrit -d $dist --mutual $mutual
+                $SRC_DIR/serial_tapas -n $nb -c $ncrit -d $dist --mutual $mutual > $TMPFILE
+                cat $TMPFILE
 
-                if [[ $(python -c "print $PERR > $MAX_ERR") == "True" ]]; then
-                    echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
-                    STATUS=$(expr $STATUS + 1)
-                else
-                    echoGreen pot error OK
-                fi
-                if [[ $(python -c "print $AERR > $MAX_ERR") == "True" ]]; then
-                    echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
-                    STATUS=$(expr $STATUS + 1)
-                else
-                    echoGreen acc error OK
-                fi
+                accuracyCheck $TMPFILE
+                
+                echo
+                echo
+
+                for np in ${NP[@]}; do
+                    rm -f $TMPFILE; sleep 1s
+                    echoCyan mpiexec -n $np $SRC_DIR/parallel_tapas -n $nb -c $ncrit -d $dist --mutual $mutual
+                    mpiexec -n $np $SRC_DIR/parallel_tapas -n $nb -c $ncrit -d $dist --mutual $mutual > $TMPFILE
+                    cat $TMPFILE
+
+                    accuracyCheck $TMPFILE
+                done
 
                 echo
                 echo
@@ -230,8 +264,41 @@ done
 
 #env CC=$CC CXX=$CXX python test.py
 
+# Check the GPU version if nvcc is available
+if which nvcc >/dev/null 2>&1; then
+    NVCC_OPT="-O3 -Xcicc -Xptas --compiler-options -Wall --compiler-options -Wextra --compiler-options -Wno-unused-parameter \
+            -Xcompiler -rdynamic -lineinfo --device-debug -x cu -arch sm_35 -ccbin=g++"
+    
+    which g++
+    BIN=parallel_tapas_cuda
+    SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
+    compile=$($MPICXX -show -cxx=nvcc -DTAPAS_DEBUG=0 -DUSE_MPI -g $NVCC_OPT \
+                      -DASSERT -DTAPAS_USE_VECTORMAP -DFP64 -DSpherical -DEXPANSION=6 -DTAPAS_LOG_LEVEL=0 \
+                      -I$SRC_DIR/../include -I$SRC_DIR -I$SRC_DIR/../../../cpp/include \
+                      -std=c++11 $SRC_DIR/../kernels/LaplaceP2PCPU.cxx $SRC_DIR/../kernels/LaplaceSphericalCPU.cxx \
+                      $SRC_DIR/tapas_exafmm.cxx -o $BIN)
+
+    # nvcc doesn't spport -Wl,... options
+    compile=$(echo $compile | sed -e 's/-Wl,[^ ]*//g')
+    echo $compile
+    $compile
+    
+    for dist in ${DIST[@]}; do
+        for nb in ${NB[@]}; do
+            for ncrit in ${NCRIT[@]}; do
+                echoCyan mpiexec -n 1 ./$BIN --numBodies 1000
+                mpiexec -n 1 ./$BIN --numBodies 10000 > $TMPFILE
+                cat $TMPFILE
+                accuracyCheck $TMPFILE
+            done
+        done
+    done
+
+fi
+
+
+
 if [[ $STATUS -eq 0 ]]; then
     echo OK.
-else
-    exit $STATUS
 fi
+exit $STATUS
