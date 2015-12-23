@@ -103,11 +103,11 @@ void vectormap_cuda_pack_kernel1(int nmapdata, size_t nbodies,
     int bodycount = 0;
     int nth = -1;
     for (size_t i = 0; i < nmapdata; i++) {
-      if ((bodycount + body_list[i].size) < index) {
-        bodycount += body_list[i].size;
-      } else {
+      if (index < (bodycount + body_list[i].size)) {
         nth = i;
         break;
+      } else {
+        bodycount += body_list[i].size;
       }
     }
     assert(nth != -1);
@@ -468,8 +468,6 @@ struct Vectormap_CUDA_Simple_Map2
   template <class Funct, class Cell, class... Args>
   static void vectormap_cuda_plain(Funct f, Cell &c0, Cell &c1,
                                    Args... args) {
-    /*typedef typename Cell::BT::type BV;*/
-    /*typedef typename Cell::BT_ATTR BA;*/
     static_assert((std::is_same<BT, typename Cell::BT::type>::value
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
                   "inconsistent template arguments");
@@ -567,6 +565,19 @@ template <class T>
 struct Mirror_Data {
   T* ddata;
   T* hdata;
+  size_t size;
+
+  void assure_size(size_t n) {
+    if (size < n) {
+      free_data();
+      size = n;
+      cudaError_t ce;
+      ce = cudaMalloc(&this->ddata, (sizeof(T) * n));
+      assert(ce == cudaSuccess);
+      ce = cudaMallocHost(&this->hdata, (sizeof(T) * n));
+      assert(ce == cudaSuccess);
+    }
+  }
 
   void free_data() {
     cudaError_t ce;
@@ -576,17 +587,10 @@ struct Mirror_Data {
     assert(ce == cudaSuccess);
   }
 
-  void alloc_data(size_t n) {
-    cudaError_t ce;
-    ce = cudaMalloc(&this->ddata, (sizeof(T) * n));
-    assert(ce == cudaSuccess);
-    ce = cudaMallocHost(&this->hdata, (sizeof(T) * n));
-    assert(ce == cudaSuccess);
-  }
-
   void copy_in(size_t n) {
+    assert(size == n);
     cudaError_t ce;
-    ce = cudaMemcpy(this->ddata, this->hdata, (sizeof(T) * n),
+    ce = cudaMemcpy(this->ddata, this->hdata, (sizeof(T) * size),
                     cudaMemcpyHostToDevice);
     assert(ce == cudaSuccess);
   }
@@ -599,14 +603,14 @@ struct Vectormap_CUDA_Packed_Map1
   typedef _BT_ATTR BT_ATTR;
   typedef _CELL_ATTR CELL_ATTR;
 
-  /* Limit of the number of threads in grids. */
-
-  static const int N0 = (16 * 1024);
-
   typedef tapas::Vec<_DIM, _FP> VEC;
   typedef Cell_Data<BT> Body_List;
   typedef Cell_Data<BT_ATTR> Attr_List;
   typedef std::tuple<Body_List, Attr_List, CELL_ATTR, VEC> MapData1;
+
+  /* Limit of the number of threads in grids. */
+
+  static const int N0 = (16 * 1024);
 
   /* (Single argument mapping.) */
 
@@ -621,11 +625,6 @@ struct Vectormap_CUDA_Packed_Map1
   static std::vector<MapData1> &mapdata1() {
     static std::vector<MapData1> mapdata1_;
     return mapdata1_;
-  }
-
-  static size_t &nmapdata1() {
-    static size_t nmapdata1_ = 0;
-    return nmapdata1_;
   }
 
   static Mirror_Data<Body_List> &body_lists() {
@@ -657,11 +656,11 @@ struct Vectormap_CUDA_Packed_Map1
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value
                    && std::is_same<_CELL_ATTR, typename Cell::ATTR>::value),
                   "inconsistent template arguments");
-    /*typedef typename Cell::BT::type BV;*/
-    /*typedef typename Cell::BT_ATTR BA;*/
 
     const Cell c = (*b0).cell();
     if (c.nb() == 0) {return;}
+
+    /* (Cast to drop const, below). */
 
     const typename Cell::ATTR c_attr = c.attr();
     const VEC c_center = c.center();
@@ -691,8 +690,6 @@ struct Vectormap_CUDA_Packed_Map1
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value
                    && std::is_same<_CELL_ATTR, typename Cell::ATTR>::value),
                   "inconsistent template arguments");
-    /*typedef typename Cell::BT::type BV;*/
-    /*typedef typename Cell::BT_ATTR BA;*/
 
     /*AHO*/
     if (0) {
@@ -723,8 +720,6 @@ struct Vectormap_CUDA_Packed_Map1
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value
                    && std::is_same<_CELL_ATTR, typename Cell::ATTR>::value),
                   "inconsistent template arguments");
-    /*typedef typename Cell::BT::type BV;*/
-    /*typedef typename Cell::BT_ATTR BA;*/
 
     assert(mapdata1().size() != 0);
 
@@ -768,17 +763,10 @@ struct Vectormap_CUDA_Packed_Map1
 
     size_t nblocks = TAPAS_CEILING(nbodies, ctasize);
 
-    if (nmapdata1() < nn) {
-      body_lists().free_data();
-      attr_lists().free_data();
-      cell_attrs().free_data();
-      cell_centers().free_data();
-      nmapdata1() = nn;
-      body_lists().alloc_data(nn);
-      attr_lists().alloc_data(nn);
-      cell_attrs().alloc_data(nn);
-      cell_centers().alloc_data(nn);
-    }
+    body_lists().assure_size(nn);
+    attr_lists().assure_size(nn);
+    cell_attrs().assure_size(nn);
+    cell_centers().assure_size(nn);
 
     for (size_t i = 0; i < nn; i++) {
       MapData1 &c = mapdata1()[i];
@@ -807,6 +795,10 @@ struct Vectormap_CUDA_Packed_Map2
   typedef Cell_Data<BT_ATTR> Attr_List;
   typedef std::tuple<Body_List, Attr_List, Body_List> MapData2;
 
+  /* Limit of the number of threads in grids. */
+
+  static const int N0 = (16 * 1024);
+
   /* STATIC MEMBER FIELDS. (It is a trick.  See:
      http://stackoverflow.com/questions/11709859/) */
 
@@ -818,11 +810,6 @@ struct Vectormap_CUDA_Packed_Map2
   static std::vector<MapData2> &cellpairs() {
     static std::vector<MapData2> cellpairs_;
     return cellpairs_;
-  }
-
-  static size_t &npairs() {
-    static size_t npairs_ = 0;
-    return npairs_;
   }
 
   static Mirror_Data<Body_List> &body_lists2() {
@@ -843,8 +830,6 @@ struct Vectormap_CUDA_Packed_Map2
     static_assert((std::is_same<BT, typename Cell::BT::type>::value
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
                   "inconsistent template arguments");
-    /*typedef typename Cell::BT::type BT;*/
-    /*typedef typename Cell::BT_ATTR BT_ATTR;*/
 
     const Cell &c0 = prod.first().cell();
     const Cell &c1 = prod.second().cell();
@@ -853,6 +838,7 @@ struct Vectormap_CUDA_Packed_Map2
     if (c0.nb() == 0 || c1.nb() == 0) return;
 
     /* (Cast to drop const, below). */
+
     Cell_Data<BT> d0;
     Cell_Data<BT> d1;
     Cell_Data<BT_ATTR> a0;
@@ -865,8 +851,8 @@ struct Vectormap_CUDA_Packed_Map2
     d1.data = (BT*)&(c1.body(0));
     a1.size = c1.nb();
     a1.data = (BT_ATTR*)&(c1.body_attr(0));
-    if (c0 == c1) {
 
+    if (c0 == c1) {
       pack2_mutex().lock();
       cellpairs().push_back(MapData2(d0, a0, d1));
       pack2_mutex().unlock();
@@ -883,13 +869,12 @@ struct Vectormap_CUDA_Packed_Map2
   template <class Funct, class Cell, class... Args>
   static void vectormap_invoke2(int start, int nc, Cell_Data<BT> &r,
                                 int tilesize,
-                                size_t nblocks, int ctasize, int scratchpadsize,
+                                size_t nblocks, int ctasize,
+                                int scratchpadsize,
                                 Cell &dummy, Funct f, Args... args) {
     static_assert((std::is_same<BT, typename Cell::BT::type>::value
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
                   "inconsistent template arguments");
-    /*typedef typename Cell::BT::type BT;*/
-    /*typedef typename Cell::BT_ATTR BT_ATTR;*/
 
     /*AHO*/
     if (0) {
@@ -917,10 +902,6 @@ struct Vectormap_CUDA_Packed_Map2
        tilesize, f, args...);
   }
 
-  /* Limit of the number of threads in grids. */
-
-  static const int N0 = (16 * 1024);
-
   /* Starts launching a kernel on collected cells. */
 
   template <class Funct, class Cell, class... Args>
@@ -928,8 +909,6 @@ struct Vectormap_CUDA_Packed_Map2
     static_assert((std::is_same<BT, typename Cell::BT::type>::value
                    && std::is_same<BT_ATTR, typename Cell::BT_ATTR>::value),
                   "inconsistent template arguments");
-    /*typedef typename Cell::BT::type BT;*/
-    /*typedef typename Cell::BT_ATTR BT_ATTR;*/
 
     assert(cellpairs().size() != 0);
 
@@ -972,17 +951,12 @@ struct Vectormap_CUDA_Packed_Map2
     size_t nblocks = TAPAS_CEILING(N0, ctasize);
 
     size_t nn = cellpairs().size();
-    if (npairs() < nn) {
-      body_lists2().free_data();
-      attr_lists2().free_data();
-      npairs() = nn;
-      body_lists2().alloc_data(nn);
-      attr_lists2().alloc_data(nn);
-    }
+    body_lists2().assure_size(nn);
+    attr_lists2().assure_size(nn);
 
     std::sort(cellpairs().begin(), cellpairs().end(),
               cellcompare_r<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>());
-    for (size_t i = 0; i < npairs(); i++) {
+    for (size_t i = 0; i < nn; i++) {
       MapData2 &c = cellpairs()[i];
       body_lists2().hdata[i] = std::get<0>(c);
       attr_lists2().hdata[i] = std::get<1>(c);
@@ -993,7 +967,7 @@ struct Vectormap_CUDA_Packed_Map2
     Cell_Data<BT> xr = std::get<2>(cellpairs()[0]);
     int xncells = 0;
     int xndata = 0;
-    for (size_t i = 0; i < npairs(); i++) {
+    for (size_t i = 0; i < nn; i++) {
       MapData2 &c = cellpairs()[i];
       Cell_Data<BT> &r = std::get<2>(c);
       if (xr.data != r.data) {
@@ -1020,7 +994,7 @@ struct Vectormap_CUDA_Packed_Map2
       xndata += (TAPAS_CEILING(l.size, 32) * 32);
     }
     assert(xncells > 0);
-    vectormap_invoke2((npairs() - xncells), xncells, xr,
+    vectormap_invoke2((nn - xncells), xncells, xr,
                       tilesize, nblocks, ctasize, scratchpadsize,
                       dummy, f, args...);
   }
@@ -1028,8 +1002,11 @@ struct Vectormap_CUDA_Packed_Map2
 
 template<int _DIM, class _FP, class _BI, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CUDA_Packed
-  : /*Vectormap_CUDA_Packed_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,*/
-    Vectormap_CUDA_Simple_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,
+#if 1
+  : Vectormap_CUDA_Packed_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,
+#else
+  : Vectormap_CUDA_Simple_Map1<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR>,
+#endif
   Vectormap_CUDA_Packed_Map2<_DIM, _FP, _BI, _BT_ATTR, _CELL_ATTR> {
   typedef Vectormap_CUDA_Packed_Map1<_DIM, _FP, _BI, _BT_ATTR,
                                      _CELL_ATTR> Map1;
@@ -1044,7 +1021,7 @@ struct Vectormap_CUDA_Packed
 
   template <class Funct, class Cell, class... Args>
   static void vectormap_finish1(Funct f, Cell dummy, Args... args) {
-    //printf(";; vectormap_finish\n"); fflush(0);
+    //printf(";; vectormap_finish1\n"); fflush(0);
     if (Map1::mapdata1().size() != 0) {
       Map1::vectormap_on_collected1(f, dummy, args...);
     }
@@ -1052,7 +1029,7 @@ struct Vectormap_CUDA_Packed
 
   template <class Funct, class Cell, class... Args>
   static void vectormap_finish2(Funct f, Cell dummy, Args... args) {
-    //printf(";; vectormap_finish\n"); fflush(0);
+    //printf(";; vectormap_finish2\n"); fflush(0);
     if (Map2::cellpairs().size() != 0) {
       Map2::vectormap_on_collected2(f, dummy, args...);
     }
