@@ -12,7 +12,6 @@
 #include <cmath>
 
 #include <algorithm>
-#include <memory>
 #include <numeric>
 #include <list>
 #include <vector>
@@ -130,51 +129,16 @@ struct HelperNode {
   index_t np;           //!< Number of particles in a node
 };
 
-template<class T1, class T2>
-static void Dump(const T1 &bodies, const T2 &keys, std::ostream & strm) {
-#if 0
-  // Tentatively disabled for BH. b.X[] is ExaFMM-specific member variables.
-  for (size_t i = 0; i < bodies.size(); i++) {
-    auto &b = bodies[i];
-    strm << std::scientific << std::showpos << b.X[0] << " "
-         << std::scientific << std::showpos << b.X[1] << " "
-         << std::scientific << std::showpos << b.X[2] << " "
-         << std::fixed << std::setw(10) << keys[i]
-         << std::endl;
-  }
-#else
-  // hack to avoid 'unused parameter' warnings
-  (void) bodies;
-  (void) keys;
-  (void) strm;
-#endif
-}
-
-template<class T1, class T2>
-static void DumpToFile(const T1 &bodies,
-                       const T2 &keys,
-                       const std::string &fname,
-                       bool append=false) {
-  std::ios_base::openmode mode = std::ios_base::out;
-  if (append) mode |= std::ios_base::app;
-  std::ofstream ofs;
-  ofs.open(fname.c_str(), mode);
-
-  assert(ofs.good());
-  Dump(bodies, keys, ofs);
-  ofs.close();
-}
-
 template <class TSP>
 std::vector<HelperNode<TSP>>
-CreateInitialNodes(const typename TSP::BT::type *p, index_t np,
+CreateInitialNodes(const typename TSP::Body *p, index_t np,
                    const Region<TSP> &r);
 
 template <int DIM, class KeyType, class T>
 void AppendChildren(KeyType k, T &s);
 
 template <class TSP>
-void SortBodies(const typename TSP::BT::type *b, typename TSP::BT::type *sorted,
+void SortBodies(const typename TSP::Body *b, typename TSP::Body *sorted,
                 const HelperNode<TSP> *nodes,
                 tapas::index_t nb);
 
@@ -210,26 +174,26 @@ class Cell: public tapas::BasicCell<TSP> {
   typedef typename TSP::SFC SFC;
   typedef typename SFC::KeyType KeyType;
   using CellType = Cell<TSP>;
-  using Mapper = CPUMapper<LET<TSP>>;
 
   typedef std::unordered_map<KeyType, Cell*> CellHashTable;
   using KeySet = std::unordered_set<KeyType>;
   
-  typedef typename TSP::ATTR attr_type;
-  typedef typename TSP::ATTR AttrType;
-  typedef typename TSP::BT::type BodyType;
-  typedef typename TSP::BT_ATTR BodyAttrType;
+  typedef typename TSP::CellAttr attr_type;
+  typedef typename TSP::CellAttr AttrType;
+  typedef typename TSP::Body BodyType;
+  typedef typename TSP::BodyAttr BodyAttrType;
   typedef typename TSP::Threading Threading;
 
+  using Body = BodyType;
+  using BodyAttr = BodyAttrType;
+  using Mapper = typename TSP::template Mapper<CellType, Body, LET<TSP>>;
+  
   using BodyIterator = iter::BodyIterator<Cell>;
   using SubCellIterator = iter::SubCellIterator<Cell>;
 
   using FP = typename TSP::FP;
   
   using Data = SharedData<TSP, SFC>;
-
-  template<class T>
-  using VecPtr = std::shared_ptr<std::vector<T>>;
 
   friend void FindLocalRoots<TSP>(KeyType, const CellHashTable&, KeySet&);
 
@@ -238,42 +202,7 @@ class Cell: public tapas::BasicCell<TSP> {
   //========================================================
  public:
 
-  static Cell *CreateLocalCell(KeyType k, std::shared_ptr<Data> data) {
-    auto reg = CalcRegion(k, data->region_);
-
-    // Check if I'm a leaf
-    bool is_leaf = find(data->leaf_keys_.begin(), data->leaf_keys_.end(), k)
-                   != data->leaf_keys_.end();
-
-    int body_num, body_beg;
-
-    if (is_leaf) {
-      index_t beg, end;
-      SFC::FindRangeByKey(data->local_body_keys_, k, beg, end);
-      body_num = end - beg;
-      body_beg = beg;
-    } else {
-      body_num = 0;
-      body_beg = 0;
-    }
-
-    Cell *c = new Cell(reg, body_beg, body_num);
-    c->key_ = k;
-    c->is_leaf_ = is_leaf;
-    c->is_local_ = true;
-    c->is_local_subtree_ = false;
-    c->data_ = data;
-    c->bid_ = body_beg;
-    c->nb_ = body_num;
-    bzero(&c->attr_, sizeof(c->attr_));
-
-    TAPAS_ASSERT(body_num >= 0);
-    TAPAS_ASSERT(body_beg >= 0);
-    
-    return c;
-  }
-
-  static Cell *CreateRemoteCell(KeyType k, int nb, std::shared_ptr<Data> data) {
+  static Cell *CreateRemoteCell(KeyType k, int nb, Data *data) {
     auto reg = CalcRegion(k, data->region_);
     
     Cell *c = new Cell(reg, 0, 0);
@@ -346,10 +275,10 @@ class Cell: public tapas::BasicCell<TSP> {
   }
 
   Data &data() { return *data_; }
-  std::shared_ptr<Data> data_ptr() { return data_; }
+  Data* data_ptr() { return data_; }
   
 #ifdef DEPRECATED
-  typename TSP::BT::type &particle(index_t idx) const {
+  typename TSP::Body &particle(index_t idx) const {
     return body(idx);
   }
 #endif
@@ -378,15 +307,19 @@ class Cell: public tapas::BasicCell<TSP> {
   const BodyAttrType *local_body_attrs() const;
   
   /**
-   * \brief Get number of local particles.
-   * This function is mainly for debugging or checking result.
+   * \brief Get number of local particles that belongs to the cell (directly or indirectly)
+   * This function is mainly for debugging or checking result and internal use.
    * It is not recommended to use local_nb() for your main computation.
    * because it exposes the underlying implementation details of Tapas runtime.
+   * In addition, if the cell spans over multiple processes, lcoal_nb() counts only local bodies
+   * and does not return the "true" number.
    */ 
   inline size_t local_nb() const {
-    return (size_t) data_->local_bodies_.size();
+    return (size_t) local_nb_;
   }
 
+  static const constexpr bool Inspector = false;
+  
   inline size_t nb() const {
 #ifdef TAPAS_DEBUG
     if (!this->IsLeaf()) {
@@ -395,6 +328,14 @@ class Cell: public tapas::BasicCell<TSP> {
 #endif
 
     return nb_;
+  }
+
+  /**
+   * \brief check if the cell is large enough to spawn tasks recursively
+   */
+  inline bool SpawnTask() const {
+    // Todo
+    return depth() < 4;
   }
 
   static Region<TSP>  CalcRegion(KeyType, const Region<TSP>& r);
@@ -415,9 +356,7 @@ class Cell: public tapas::BasicCell<TSP> {
 
   bool GetOptMutual() const { return data_->opt_mutual_; }
   bool SetOptMutual(bool b) {
-    bool prev = data_->opt_mutual_;
-    data_->opt_mutual_ = b;
-    return prev;
+    return data_->SetOptMutual(b);
   }
 
   MPI_Comm GetOptMPIComm() const {
@@ -436,7 +375,6 @@ class Cell: public tapas::BasicCell<TSP> {
  protected:
   // utility/accessor functions
   inline Cell *Lookup(KeyType k) const;
-  CellHashTable *ht() { return ht_; }
 
   //========================================================
   // Member variables
@@ -444,12 +382,10 @@ class Cell: public tapas::BasicCell<TSP> {
  protected:
   KeyType key_; //!< Key of the cell
   bool is_leaf_;
-  std::shared_ptr<Data> data_;
+  Data* data_;
   
   int nb_; //!< number of bodies in the local process (not bodies under this cell).
-  
-  std::shared_ptr<CellHashTable> ht_; //!< Hash table of KeyType -> Cell*
-  std::shared_ptr<std::mutex>    ht_mtx_; //!< mutex to manipulate ht_
+  int local_nb_;
   
   bool is_local_; //!< if it's a local cell or LET cell.
   bool is_local_subtree_; //!< If all of its descendants are local.
@@ -535,7 +471,7 @@ Region<TSP> ExchangeRegion(const Region<TSP> &r) {
  * @param r Region object
  */
 template <class TSP>
-std::vector<HelperNode<TSP>> CreateInitialNodes(const typename TSP::BT::type *bodies,
+std::vector<HelperNode<TSP>> CreateInitialNodes(const typename TSP::Body *bodies,
                                                      index_t nb,
                                                      const Region<TSP> &r) {
     const int Dim = TSP::Dim;
@@ -595,7 +531,7 @@ std::vector<HelperNode<TSP>> CreateInitialNodes(const typename TSP::BT::type *bo
 }
 
 template <class TSP>
-void SortBodies(const typename TSP::BT::type *b, typename TSP::BT::type *sorted,
+void SortBodies(const typename TSP::Body *b, typename TSP::Body *sorted,
                 const HelperNode<TSP> *sorted_nodes,
                 tapas::index_t nb) {
     for (index_t i = 0; i < nb; ++i) {
@@ -875,6 +811,7 @@ Cell<TSP> &Cell<TSP>::subcell(int idx) {
   Cell *c = Lookup(child_key);
 
 #ifdef TAPAS_DEBUG
+  // assert c != nullptr
   if (c == nullptr) {
     std::stringstream ss;
     ss << "In MPI rank " << data_->mpi_rank_ << ": " 
@@ -895,7 +832,7 @@ Cell<TSP> &Cell<TSP>::subcell(int idx) {
     TAPAS_LOG_ERROR() << ss.str(); abort();
     TAPAS_ASSERT(c != nullptr);
   }
-#endif
+#endif // TAPAS_DEBUG
   
   return *c;
 }
@@ -973,14 +910,14 @@ inline void Cell<TSP>::CheckBodyIndex(index_t idx) const {
   TAPAS_ASSERT(this->IsLeaf() && "body or body attribute access is not allowed for non-leaf cells.");
 
   if (is_local_) {
-    TAPAS_ASSERT(this->bid() + idx < data_->local_bodies_.size());
+    TAPAS_ASSERT(this->bid() + idx < (int)data_->local_bodies_.size());
   } else {
-    TAPAS_ASSERT(this->bid() + idx < data_->let_bodies_.size());
+    TAPAS_ASSERT(this->bid() + idx < (int)data_->let_bodies_.size());
   }
 }
 
 template <class TSP>
-inline const typename TSP::BT::type &Cell<TSP>::body(index_t idx) const {
+inline const typename TSP::Body &Cell<TSP>::body(index_t idx) const {
   CheckBodyIndex(idx);
   
   if (is_local_) {
@@ -991,22 +928,22 @@ inline const typename TSP::BT::type &Cell<TSP>::body(index_t idx) const {
 }
 
 template <class TSP>
-inline typename TSP::BT::type &Cell<TSP>::body(index_t idx) {
-  return const_cast<typename TSP::BT::type &>(const_cast<const Cell<TSP>*>(this)->body(idx));
+inline typename TSP::Body &Cell<TSP>::body(index_t idx) {
+  return const_cast<typename TSP::Body &>(const_cast<const Cell<TSP>*>(this)->body(idx));
 }
 
 template <class TSP>
-const typename TSP::BT::type &Cell<TSP>::local_body(index_t idx) const {
+const typename TSP::Body &Cell<TSP>::local_body(index_t idx) const {
   TAPAS_ASSERT(this->IsLocal() && "Cell::local_body() can be called only for local cells.");
-  TAPAS_ASSERT(idx < data_->local_bodies_.size());
+  TAPAS_ASSERT((size_t)idx < data_->local_bodies_.size());
 
   // TODO is it correct?
   return data_->local_bodies_[this->bid() + idx];
 }
 
 template <class TSP>
-typename TSP::BT::type &Cell<TSP>::local_body(index_t idx) {
-  return const_cast<typename TSP::BT::type &>(const_cast<const Cell<TSP>*>(this)->local_body(idx));
+typename TSP::Body &Cell<TSP>::local_body(index_t idx) {
+  return const_cast<typename TSP::Body &>(const_cast<const Cell<TSP>*>(this)->local_body(idx));
 }
 
 // template <class TSP>
@@ -1026,7 +963,7 @@ typename TSP::BT::type &Cell<TSP>::local_body(index_t idx) {
 // }
 
 template <class TSP>
-const typename TSP::BT_ATTR &Cell<TSP>::body_attr(index_t idx) const {
+const typename TSP::BodyAttr &Cell<TSP>::body_attr(index_t idx) const {
   CheckBodyIndex(idx);
   
   if (is_local_) {
@@ -1037,8 +974,8 @@ const typename TSP::BT_ATTR &Cell<TSP>::body_attr(index_t idx) const {
 }
 
 template <class TSP>
-typename TSP::BT_ATTR &Cell<TSP>::body_attr(index_t idx) {
-  return const_cast<typename TSP::BT_ATTR &>(const_cast<const Cell<TSP>*>(this)->body_attr(idx));
+typename TSP::BodyAttr &Cell<TSP>::body_attr(index_t idx) {
+  return const_cast<typename TSP::BodyAttr &>(const_cast<const Cell<TSP>*>(this)->body_attr(idx));
 }
 
 /**
@@ -1047,7 +984,7 @@ typename TSP::BT_ATTR &Cell<TSP>::body_attr(index_t idx) {
  * debugging / result checking purpose.
  */
 template <class TSP>
-const typename TSP::BT_ATTR *Cell<TSP>::local_body_attrs() const {
+const typename TSP::BodyAttr *Cell<TSP>::local_body_attrs() const {
   TAPAS_ASSERT(this->IsLocal() && "Cell::local_body_attrs() is only allowed for local cells");
   
   return data_->local_body_attrs_.data();
@@ -1057,8 +994,8 @@ const typename TSP::BT_ATTR *Cell<TSP>::local_body_attrs() const {
  * \brief Non-const version of local_body_attrs()
  */
 template <class TSP>
-typename TSP::BT_ATTR *Cell<TSP>::local_body_attrs() {
-  return const_cast<typename TSP::BT_ATTR *>(const_cast<const Cell<TSP>*>(this)->local_body_attrs());
+typename TSP::BodyAttr *Cell<TSP>::local_body_attrs() {
+  return const_cast<typename TSP::BodyAttr *>(const_cast<const Cell<TSP>*>(this)->local_body_attrs());
 }
 
 
@@ -1067,7 +1004,7 @@ typename TSP::BT_ATTR *Cell<TSP>::local_body_attrs() {
  * This function breaks the abstraction of Tapas, thus should be used only for debugging purpose.
  */
 template <class TSP>
-const typename TSP::BT_ATTR &Cell<TSP>::local_body_attr(index_t idx) const {
+const typename TSP::BodyAttr &Cell<TSP>::local_body_attr(index_t idx) const {
   TAPAS_ASSERT(this->IsLocal() && "Cell::local_body_attr(...) is allowed only for local cells.");
   TAPAS_ASSERT(idx < (index_t)data_->local_body_attrs_.size());
   
@@ -1078,8 +1015,8 @@ const typename TSP::BT_ATTR &Cell<TSP>::local_body_attr(index_t idx) const {
  * \brief Non-const version of Cell::local_body_attr()
  */
 template <class TSP>
-typename TSP::BT_ATTR &Cell<TSP>::local_body_attr(index_t idx) {
-  return const_cast<typename TSP::BT_ATTR &>(const_cast<const Cell<TSP>*>(this)->local_body_attr(idx));
+typename TSP::BodyAttr &Cell<TSP>::local_body_attr(index_t idx) {
+  return const_cast<typename TSP::BodyAttr &>(const_cast<const Cell<TSP>*>(this)->local_body_attr(idx));
 }
 
 template <class TSP> // Tapas static params
@@ -1087,7 +1024,7 @@ class Partitioner {
  private:
   const int max_nb_;
   
-  using BodyType = typename TSP::BT::type;
+  using BodyType = typename TSP::Body;
   using KeyType = typename Cell<TSP>::KeyType;
   using CellAttrType = typename Cell<TSP>::AttrType;
   using CellHashTable = typename Cell<TSP>::CellHashTable;
@@ -1100,8 +1037,8 @@ class Partitioner {
   public:
     Partitioner(unsigned max_nb): max_nb_(max_nb) {}
 
-  Cell<TSP> *Partition(typename TSP::BT::type *b, index_t nb);
-  Cell<TSP> *Partition(std::vector<typename TSP::BT::type> &b);
+  Cell<TSP> *Partition(typename TSP::Body *b, index_t nb);
+  Cell<TSP> *Partition(std::vector<typename TSP::Body> &b);
 
  public:
   //---------------------
@@ -1189,7 +1126,7 @@ class Partitioner {
       res_body.insert(std::make_pair(src_pid, k));
     }
 
-#ifdef TAPAS_DEBUG
+#ifdef TAPAS_DEBUG_DUMP
     BarrierExec([&res_attr, &res_body](int rank, int) {
         std::cerr << "Rank " << rank << " SelectResponseCells: keys_attr.size() = " << res_attr.size() << std::endl;
         std::cerr << "Rank " << rank << " SelectResponseCells: keys.body.size() = " << res_body.size() << std::endl;
@@ -1257,7 +1194,7 @@ class Partitioner {
  */
 template <class TSP>
 Cell<TSP>*
-Partitioner<TSP>::Partition(std::vector<typename TSP::BT::type> &b) {
+Partitioner<TSP>::Partition(std::vector<typename TSP::Body> &b) {
   return Partitioner<TSP>::Partition(b.data(), b.size());
 }
 
@@ -1303,12 +1240,12 @@ Vec<Cell<TSP>::Dim, typename TSP::FP> Cell<TSP>::CalcCenter(KeyType key, const R
  */
 template <class TSP> // TSP : Tapas Static Params
 Cell<TSP>*
-Partitioner<TSP>::Partition(typename TSP::BT::type *b, index_t num_bodies) {
+Partitioner<TSP>::Partition(typename TSP::Body *b, index_t num_bodies) {
   using SFC = typename TSP::SFC;
   using CellType = Cell<TSP>;
   using Data = typename CellType::Data;
 
-  auto data = std::make_shared<Data>();
+  Data *data = new Data;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &data->mpi_rank_);
   MPI_Comm_size(MPI_COMM_WORLD, &data->mpi_size_);
@@ -1316,23 +1253,11 @@ Partitioner<TSP>::Partition(typename TSP::BT::type *b, index_t num_bodies) {
   // Build local trees
   SamplingOctree<TSP, SFC> stree(b, num_bodies, data, max_nb_);
   stree.Build();
-    
-  /*AHO*/
-#ifdef TAPAS_USE_VECTORMAP
-  using BodyType = typename TSP::BT::type;
-  using BodyAttrType = typename TSP::BT_ATTR;
-  
-  /* (No templates allowed.) */
-  typedef typename TSP::Vectormap:: template um_allocator<BodyType>
-    body_vector_allocator;
-  typedef typename TSP::Vectormap:: template um_allocator<BodyAttrType>
-    attr_vector_allocator;
-#endif /*TAPAS_USE_VECTORMAP*/
 
   // Build Global trees
   GlobalTree<TSP>::Build(*data);
 
-#ifdef TAPAS_DEBUG
+#ifdef TAPAS_DEBUG_DUMP
   {
     tapas::debug::DebugStream e("cells");
     
@@ -1352,7 +1277,9 @@ Partitioner<TSP>::Partition(typename TSP::BT::type *b, index_t num_bodies) {
   }
 #endif
 
-  
+  // Initialize the mapper class (mainly for GPU)
+  data->mapper_.Setup();
+
   // return the root cell (root key is always 0)
   return data->ht_[0];
 }
@@ -1372,61 +1299,52 @@ ProductIterator<tapas::iterator::CellIterator<hot::Cell<TSP>>,
                 tapas::iterator::CellIterator<hot::Cell<TSP>>>
                                     Product(hot::Cell<TSP> &c1,
                                             hot::Cell<TSP> &c2) {
-  TAPAS_LOG_DEBUG() << "Cell-Cell product\n";
   typedef hot::Cell<TSP> CellType;
   typedef CellIterator<CellType> CellIterType;
   return ProductIterator<CellIterType, CellIterType>(
       CellIterType(c1), CellIterType(c2));
 }
 
-/**
- * @brief A partitioning plugin class that provides SFC-curve based octree partitioning.
- */
-template<int _Dim,
-         template<int __Dim, class __KeyType> class _SFC,
-         class _KeyType = uint64_t>
+// New Tapas Static Params base class
+template<int _DIM, class _FP, class _BODY_TYPE, size_t _BODY_COORD_OFST, class _BODY_ATTR, class _CELL_ATTR>
 struct HOT {
-  using SFC = _SFC<_Dim, _KeyType>;
-  using KeyType = typename SFC::KeyType;
+  static const constexpr int Dim = _DIM;
+  static const constexpr size_t kBodyCoordOffset = _BODY_COORD_OFST;
+  using FP = _FP;
+  using Body = _BODY_TYPE;
+  using BodyAttr = _BODY_ATTR;
+  using CellAttr = _CELL_ATTR;
+  using SFC = tapas::sfc::Morton<_DIM, uint64_t>;
+  using Threading = tapas::threading::Default;
+
+#ifdef __CUDACC__
+  using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR>;
+  template<class T> using Allocator = typename Vectormap::template um_allocator<T>;
+  template<class _CELL, class _BODY, class _LET>  using Mapper = hot::GPUMapper<_CELL, _BODY, _LET>;
+#else
+  using Vectormap = tapas::Vectormap_CPU<_DIM, _FP, _BODY_TYPE, _BODY_ATTR>;
+  template<class T> using Allocator = std::allocator<T>;
+  template<class _CELL, class _BODY, class _LET>  using Mapper = hot::CPUMapper<_CELL, _BODY, _LET>;
+#endif
+
+  template <class _TSP> using Partitioner = hot::Partitioner<_TSP>;
 };
 
-/**
- * @brief Advance decleration of a dummy class to achieve template specialization.
- */
-template <int DIM, class FP, class BT,
-          class BT_ATTR, class CELL_ATTR,
-          class PartitionAlgorithm,
-          class Threading, class Vectormap>
-class Tapas;
-
-namespace threading {
-class MassiveThreads;
-}
-
-/**
- * @brief Specialization of Tapas for HOT (Morton HOT) algorithm
- */
-template <int DIM, class FP, class BT,
-          class BT_ATTR, class CELL_ATTR, class Threading, class Vectormap>
-class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, HOT<DIM, tapas::sfc::Morton>, Threading, Vectormap> {
-  
-  typedef HOT<DIM, tapas::sfc::Morton> MortonHOT;
-  
-  typedef TapasStaticParams<DIM, FP, BT, BT_ATTR, CELL_ATTR, Threading,
-                            typename MortonHOT::SFC, Vectormap> TSP; // Tapas static params
- public:
+template<class _TSP>
+struct Tapas2 {
+  using TSP = _TSP;
+  using Partitioner = typename TSP::template Partitioner<TSP>;
   using Region = tapas::Region<TSP>;
   using Cell = hot::Cell<TSP>;
   using BodyIterator = typename Cell::BodyIterator;
-
-  using SFC = typename TSP::SFC;
+  using Body = typename TSP::Body;
   
   /**
    * @brief Partition and build an octree of the target space.
    * @param b Array of body of BT::type.
    */
-  static Cell *Partition(typename BT::type *b, index_t nb, int max_nb) {
-    hot::Partitioner<TSP> part(max_nb);
+  static Cell *Partition(Body *b, index_t nb, int max_nb) {
+    Partitioner part(max_nb);
     return part.Partition(b, nb);
   }
 };
@@ -1435,10 +1353,9 @@ class Tapas<DIM, FP, BT, BT_ATTR, CELL_ATTR, HOT<DIM, tapas::sfc::Morton>, Threa
 extern volatile double dummy_value;
 #endif
 
-
 } // namespace tapas
 
-#ifdef TAPAS_DEBUG
+#ifdef TAPAS_DEBUG_DUMP
 template<class TSP>
 std::ostream& operator<<(std::ostream& os, tapas::hot::Cell<TSP> &cell) {
   using CellType = tapas::hot::Cell<TSP>;
