@@ -859,21 +859,12 @@ struct Vectormap_CUDA_Packed_Map2
     d1.size = c1.nb();
     d1.data = (BT*)&(c1.body(0));
     a1.size = c1.nb();
-<<<<<<< HEAD
     a1.data = (BT_ATTR*)&(c1.body_attr(0));
 
     if (c0 == c1) {
       pack2_mutex().lock();
       cellpairs().push_back(MapData2(d0, a0, d1));
       pack2_mutex().unlock();
-=======
-    a1.data = (BA*)&(c1.body_attr(0));
-    
-    if (c0 == c1) {
-      pairs_mutex().lock();
-      cellpairs().push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d0, a0, d1));
-      pairs_mutex().unlock();
->>>>>>> ba62ace... merged add-mapper branch
     } else {
       pack2_mutex().lock();
       cellpairs().push_back(MapData2(d0, a0, d1));
@@ -914,22 +905,11 @@ struct Vectormap_CUDA_Packed_Map2
     streamid++;
     int s = (streamid % tesla_dev.n_streams);
     vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
-<<<<<<< HEAD
       tesla_dev.streams[s]>>>
       (&(body_lists2().ddata[start]), &(attr_lists2().ddata[start]),
        nc, r.size, r.data,
        tilesize, f, args...);
   }
-=======
-        tesla_dev.streams[s]>>>
-        (&(dvcells()[start]), &(dacells()[start]), nc, r.size, r.data,
-         tilesize, f, args...);
-  }
-  
-  /* Limit of the number of threads in grids. */
-
-  static const int N0 = (16 * 1024);
->>>>>>> ba62ace... merged add-mapper branch
 
   /* Starts launching a kernel on collected cells. */
 
