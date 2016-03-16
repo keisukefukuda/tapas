@@ -15,7 +15,7 @@
 
 #elif defined(__GNUC__) || defined(__GNUG__)
 /* GNU GCC/G++. --------------------------------------------- */
-# define TAPAS_COPMILER_GCC
+# define TAPAS_COMPILER_GCC
 #  define GCC_VERSION (__GNUC__ * 10000             \
                       + __GNUC_MINOR__ * 100        \
                       + __GNUC_PATCHLEVEL__)
@@ -61,7 +61,7 @@
 #include <sys/syscall.h> // for gettid()
 #include <sys/types.h>   // for gettid()
 
-#if defined(EXAFMM_TAPAS_MPI) || defined(USE_MPI) // FIXME: EXAFMM_TAPAS_MPI is only for debug
+#ifdef USE_MPI
 #include <mpi.h>
 #endif
 
@@ -156,7 +156,7 @@ void PrintKeys(const T &s, std::ostream &os) {
 }
 
 /**
- * @brief Convert a type to an integer (not constexpr unfortunately)
+ * @brief Convert a type to an integer
  */
 template<typename T>
 struct Type2Int {
@@ -165,29 +165,6 @@ struct Type2Int {
     return (intptr_t) &m;
   }
 };
-
-/** 
- * @brief Holder of template parameter types.
- */
-template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _ATTR,
-         class _Threading,
-         class _SFC,
-         class _Vectormap>
-struct TapasStaticParams {
-  static const int Dim = _DIM;  //!< dimension of simulation space
-  typedef _FP FP;               //!< Floating point types
-  typedef _BT BT;               //!< body info
-  typedef _BT_ATTR BT_ATTR;     //!< body attributes
-  typedef _ATTR ATTR;           //!< cell attributes
-  typedef _Threading Threading; //!< threading policy
-  typedef _SFC SFC;             //!< SFC implementation class
-  typedef _Vectormap Vectormap;
-  
-  // FIXME: the `SFC` class should not be here, because
-  //        the concept of `SFC` is specific to HOT partitioning algorithm.
-  //        As of now, HOT is the only implemented partitioning algorithm.
-};
-
 
 /**
  * @brief Sort vals using keys (assuming T1 is comparable). Both of keys and vals are sorted.
@@ -222,8 +199,29 @@ void SortByKeys(C1 &keys, C2 &vals) {
   keys = keys2;
   vals = vals2;
 }
-
-
 } // namespace tapas
+
+#ifdef __CUDACC__
+
+#define CUDA_SAFE_CALL(expr)                                            \
+  do {                                                                  \
+    cudaError_t err = (expr);                                           \
+    if (err != cudaSuccess) {                                           \
+      fprintf(stderr, "[Error] %s failed: %s (error code: %d) at %s:%d\n", \
+              #expr, cudaGetErrorString(err), err, __FILE__, __LINE__); \
+      exit(err);                                                        \
+    }                                                                   \
+  } while(0)
+
+#endif
+  
+#ifdef USE_SCOREP
+# include <scorep/SCOREP_User.h>
+#else
+# define SCOREP_USER_REGION(_1, _2) // place holder
+# define SCOREP_USER_REGION_DEFINE(_1)
+# define SCOREP_USER_REGION_BEGIN(_1, _2, _3)
+# define SCOREP_USER_REGION_END(_1)
+#endif
 
 #endif /* TAPAS_COMMON_ */
