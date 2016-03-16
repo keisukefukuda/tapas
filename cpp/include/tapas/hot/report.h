@@ -8,27 +8,38 @@
 #include <iomanip>
 
 #include "tapas/hot.h"
+#include "tapas/util.h"
 
 namespace tapas {
 namespace hot {
 
+using CSV = tapas::util::CSV;
+using RankCSV = tapas::util::RankCSV;
+
 namespace {
 template<class T> using V = std::vector<T>;
-}
 
 struct HostName {
   static const constexpr int kLen = 200;
   char value[kLen];
 };
 
+void WriteHostName(const std::string &fname) {
+  HostName hostname;
+  gethostname(hostname.value, HostName::kLen);
+
+  RankCSV writer {"Hostname"};
+  writer.At("Hostname") = hostname.value;
+  writer.Dump(fname);
+}
+
+}
+
 template<class Data>
-void Report(const Data &data, std::ostream &os = std::cout) {
+void Report(const Data &data) {
   // auto comm = data.mpi_comm_;
   auto comm = MPI_COMM_WORLD;
 
-  const int W = 10; // column width
-  const int WS = 14; // column width (scientific notation)
-    
   int rank, size;
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &size);
@@ -44,122 +55,73 @@ void Report(const Data &data, std::ostream &os = std::cout) {
     report_suffix = getenv("TAPAS_REPORT_SUFFIX");
   }
 
-  HostName hostname;
-  gethostname(hostname.value, HostName::kLen);
+  WriteHostName(report_prefix + "hostnames" + report_suffix + ".csv");
 
-  // print hostnames
-  {
-    V<HostName> buf;
-    tapas::mpi::Gather(hostname, buf, 0, comm);
-
-    if (rank == 0) {
-      std::string fname = report_prefix + "hostnames" + report_suffix + ".csv";
-      std::ofstream ofs(fname.c_str(), std::ios::out | std::ios::trunc);
-      
-      ofs << "rank hostname" << std::endl;
-      for (int i = 0; i < size; i++) {
-        ofs << i << "\t" << buf[i].value << std::endl;
-      }
-      ofs.close();
-    }
-  }
-  
-  // sampling rate
+  // misc data
   if (rank == 0) {
-    os << std::setprecision(5);
-    os << "Sampling Rate " << std::scientific << data.sampling_rate << std::endl;
-    os << "NB Total " << data.nb_total << std::endl;
+    CSV csv({"SamplingRate", "NB"}, 1);
+    csv.At("SamplingRate", 0) = data.sampling_rate;
+    csv.At("NB", 0) = data.nb_total;
+    csv.Dump(report_prefix + "misc" + report_suffix + ".csv");
   }
 
   // number of cells and bodies
-  V<index_t> nb_before, nb_after, nleaves, ncells;
-  tapas::mpi::Gather(data.nb_before, nb_before, 0, comm);
-  tapas::mpi::Gather(data.nb_after,  nb_after,  0, comm);
-  tapas::mpi::Gather(data.nleaves,   nleaves,   0, comm);
-  tapas::mpi::Gather(data.ncells,    ncells,    0, comm);
-  
-  if (rank == 0) {
-    std::string fname = report_prefix + "load_balancing" + report_suffix + ".csv";
-    std::ofstream ofs(fname.c_str(), std::ios::out | std::ios::trunc);
-    
-    ofs << std::setw(5) << std::right << "rank"
-        << std::setw(W) << std::right << "nb_before"
-        << std::setw(W) << std::right << "nb_after"
-        << std::setw(W) << std::right << "nleaves"
-        << std::setw(W) << std::right << "ncells"
-        << std::endl;
-    for (int i = 0; i < size; i++) {
-      ofs << std::setw(5) << std::right << i
-          << std::setw(W) << std::right << nb_before[i]
-          << std::setw(W) << std::right << nb_after[i]
-          << std::setw(W) << std::right << nleaves[i]
-          << std::setw(W) << std::right << ncells[i]
-          << std::endl;
-    }
-    ofs.close();
+  {
+    RankCSV csv {"NumBodies1", "NumBodies2", "NumLeaves", "NumCells"};
+    csv.At("NumBodies1") = data.nb_before;
+    csv.At("NumBodies2") = data.nb_after;
+    csv.At("NumLeaves")  = data.nleaves;
+    csv.At("NumCells")   = data.ncells;
+
+    csv.Dump(report_prefix + "load_balancing" + report_suffix + ".csv");
   }
 
-  V<double> tree_all, tree_sample, tree_exchange, tree_growlocal, tree_growglobal;
-  tapas::mpi::Gather(data.time_tree_all, tree_all, 0, comm);
-  tapas::mpi::Gather(data.time_tree_sample, tree_sample, 0, comm);
-  tapas::mpi::Gather(data.time_tree_exchange, tree_exchange, 0, comm);
-  tapas::mpi::Gather(data.time_tree_growlocal, tree_growlocal, 0, comm);
-  tapas::mpi::Gather(data.time_tree_growglobal, tree_growglobal, 0, comm);
-
-  if (rank == 0) {
-    std::string fname = report_prefix + "tree_construction" + report_suffix + ".csv";
-    std::ofstream ofs(fname.c_str(), std::ios::out | std::ios::trunc);
-    ofs << std::setprecision(5);
-    ofs << std::setw(5) << std::scientific << std::right << "rank"
-        << std::setw(WS) << std::scientific << std::right << "all"
-        << std::setw(WS) << std::scientific << std::right << "sample"
-        << std::setw(WS) << std::scientific << std::right << "exchange"
-        << std::setw(WS) << std::scientific << std::right << "grow-local"
-        << std::setw(WS) << std::scientific << std::right << "grow-global"
-        << std::endl;
-    for (int i = 0; i < size; i++) {
-      ofs << std::setw(5) << std::scientific << std::right << i
-          << std::setw(WS) << std::scientific << std::right << tree_all[i]
-          << std::setw(WS) << std::scientific << std::right << tree_sample[i]
-          << std::setw(WS) << std::scientific << std::right << tree_exchange[i]
-          << std::setw(WS) << std::scientific << std::right << tree_growlocal[i]
-          << std::setw(WS) << std::scientific << std::right << tree_growglobal[i]
-          << std::endl;
-    }
-    ofs.close();
+  // Tree construction breakdown
+  {
+    RankCSV csv {"all", "sample", "exchange", "grow-local", "grow-global"};
+    csv.At("all") = data.time_tree_all;
+    csv.At("sample") = data.time_tree_sample;
+    csv.At("exchange") = data.time_tree_exchange;
+    csv.At("grow-local") = data.time_tree_growlocal;
+    csv.At("grow-global") = data.time_tree_growglobal;
+    csv.Dump(report_prefix + "tree_construction" + report_suffix + ".csv");
   }
 
-  V<double> let_all, let_trv, let_req, let_res, let_reg;
-  tapas::mpi::Gather(data.time_let_all,      let_all, 0, comm);
-  tapas::mpi::Gather(data.time_let_traverse, let_trv, 0, comm);
-  tapas::mpi::Gather(data.time_let_req,      let_req, 0, comm);
-  tapas::mpi::Gather(data.time_let_response, let_res, 0, comm);
-  tapas::mpi::Gather(data.time_let_register, let_reg, 0, comm);
-  
-  if (rank == 0) {
-    std::string fname = report_prefix + "let_construction" + report_suffix + ".csv";
-    std::ofstream ofs(fname.c_str(), std::ios::out | std::ios::trunc);
-    ofs << std::setw(5) << std::scientific << std::right << "rank"
-        << std::setw(WS) << std::scientific << std::right << "all"
-        << std::setw(WS) << std::scientific << std::right << "Traversal"
-        << std::setw(WS) << std::scientific << std::right << "Request"
-        << std::setw(WS) << std::scientific << std::right << "Response"
-        << std::setw(WS) << std::scientific << std::right << "Register"
-        << std::endl;
-    for (int i = 0; i < size; i++) {
-      ofs << std::setw(5) << std::scientific << std::right << i
-          << std::setw(WS) << std::scientific << std::right << let_all[i]
-          << std::setw(WS) << std::scientific << std::right << let_trv[i]
-          << std::setw(WS) << std::scientific << std::right << let_req[i]
-          << std::setw(WS) << std::scientific << std::right << let_res[i]
-          << std::setw(WS) << std::scientific << std::right << let_reg[i]
-          << std::endl;
-    }
+  // LET exchange breakdown
+  {
+    RankCSV csv {"LET-All", "LET-Trav",
+          "LET-Req-all", "LET-Req-comm",
+          "LET-Res-all", "LET-Res-acomm", "LET-Res-bcomm",
+          "LET-Reg"};
+    csv.At("LET-All") = data.time_let_all;
+    csv.At("LET-Trav") = data.time_let_traverse;
+    csv.At("LET-Req-all") = data.time_let_req_all;
+    csv.At("LET-Req-comm") = data.time_let_req_comm;
+    csv.At("LET-Res-all") = data.time_let_res_all;
+    csv.At("LET-Res-acomm")  = data.time_let_res_attr_comm;
+    csv.At("LET-Res-bcomm") = data.time_let_res_body_comm;
+    csv.At("LET-Reg") = data.time_let_register;
+    csv.Dump(report_prefix + "let_construction" + report_suffix + ".csv");
+  }
+
+  // Map2 breakdown
+  {
+    RankCSV csv {"all", "let", "net_traverse"
+#ifdef __CUDACC__
+          , "device_call"
+#endif
+          };
+    csv.At("all") = data.time_map2_all;
+    csv.At("let") = data.time_map2_let;
+    csv.At("net_traverse") = data.time_map2_net;
+#ifdef __CUDACC__
+    csv.At("device_call") = data.time_map2_dev;
+#endif
+    csv.Dump(report_prefix + "map2" + report_suffix + ".csv");
   }
 }
 
-}
-}
+} // namespace hot
+} // namespace tapas
 
 #endif // TAPAS_HOT_REPORT_H
-
