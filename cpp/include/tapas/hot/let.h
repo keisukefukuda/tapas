@@ -72,7 +72,7 @@ void TraverseLET_old(typename Cell<TSP>::BodyType &p,
   bool is_src_local_leaf = is_src_local && ht[src_key]->IsLeaf();
   bool is_src_remote_leaf = !is_src_local && SFC::GetDepth(src_key) >= max_depth;
 
-  
+
   if (is_src_local_leaf) {
     // if the source cell is a remote leaf, we need it (the cell is not longer splittable anyway).
     //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_local_leaf" << std::endl;
@@ -104,15 +104,15 @@ void TraverseLET_old(typename Cell<TSP>::BodyType &p,
   for (size_t i = 0; i < src_child_keys.size(); i++) {
     KeyType ckey = src_child_keys[i];
     auto ctr = CellType::CalcCenter(ckey, r);
-    
+
     FP s = CellType::CalcRegion(ckey, r).width(0); // width
     FP d = std::sqrt(distR2(ctr));
-    
+
     // tapas::debug::DebugStream("traverse_count").out() << "particle(" << SFC::Simplify(trg_key) << ") [" << p.x << "," << p.y << "," << p.z << "]"
     //                                << " " << SFC::Simplify(ckey) << " s=" << s << " d=" << d << " "
     //                                << (s/d > theta ? "SplitRight" : "Approx")
     //                                << std::endl;
-    
+
     // tapas::debug::DebugStream("comp_count_hardcoded").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(ckey) << " "
     //                                      << "s=" << s << " d=" << d << std::endl;
     if (s/d > theta) { // if the cell(ckey) is close
@@ -148,7 +148,7 @@ void TraverseLET_old_slow(typename Cell<TSP>::KeyType trg_key, typename Cell<TSP
   }
 
   auto *cell = ht.at(trg_key);
-  
+
   if(cell->IsLeaf()) {
     if (cell->nb() == 0) {
       return;
@@ -177,7 +177,7 @@ struct InteractionPred {
 
   const DT &data_;
 
-  InteractionPred(const DT &data) : data_(data) {} 
+  InteractionPred(const DT &data) : data_(data) {}
 
   INLINE static FP distR2(const VT& v1, const VT& v2) {
     FP dx = v1[0] - v2[0];
@@ -190,7 +190,7 @@ struct InteractionPred {
     VT v1(p.x, p.y, p.z);
     return distR2(v1, v2);
   }
-  
+
   template<class T1>
   INLINE FP distR2(const T1 &t, const CT &c) {
     return distR2(t, c.center());
@@ -226,7 +226,7 @@ struct InteractionPred {
   }
 
   INLINE size_t nb(KT) { return 1; } // nb() method for remote cell always returns '1' in LET mode
-  
+
   INLINE SplitType operator() (KT trg_key, KT src_key) {
     const constexpr FP theta = 0.5;
     const auto &ht = data_.ht_;
@@ -255,12 +255,12 @@ struct InteractionPred {
     const auto &p1 = c1.body(0);
     real_t d = std::sqrt(distR2(p1, src_key));
     real_t s = CT::CalcRegion(src_key, data_.region_).width(0);
-    
+
     // tapas::debug::DebugStream("traverse_count").out() << "particle(" << SFC::Simplify(trg_key) << ") [" << p1.x << "," << p1.y << "," << p1.z << "]"
     //                                << " " << SFC::Simplify(src_key) << " s=" << s << " d=" << d << " "
     //                                << (s/d > theta ? "SplitRight" : "Approx")
     //                                << std::endl;
-    
+
     // tapas::debug::DebugStream("comp_count_manual").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " "
     //                                   << "s=" << s << " d=" << d << std::endl;
     if ((s/d) < theta) {
@@ -293,7 +293,7 @@ struct LET {
    public:
     ProxyBodyAttr(BodyAttrType &rhs) : BodyAttrType(rhs) {
     }
-    
+
     template <class T>
     inline ProxyBodyAttr& operator=(const T &) {
       return *this;
@@ -346,7 +346,7 @@ struct LET {
     }
   };
 
-  class ProxyMapper;
+  struct ProxyMapper;
 
   class ProxyCell;
 
@@ -358,22 +358,30 @@ struct LET {
     using CellType = ProxyCell;
     using value_type = ProxyBodyIterator;
     using attr_type = ProxyBodyAttr;
+    //using Mapper = typename CellType::Mapper;
+    using Mapper = ProxyMapper;
 
    private:
     ProxyCell *c_;
     index_t idx_;
+    ProxyMapper mapper_;
 
    public:
     static const constexpr int kThreadSpawnThreshold = 100;
-    
-    ProxyBodyIterator(ProxyCell *c) : c_(c), idx_(0) { }
-  
+
+    ProxyBodyIterator(ProxyCell *c) : c_(c), idx_(0), mapper_() { }
+
     ProxyBodyIterator &operator*() {
       return *this;
     }
 
+    constexpr bool SpawnTask() const { return false; }
+
+    Mapper &mapper() { return mapper_; }
+    const Mapper &mapper() const { return c_->mapper(); }
+
     inline int index() const { return idx_; }
-    
+
     ProxyCell &cell() const {
       return *c_;
     }
@@ -405,7 +413,7 @@ struct LET {
     bool operator!=(const ProxyBodyIterator &x) const {
       return !(*this == x);
     }
-    
+
     /**
      * \fn ProxyBody &ProxyBodyIterator::operator++()
      */
@@ -414,7 +422,7 @@ struct LET {
     }
 
     /**
-     * \fn ProxyBody &ProxyBodyIterator::operator++(int) 
+     * \fn ProxyBody &ProxyBodyIterator::operator++(int)
      */
     const ProxyBody &operator++(int) {
       return c_->body(idx_++);
@@ -459,7 +467,7 @@ struct LET {
     const BodyType *operator->() const {
       return reinterpret_cast<const BodyType*>(&(c_->body(idx_)));
     }
-  
+
     const ProxyBodyAttr &attr() const {
       return c_->body_attr(idx_);
     }
@@ -474,12 +482,12 @@ struct LET {
     // Export same type definitions as tapas::hot::Cell does.
     using KeyType = tapas::hot::LET<TSP>::KeyType;
     using SFC = tapas::hot::LET<TSP>::SFC;
-    
+
     using attr_type = ProxyAttr;
     using CellAttrType = ProxyAttr;
     using BodyAttrType = ProxyBodyAttr;
     using BodyType = ProxyBody;
-    
+
     static const constexpr int Dim = TSP::Dim;
     using Threading = typename CellType::Threading;
 
@@ -505,6 +513,12 @@ struct LET {
     inline Mapper &mapper() { return mapper_; }
     inline const Mapper &mapper() const { return mapper_; }
 
+    inline size_t local_nb() const {
+      return 1;
+    }
+
+    static const constexpr bool Inspector = true;
+
     /**
      * bool ProxyCell::operator==(const ProxyCell &rhs) const
      */
@@ -516,12 +530,12 @@ struct LET {
       return key_ < rhs.key_;
     }
 
-    template<class UserFunct>
-    static SplitType Pred(UserFunct f, KeyType trg_key, KeyType src_key, const Data &data) {
+    template<class UserFunct, class...Args>
+    static SplitType Pred(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
       ProxyCell trg_cell(trg_key, data);
       ProxyCell src_cell(src_key, data);
-    
-      f(trg_cell, src_cell);
+
+      f(trg_cell, src_cell, args...);
 
       if (trg_cell.marked_split_ && src_cell.marked_split_) {
         return SplitType::SplitBoth;
@@ -547,15 +561,19 @@ struct LET {
     /**
      * \fn Vec ProxyCell::center()
      */
-    Vec center() {
+    inline Vec center() {
       Touched();
       return Cell<TSP>::CalcCenter(key_, data_.region_);
+    }
+
+    inline int depth() const {
+      return SFC::GetDepth(key_);
     }
 
     /**
      * \fn FP ProxyCell::width(FP d) const
      */
-    FP width(FP d) const {
+    inline FP width(FP d) const {
       Touched();
       return Cell<TSP>::CalcRegion(key_, data_.region_).width(d);
     }
@@ -563,17 +581,18 @@ struct LET {
     /**
      * \fn bool ProxyCell::IsLeaf() const
      */
-    bool IsLeaf() const {
+    inline bool IsLeaf() const {
       Touched();
       if (is_local_) return cell_->IsLeaf();
       else           return data_.max_depth_ <= SFC::GetDepth(key_);
     }
 
-    bool IsLocal() const {
-      return data_.ht_.count(key_) > 0;
+    inline bool IsLocal() const {
+      return is_local_;
+      //return data_.ht_.count(key_) > 0;
     }
 
-    size_t nb() {
+    inline size_t nb() {
       Touched();
       if (is_local_) {
         return cell_->nb();
@@ -584,13 +603,13 @@ struct LET {
       }
     }
 
-    SubCellIterator<ProxyCell> subcells() {
+    inline SubCellIterator<ProxyCell> subcells() {
       Split();
       return SubCellIterator<ProxyCell>(*this);
     }
 
-    ProxyCell &subcell(int) {
-      return *this; 
+    inline ProxyCell &subcell(int) {
+      return *this;
     }
 
     /**
@@ -614,7 +633,7 @@ struct LET {
       if (is_local_) {
         TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");
         TAPAS_ASSERT((size_t)idx < cell_->nb() && "Body index out of bound. Check nb()." );
-        
+
         if (bodies_.size() != cell_->nb()) {
           InitBodies();
         }
@@ -632,7 +651,7 @@ struct LET {
       if (is_local_) {
         TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
         TAPAS_ASSERT((size_t)idx < cell_->nb());
-        
+
         if (body_attrs_.size() != cell_->nb()) {
           InitBodies();
         }
@@ -678,57 +697,81 @@ struct LET {
     mutable bool marked_touched_;
     bool marked_split_;
     bool marked_body_;
-    
+
     bool is_local_;
-    
+
     CellType *cell_;
     std::vector<ProxyBody*> bodies_;
     std::vector<ProxyBodyAttr*> body_attrs_;
     attr_type attr_;
-    Mapper mapper_;
+    Mapper mapper_; // FIXME: create Mapper for every ProxyCell is not efficient.
   }; // end of class ProxyCell
 
   /**
    * @brief A dummy class of Mapper
    */
   struct ProxyMapper {
+    const bool opt_mutual_;
+
+    ProxyMapper() : opt_mutual_(false) { }
+
+    // body
     template<class Funct, class...Args>
-    inline static void Map(Funct, ProxyBodyIterator &&, Args...) {
-      //f(p);
-    }
-    
-    template<class Funct, class...Args>
-    inline static void Map(Funct, ProxyBodyIterator &, Args...) {
-      //f(p);
+    inline void Map(Funct, ProxyBodyIterator &, Args...) {
+      // empty
     }
 
-    /**
-     * \fn void ProxyCell::Map
-     */
+    // body x body
     template<class Funct, class ...Args>
-    static void Map(Funct, ProxyCell &, ProxyCell &, Args...) {
-      // f(c1, c2)
+    inline void Map(Funct, ProxyBodyIterator, ProxyBodyIterator, Args...) {
+      // empty
     }
 
+    // body iter x body
     template<class Funct, class ...Args>
-    inline static void Map(Funct, ProxyBodyIterator &, ProxyBodyIterator &, Args...) {
-      //f(p1, p2);
+    inline void Map(Funct, ProxyBodyIterator, ProxyBody &, Args...) {
+      // empty
+    }
+
+    // cell x cell
+    template<class Funct, class ...Args>
+    inline void Map(Funct, ProxyCell &, ProxyCell &, Args...) {
+      // empty
+    }
+
+    // subcell iter X cell iter
+    template <class Funct, class...Args>
+    inline void Map(Funct, SubCellIterator<ProxyCell> &, CellIterator<ProxyCell> &, Args...) {
+      // empty
+    }
+
+    // cell iter X subcell iter
+    template <class Funct, class...Args>
+    inline void Map(Funct, CellIterator<ProxyCell> &, SubCellIterator<ProxyCell> &, Args...) {
+      // empty
+    }
+
+    // subcell iter X subcell iter
+    template <class Funct, class...Args>
+    inline void Map(Funct, SubCellIterator<ProxyCell> &, SubCellIterator<ProxyCell> &, Args...) {
+      // empty
     }
 
     /**
      * @brief Map function f over product of two iterators
      */
     template <class Funct, class T1_Iter, class T2_Iter, class... Args>
-    inline void Map(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args...args) {
-      TAPAS_LOG_DEBUG() << "map product iterator size: "
-                        << prod.size() << std::endl;
-      
-      if (prod.size() > 0) {
-        ProductMapImpl(prod.t1_, 0, prod.t1_.size(),
-                       prod.t2_, 0, prod.t2_.size(),
-                       f, args...);
-      }
+    inline void MapP2(Funct /* f */, ProductIterator<T1_Iter, T2_Iter> /*prod*/, Args.../*args*/) {
+      // empty
     }
+    /**
+     * @brief Map function f over product of two iterators
+     */
+    template <class Funct, class T1_Iter, class... Args>
+    inline void MapP1(Funct /*f*/, ProductIterator<T1_Iter> /*prod*/, Args.../*args*/) {
+      // empty
+    }
+
   };
 
 
@@ -738,26 +781,28 @@ struct LET {
   // and seems that it should be included in the class template parameter list along with TSP.
   // However, it is actually not possible because LET class is declared as 'friend' in the Cell class
   // only with TSP parameter. It's impossible to declare a partial specialization to be friend.
-  
+
   // Supporting routine for Traverse(KeyType, KeyType, Data, KeySet, KeySet);
-  template<class UserFunct>
-  static void Traverse(UserFunct f, std::vector<KeyType> &trg_keys, KeyType src_key,
-                       Data &data, KeySet &list_attr, KeySet &list_body) {
+  template<class UserFunct, class...Args>
+  static void Traverse(std::vector<KeyType> &trg_keys, KeyType src_key,
+                       Data &data, KeySet &list_attr, KeySet &list_body,
+                       UserFunct f, Args...args) {
     // Apply Traverse for each keys in trg_keys. If interaction between trg_keys[i] and src_key is 'approximate',
     // trg_keys[i+1...] will be all 'approximate'.
     for (size_t i = 0; i < trg_keys.size(); i++) {
-      Traverse(f, trg_keys[i], src_key, data, list_attr, list_body);
+      Traverse(trg_keys[i], src_key, data, list_attr, list_body, f, args...);
     }
   }
 
   // Supporting routine for Traverse(KeyType, KeyType, Data, KeySet, KeySet);
-  template<class UserFunct>
-  static void Traverse(UserFunct f, KeyType trg_key, std::vector<KeyType> src_keys,
-                       Data &data, KeySet &list_attr, KeySet &list_body) {
+  template<class UserFunct, class...Args>
+  static void Traverse(KeyType trg_key, std::vector<KeyType> src_keys,
+                       Data &data, KeySet &list_attr, KeySet &list_body,
+                       UserFunct f, Args...args) {
     // Apply Traverse for each keys in src_keys.
     // If interaction between trg_key and src_keys[i] is 'approximate', trg_keys[i+1...] will be all 'approximate'.
     for (size_t i = 0; i < src_keys.size(); i++) {
-      Traverse(f, trg_key, src_keys[i], data, list_attr, list_body);
+      Traverse(trg_key, src_keys[i], data, list_attr, list_body, f, args...);
     }
   }
 
@@ -769,9 +814,12 @@ struct LET {
    * \param list_attr (output) Set of request keys of which attrs are to be sent
    * \param list_body (output) Set of request keys of which bodies are to be sent
    */
-  template<class UserFunct>
-  static void Traverse(UserFunct f, KeyType trg_key, KeyType src_key, Data &data,
-                       KeySet &list_attr, KeySet &list_body) {
+  template<class UserFunct, class...Args>
+  static void Traverse(KeyType trg_key, KeyType src_key, Data &data,
+                       KeySet &list_attr, KeySet &list_body,
+                       UserFunct f, Args...args) {
+    SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
+
     // Traverse traverses the hypothetical global tree and constructs a list of
     // necessary cells required by the local process.
     auto &ht = data.ht_; // hash table
@@ -810,9 +858,9 @@ struct LET {
 #if defined(MANUAL_LET)
     SplitType split = InteractionPred<TSP>(data)(trg_key, src_key);
 #elif defined(AUTO_LET_SLOW)
-    SplitType split = LET<TSP>::ProxyCell::Pred(f, trg_key, src_key, data); // automated predicator object
+    SplitType split = LET<TSP>::ProxyCell::Pred(trg_key, src_key, data, f, args...); // automated predicator object
 #else
-    SplitType split = LET<TSP>::ProxyCell::Pred(f, trg_key, src_key, data); // automated predicator object
+    SplitType split = LET<TSP>::ProxyCell::Pred(trg_key, src_key, data, f, args...); // automated predicator object
 #endif
 
     switch(split) {
@@ -820,7 +868,7 @@ struct LET {
         for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
           if (ht.count(trg_ch) > 0) {
             for (KeyType src_ch : SFC::GetChildren(src_key)) {
-              Traverse(f, trg_ch, src_ch, data, list_attr, list_body);
+              Traverse(trg_ch, src_ch, data, list_attr, list_body, f, args...);
             }
           }
         }
@@ -828,7 +876,7 @@ struct LET {
       case SplitType::SplitLeft:
         for (KeyType ch : SFC::GetChildren(trg_key)) {
           if (ht.count(ch) > 0) {
-            Traverse(f, ch, src_key, data, list_attr, list_body);
+            Traverse(ch, src_key, data, list_attr, list_body, f, args...);
           }
         }
         break;
@@ -837,7 +885,7 @@ struct LET {
         break;
 
       case SplitType::SplitRight:
-        Traverse(f, trg_key, SFC::GetChildren(src_key), data, list_attr, list_body);
+        Traverse(trg_key, SFC::GetChildren(src_key), data, list_attr, list_body, f, args...);
         break;
 
       case SplitType::Approx:
@@ -855,11 +903,13 @@ struct LET {
 
     const long ncells = data.ht_.size();
     const long nall   = (pow(8.0, d+1) - 1) / 7;
+#ifdef TAPAS_DEBUG
     BarrierExec([&](int,int) {
         std::cout << "Cells: " << ncells << std::endl;
         std::cout << "depth: " << d << std::endl;
         std::cout << "filling rate: " << ((double)ncells / nall) << std::endl;
       });
+#endif
 
     std::vector<int> hist(d + 1, 0);
     for (auto p : data.ht_) {
@@ -869,45 +919,37 @@ struct LET {
       }
     }
 
+#if TAPAS_DEBUG
     BarrierExec([&](int, int) {
         std::cout << "Depth histogram" << std::endl;
         for (int i = 0; i <= d; i++) {
           std::cout << i << " " << hist[i] << std::endl;
         }
       });
+#endif
   }
 
   /**
    * \brief Traverse hypothetical global tree and construct a cell list.
    */
-  template<class UserFunct>
-  static void DoTraverse(UserFunct f, CellType &root,
-                         KeySet &req_keys_attr, KeySet &req_keys_body) {
+  template<class UserFunct, class...Args>
+  static void DoTraverse(CellType &root,
+                         KeySet &req_keys_attr, KeySet &req_keys_body,
+                         UserFunct f, Args...args) {
+    SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
+    MPI_Barrier(MPI_COMM_WORLD);
     double beg = MPI_Wtime();
-    
+
     req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
     req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
-    
+
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
-    
-#ifdef OLD_LET_TRAVERSE
-    (void) f;
-    
-#if 0 // 2015/10/28 性能評価のため一時的に粒子までトラバースするように変更
-    for (size_t bi = 0; bi < root.local_nb(); bi++) {
-      BodyType &b = root.local_body(bi);
-      TraverseLET_old<TSP, KeySet>(b, root.key(), root.key(), root.data(), req_keys_attr, req_keys_body);
-    }
-#else
-    TraverseLET_old_slow<TSP, KeySet>(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body);
-#endif
-    
-#else
-    Traverse(f, root.key(), root.key(), root.data(), req_keys_attr, req_keys_body);
-#endif
+
+    Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, f, args...);
 
     double end = MPI_Wtime();
+    MPI_Barrier(MPI_COMM_WORLD);
     root.data().time_let_traverse = end - beg;
   }
 
@@ -920,17 +962,19 @@ struct LET {
                       std::vector<KeyType> &keys_body_recv,
                       std::vector<int> &attr_src,
                       std::vector<int> &body_src) {
-    double beg = MPI_Wtime();
-    
     const auto &ht = data.ht_;
+    double bt_all, et_all, bt_comm, et_comm;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    bt_all = MPI_Wtime();
 
     // return values
     keys_attr_recv.clear(); // keys of which attributes are requested
     keys_body_recv.clear(); // keys of which attributes are requested
-  
+
     attr_src.clear(); // Process IDs that requested attr_keys_recv[i]
     body_src.clear(); // Process IDs that requested attr_body_recv[i]
-    
+
     // Local cells don't need to be transfered.
     // FIXME: here we calculate difference of sets {necessary cells} - {local cells} in a naive way.
     auto orig_req_keys_attr = req_keys_attr;
@@ -948,7 +992,7 @@ struct LET {
       }
     }
 
-#ifdef TAPAS_DEBUG
+#ifdef TAPAS_DEBUG_DUMP
     BarrierExec([&](int rank, int) {
         std::cout << "rank " << rank << "  Local cells are filtered out" << std::endl;
         std::cout << "rank " << rank << "  req_keys_attr.size() = " << req_keys_attr.size() << std::endl;
@@ -978,19 +1022,26 @@ struct LET {
     // (send buffer)
     std::vector<KeyType> keys_attr_send(req_keys_attr.begin(), req_keys_attr.end());
     std::vector<KeyType> keys_body_send(req_keys_body.begin(), req_keys_body.end());
-  
-    TAPAS_ASSERT(data.proc_first_keys_.size() == data.mpi_size_);
-    
+
+    TAPAS_ASSERT((int)data.proc_first_keys_.size() == data.mpi_size_);
+
     // Determine the destination process of each cell request
     std::vector<int> attr_dest = Partitioner<TSP>::FindOwnerProcess(data.proc_first_keys_, keys_attr_send);
     std::vector<int> body_dest = Partitioner<TSP>::FindOwnerProcess(data.proc_first_keys_, keys_body_send);
-    
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    bt_comm = MPI_Wtime();
+
     tapas::mpi::Alltoallv2<KeyType>(keys_attr_send, attr_dest,
                                     keys_attr_recv, attr_src, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv2<KeyType>(keys_body_send, body_dest,
                                     keys_body_recv, body_src, MPI_COMM_WORLD);
-    
-#ifdef TAPAS_DEBUG
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    et_comm = MPI_Wtime();
+    data.time_let_req_comm = et_comm - bt_comm;
+
+#ifdef TAPAS_DEBUG_DUMP
     {
       assert(keys_body_recv.size() == body_src.size());
       tapas::debug::DebugStream e("body_keys_recv");
@@ -1000,7 +1051,7 @@ struct LET {
     }
 #endif
 
-#ifdef TAPAS_DEBUG
+#ifdef TAPAS_DEBUG_DUMP
     BarrierExec([&](int rank, int) {
         std::cout << "rank " << rank << "  req_keys_attr.size() = " << req_keys_attr.size() << std::endl;
         std::cout << "rank " << rank << "  req_keys_body.size() = " << req_keys_body.size() << std::endl;
@@ -1008,10 +1059,11 @@ struct LET {
       });
 #endif
 
-    double end = MPI_Wtime();
-    data.time_let_req = end - beg;
+    MPI_Barrier(MPI_COMM_WORLD);
+    et_all = MPI_Wtime();
+    data.time_let_req_all = et_all - bt_all;
   }
-  
+
 
   /**
    * \brief Select cells and send response to the requesters.
@@ -1030,16 +1082,26 @@ struct LET {
                        std::vector<KeyType> &req_attr_keys, std::vector<int> &attr_src_ranks,
                        std::vector<KeyType> &req_leaf_keys, std::vector<int> &leaf_src_ranks,
                        std::vector<CellAttrType> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
-    double beg = MPI_Wtime();
 
+    SCOREP_USER_REGION("LET-Response", SCOREP_USER_REGION_TYPE_FUNCTION);
     // req_attr_keys : list of cell keys of which cell attributes are requested
     // req_leaf_keys : list of cell keys of which bodies are requested
     // attr_src_ranks      : source process ranks of req_attr_keys (which are response target ranks)
     // leaf_src_ranks      : source process ranks of req_leaf_keys (which are response target ranks)
 
-    
+    // Code regions:
+    //   1. Pre-comm computation
+    //   2. Communication (Alltoallv)
+    //   3. Post-comm computation
+    double bt_all, et_all;
+    double bt, et;
+
+    // ===== Pre-comm computation =====
     // Create and send responses to the src processes of requests.
-  
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    bt_all = MPI_Wtime();
+
     Partitioner<TSP>::SelectResponseCells(req_attr_keys, attr_src_ranks,
                                           req_leaf_keys, leaf_src_ranks,
                                           data.ht_);
@@ -1047,36 +1109,41 @@ struct LET {
     const auto &ht = data.ht_;
     int mpi_size = data.mpi_size_;
 
-    // ----- Send Cell attributes -----
-    
     // Prepare cell attributes to send to <attr_src_ranks> processes
     std::vector<KeyType> attr_keys_send = req_attr_keys; // copy (split senbuf and recvbuf)
     std::vector<int> attr_dest_ranks = attr_src_ranks;
     res_cell_attrs.clear();
     std::vector<CellAttrType> attr_sendbuf;
     Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
-    
+
+    data.time_let_res_comp1 = et - bt;
+
+    // ===== 2. communication =====
     // Send response keys and attributes
+    MPI_Barrier(MPI_COMM_WORLD);
+    bt = MPI_Wtime();
+
     tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks, req_attr_keys,  attr_src_ranks, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, MPI_COMM_WORLD);
 
-    
-    
-    // ----- Send bodies  -----
-    
+    MPI_Barrier(MPI_COMM_WORLD);
+    et = MPI_Wtime();
+    data.time_let_res_attr_comm = et - bt;
+
+    // ===== 3. Post-comm computation =====
     // Preapre all bodies to send to <leaf_src_ranks> processes
     // body_destは、いまのままalltoallvに渡すとエラーになる。
     // TODO: leaf_keys_send と body_dest と一緒にSortByKeysして（すでにされている？）、
     //       leaf_src_ranks を body_dest に書き換える必要がある（ループをまわす）
+
     std::vector<int> leaf_dest = leaf_src_ranks;         // copy
     std::vector<KeyType> leaf_keys_sendbuf = req_leaf_keys; // copy
     res_bodies.clear();
 
-
     // First, leaf_keys_sendbuf must be ordered by thier destination processes
     // (Since we need to send bodies later, leaf_keys_sendbuf must NOT be sorted ever again.)
     tapas::SortByKeys(leaf_dest, leaf_keys_sendbuf);
-    
+
     std::vector<index_t> leaf_nb_sendbuf (leaf_keys_sendbuf.size()); // Cell <leaf_keys_sendbuf[i]> has <leaf_nb_sendbuf[i]> bodies.
     std::vector<BodyType> body_sendbuf;
 
@@ -1113,13 +1180,20 @@ struct LET {
     // leaf_src_ranks_ranks and res_nb.
     std::vector<int> leaf_recvcnt; // we don't use this
     std::vector<int> body_recvcnt; // we don't use this
-    
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    bt = MPI_Wtime();
+
     // Send response keys and bodies
     tapas::mpi::Alltoallv(leaf_keys_sendbuf, leaf_sendcnt, req_leaf_keys, leaf_recvcnt, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv(leaf_nb_sendbuf,   leaf_sendcnt, res_nb,        leaf_recvcnt, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
 
-#ifdef TAPAS_DEBUG
+    MPI_Barrier(MPI_COMM_WORLD);
+    et = MPI_Wtime();
+    data.time_let_res_body_comm = et - bt;
+
+#ifdef TAPAS_DEBUG_DUMP
     tapas::debug::BarrierExec([&](int, int) {
         std::cout << "ht.size() = " << ht.size() << std::endl;
         std::cout << "req_attr_keys.size() = " << req_attr_keys.size() << std::endl;
@@ -1128,7 +1202,7 @@ struct LET {
         std::cout << "res_bodies.size() = " << res_bodies.size() << std::endl;
       });
 #endif
-    
+
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
 
@@ -1138,21 +1212,24 @@ struct LET {
 
     TAPAS_ASSERT(data.let_bodies_.size() == res_bodies.size());
 
-    double end = MPI_Wtime();
-    data.time_let_response = end - beg;
+    MPI_Barrier(MPI_COMM_WORLD);
+    et_all = MPI_Wtime();
+    data.time_let_res_all = et_all - bt_all;
   }
-  
+
   /**
    * \breif Register response cells to local LET hash table
    * \param [in,out] data Data structure (cells are registered to data->ht_lt_)
    */
-  static void Register(std::shared_ptr<Data> data,
+  static void Register(Data *data,
                        const std::vector<KeyType> &res_cell_attr_keys,
                        const std::vector<CellAttrType> &res_cell_attrs,
                        const std::vector<KeyType> &res_leaf_keys,
                        const std::vector<index_t> &res_nb) {
+    SCOREP_USER_REGION("LET-Register", SCOREP_USER_REGION_TYPE_FUNCTION);
+    MPI_Barrier(MPI_COMM_WORLD);
     double beg = MPI_Wtime();
-    
+
     // Register received LET cells to local ht_let_ hash table.
     for (size_t i = 0; i < res_cell_attr_keys.size(); i++) {
       KeyType k = res_cell_attr_keys[i];
@@ -1171,7 +1248,7 @@ struct LET {
       c->bid_ = 0;
       data->ht_let_[k] = c;
     }
-    
+
     TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
 
     // Register received leaf cells to local ht_let_ hash table.
@@ -1180,7 +1257,7 @@ struct LET {
       KeyType k = res_leaf_keys[i];
       index_t nb = res_nb[i];
       Cell<TSP> *c = nullptr;
-      
+
       if (data->ht_let_.count(k) > 0) {
         // If the cell is already registered to ht_let_, the cell has attributes but not body info.
         c = data->ht_let_.at(k);
@@ -1194,10 +1271,11 @@ struct LET {
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->bid_ = body_offset;
-      
+
       body_offset += nb;
     }
-    
+
+    MPI_Barrier(MPI_COMM_WORLD);
     double end = MPI_Wtime();
     data->time_let_register = end - beg;
   }
@@ -1205,26 +1283,27 @@ struct LET {
   /**
    * \brief Build Locally essential tree
    */
-  template<class UserFunct>
-  static void Exchange(UserFunct f, CellType &root) {
+  template<class UserFunct, class...Args>
+  static void Exchange(CellType &root, UserFunct f, Args...args) {
+    SCOREP_USER_REGION("LET-All", SCOREP_USER_REGION_TYPE_FUNCTION);
     double beg = MPI_Wtime();
-    
-#ifdef TAPAS_DEBUG
+
+#ifdef TAPAS_DEBUG_DUMP
     ShowHistogram(root.data());
 #endif
 
     // Traverse
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
-    
-    DoTraverse(f, root, req_cell_attr_keys, req_leaf_keys);
-    
+
+    DoTraverse(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested
-  
+
     std::vector<int> attr_src; // Process IDs that requested attr_keys_recv[i] (output from Request())
     std::vector<int> leaf_src; // Process IDs that requested attr_body_recv[i] (output from Request())
-    
+
     // Request
     Request(root.data(), req_cell_attr_keys, req_leaf_keys,
             res_cell_attr_keys, res_leaf_keys, attr_src, leaf_src);
@@ -1237,8 +1316,8 @@ struct LET {
 
     // Register
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
-  
-#ifdef TAPAS_DEBUG
+
+#ifdef TAPAS_DEBUG_DUMP
     DebugDumpCells(root.data());
 #endif
 
@@ -1247,7 +1326,8 @@ struct LET {
   }
 
   static void DebugDumpCells(Data &data) {
-#ifdef TAPAS_DEBUG
+    (void)data;
+#ifdef TAPAS_DEBUG_DUMP
     // Debug
     // Dump all received cells to a file
     {
@@ -1273,7 +1353,7 @@ struct LET {
 
     {
       tapas::debug::DebugStream e("M_let");
-      
+
       for (auto& iter : data.ht_let_) {
         KeyType k = iter.first;
         Cell<TSP> *c = iter.second;
@@ -1296,4 +1376,3 @@ struct LET {
 } // namespace tapas
 
 #endif // __TAPAS_HOT_LET__
-
