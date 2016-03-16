@@ -16,28 +16,22 @@ template <class CellType> class SubCellIterator;
 template<class TSP> // TSP=TapasStaticParams
 class BasicCell {
   public:
-    static const int Dim = TSP::Dim;
-    typedef TSP TSPClass;
-    typedef typename TSP::FP FP;
-    typedef typename TSP::BT BT;
-    typedef typename TSP::BT_ATTR BT_ATTR;
-    typedef typename TSP::ATTR ATTR;
-  protected:
-#if 0  
-    BT_ATTR *dummy_;
-    BT::type *BT_dummy_;
-#endif  
+  static const int Dim = TSP::Dim;
+  typedef typename TSP::FP FP;
+  typedef typename TSP::Body BT;
+  typedef typename TSP::BodyAttr BT_ATTR;
+  typedef typename TSP::CellAttr ATTR;
+ protected:
     ATTR attr_; // can be omitted when ATTR=NONE
     Region<TSP> region_;
     index_t bid_;
-    index_t nb_;
+    size_t nb_;
   public:
     BasicCell(const Region<TSP> &region, index_t bid, index_t nb):
       region_(region), bid_(bid), nb_(nb) {
-      TAPAS_ASSERT(nb_ >= 0);
     }
   index_t bid() const { return bid_; }
-  index_t nb() const { return nb_; }
+  size_t nb() const { return nb_; }
   const Region<TSP> &region() const {
     return region_;
   }
@@ -96,7 +90,7 @@ class BasicCell {
   int nsubcells() const;
   BasicCell &subcell(int idx) const; 
   BasicCell &parent() const;
-  typename BT::type &body(index_t idx) const;
+  BT &body(index_t idx) const;
   BT_ATTR *body_attrs() const;
 
  protected:
