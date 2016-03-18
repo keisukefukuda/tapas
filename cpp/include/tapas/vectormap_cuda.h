@@ -612,10 +612,10 @@ class Applier2 : public AbstractApplier<Vectormap> {
 
   // Call ::invoke() function with args... 
   template<int ...ParamIdx>
-  inline void invoke2(Vectormap *caller, int start, int nc, Cell_Data<Body> &r,
-                      int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
-                      seq<ParamIdx...>) {
-    invoke(caller, start, nc, r, tilesize, nblocks, ctasize, scratchpadsize, f_, std::get<ParamIdx>(args_)...);
+  inline void invoke(Vectormap *caller, int start, int nc, Cell_Data<Body> &r,
+                     int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
+                     seq<ParamIdx...>) {
+    ::tapas::invoke(caller, start, nc, r, tilesize, nblocks, ctasize, scratchpadsize, f_, std::get<ParamIdx>(args_)...);
   }
 
   // ctor. not thread safe.
@@ -724,9 +724,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
       Cell_Data<BV> &r = std::get<2>(c);
       if (xr.data != r.data) {
         assert(i != 0 && xncells > 0);
-        invoke2(vm, (i - xncells), xncells, xr,
-                tilesize, nblocks, ctasize, scratchpadsize,
-                ParamIdxSeq());
+        this->invoke(vm, (i - xncells), xncells, xr,
+                     tilesize, nblocks, ctasize, scratchpadsize,
+                     ParamIdxSeq());
         xncells = 0;
         xndata = 0;
         xr = r;
@@ -737,9 +737,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
       if (nb > nblocks) {
         //std::cerr << "i = " << i << ", xncells = " << xncells << std::endl;
         assert(i != 0 && xncells > 0);
-        invoke2(vm, (i - xncells), xncells, xr,
-                tilesize, nblocks, ctasize, scratchpadsize,
-                ParamIdxSeq());
+        this->invoke(vm, (i - xncells), xncells, xr,
+                     tilesize, nblocks, ctasize, scratchpadsize,
+                     ParamIdxSeq());
         xncells = 0;
         xndata = 0;
         xr = r;
@@ -748,9 +748,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
       xndata += (TAPAS_CEILING(l.size, 32) * 32);
     }
     assert(xncells > 0);
-    invoke2(vm, (vm->npairs_ - xncells), xncells, xr,
-            tilesize, nblocks, ctasize, scratchpadsize,
-            ParamIdxSeq());
+    this->invoke(vm, (vm->npairs_ - xncells), xncells, xr,
+                 tilesize, nblocks, ctasize, scratchpadsize,
+                 ParamIdxSeq());
     
     auto t3 = high_resolution_clock::now();
 
@@ -809,7 +809,7 @@ struct Vectormap_CUDA_Packed
    * @brief ctor.
    * not thread safe
    */
-  Vectormap_CUDA_Packed_Map2()
+  Vectormap_CUDA_Packed()
       : npairs_(0)
       , dvcells_(nullptr)
       , hvcells_(nullptr)

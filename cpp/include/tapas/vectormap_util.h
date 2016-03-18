@@ -25,9 +25,8 @@ namespace tapas {
 
 static void rank_in_node(MPI_Comm comm, int &rankofnode, int &rankinnode,
                          int &nprocsinnode) {
-  int cc;
   int nprocs, rank;
-  cc = MPI_Comm_size(comm, &nprocs);
+  int cc = MPI_Comm_size(comm, &nprocs);
   assert(cc == MPI_SUCCESS);
   cc = MPI_Comm_rank(comm, &rank);
   assert(cc == MPI_SUCCESS);
