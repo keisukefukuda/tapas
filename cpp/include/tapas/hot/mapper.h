@@ -302,7 +302,7 @@ struct CPUMapper {
   }
 
   // bodies
-  template <class Funct, class... Args>
+  template <class Funct, class...Args>
   void Map(Funct f, BodyIterator<Cell> iter, Args...args) {
     for (int i = 0; i < iter.size(); ++i) {
       f(*iter, iter.attr(), args...);
@@ -333,8 +333,9 @@ struct CPUMapper {
 #include "tapas/vectormap_cuda.h"
 
 template<class Cell, class Body, class LET>
-struct GPUMapper {
+struct GPUMapper : CPUMapper<Cell, Body, LET> {
 
+  using Base = CPUMapper<Cell, Body, LET>;
   using Data = typename Cell::Data;
   using Vectormap = tapas::Vectormap_CUDA_Packed<Cell::Dim, typename Cell::FP, typename Cell::Body, typename Cell::BodyAttr>;
 
@@ -367,19 +368,24 @@ struct GPUMapper {
                      f, args...);
     }
   }
+  
+  GPUMapper() : CPUMapper<Cell, Body, LET>() { }
+
 
   /**
    * \brief Specialization of Map() over body x body product for GPU
    */
   template <class Funct, class...Args>
   inline void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args...args) {
+    // Offload bodies x bodies interaction to GPU
     vmap_.map2(f, prod, args...);
   }
 
   inline void Setup() {
+    // Called in tapas/hot.h
     vmap_.setup(64,31);
   }
-
+  
   // GPUMapper::Start for 2-param Map()
   inline void Start() {
     vmap_.start();
@@ -414,7 +420,7 @@ struct GPUMapper {
    * - Construct & exchange LET
    */
   template <class Funct, class...Args>
-  void Map2Init(Funct f, Cell&c1, Cell&c2, Args...args) {
+  void Map2_Init(Funct f, Cell&c1, Cell&c2, Args...args) {
     auto &data = c1.data();
     map2_all_beg_ = std::chrono::high_resolution_clock::now();
 
@@ -442,9 +448,11 @@ struct GPUMapper {
     Start();
 
     // -- check
-    if (c1.GetOptMutual()) {
-      std::cerr << "[To Fix] Error: mutual is not supported in CUDA implementation" << std::endl;
-      //exit(-1);
+    if (this->Base::opt_mutual_) {
+      if (data.mpi_rank_ == 0) {
+        std::cerr << "[To Fix] Error: mutual is not supported in CUDA implementation" << std::endl;
+      }
+      exit(-1);
     }
     data.time_map2_let = data.time_let_all;
   }
@@ -456,7 +464,7 @@ struct GPUMapper {
    * - Collect time information
    */
   template <class Funct, class...Args>
-  void Map2Finish(Funct, Cell &c1, Cell &c2, Args...) {
+  void Map2_Finish(Funct, Cell &c1, Cell &c2, Args...) {
     auto &data = c1.data();
     Finish(); // Execute CUDA kernel
 
@@ -468,20 +476,24 @@ struct GPUMapper {
     data.time_map2_all = std::chrono::duration_cast<std::chrono::microseconds>(d).count() * 1e-6;
   }
 
-  // GPUMapper::Map
-  // cell x cell
+  /*
+   * \brief Main routine of dual tree traversal (2-param Map())
+   * GPUMapper::Map
+   *
+   * Cell x Cell
+   */
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, Cell &c2, Args... args) {
     static std::chrono::high_resolution_clock::time_point t1, t2;
 
     if (c1.IsRoot() && c2.IsRoot()) {
-      Map2Init(f, c1, c2, args...);
+      Map2_Init(f, c1, c2, args...);
     }
 
     f(c1, c2, args...);
 
     if (c1.IsRoot() && c2.IsRoot()) {
-      Map2Finish(f, c1, c2, args...);
+      Map2_Finish(f, c1, c2, args...);
     }
   }
 
@@ -530,7 +542,6 @@ struct GPUMapper {
     }
   }
 
-  // body x body
   template<class Funct, class...Args>
   inline void Map(Funct f, BodyIterator<Cell> b1, BodyIterator<Cell> b2, Args...args) {
 #ifdef TAPAS_COMPILER_INTEL
@@ -538,7 +549,6 @@ struct GPUMapper {
 #endif
     f(*b1, b1.attr(), *b2, b2.attr(), args...);
   }
-
 }; // class GPUMapper
 
 #endif /* __CUDACC__ */

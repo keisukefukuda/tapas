@@ -60,7 +60,7 @@ struct Vectormap_CUDA_Simple;
 template<int _DIM, class _FP, class _BT, class _BT_ATTR>
 struct Vectormap_CUDA_Packed;
 
-#else /*__CUDACC__*/
+#else /* else __CUDACC__ */
 
 template <typename T>
 using vectormap_allocator__ = std::allocator<T>;

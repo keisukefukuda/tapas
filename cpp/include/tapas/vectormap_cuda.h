@@ -765,7 +765,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
     std::cout << "CUDA map2 other      : " << std::scientific << time_other  << " s" << std::endl;
     std::cout << "CUDA map2 total      : " << std::scientific << time_total  << " s" << std::endl;
   }
-};
+}; // class Applier2
 
 template<int _DIM, class _FP, class _BT, class _BT_ATTR>
 struct Vectormap_CUDA_Packed
@@ -841,7 +841,7 @@ struct Vectormap_CUDA_Packed
     if (applier_ == nullptr) {
       applier_mutex_.lock();
       if (applier_ == nullptr) {
-        applier_ = new Applier<Vectormap, Funct, Args...>(f, args...);
+        applier_ = new Applier2<Vectormap, Funct, Args...>(f, args...);
         funct_id_ = Type2Int<Funct>::value();
 
         // Memo [Jan 18, 2016]
@@ -912,9 +912,9 @@ struct Vectormap_CUDA_Packed
       applier_mutex_.unlock();
     }
   }
-};
+}; // Vectormap_CUDA_Packed
 
-}
+} //namespace tapas
 
 #endif /*__CUDACC__*/
 
