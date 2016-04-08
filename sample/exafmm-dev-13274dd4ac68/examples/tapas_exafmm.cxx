@@ -590,7 +590,10 @@ int main(int argc, char ** argv) {
   // (for performance measurement)
 #ifdef __CUDACC__
   {
-    std::cout << "Initializing CUDA..." << std::endl;
+    if (args.mpi_rank == 0) {
+      std::cout << "Initializing CUDA..." << std::endl;
+    }
+    // Dummy CUDA API call to initialize the runtime (for performance measurement)
     int *p = nullptr;
     cudaMalloc(&p, sizeof(int));
     cudaFree(p);

@@ -561,12 +561,15 @@ struct Cell_Data {
   T* data;
 };
 
-// Launches a kernel on Tesla.
-// Used by Vectormap_CUDA_Pakced and Applier.
+/**
+ * \brief CUDA kernel invoke for 2-parameter Map()
+ * Launches a kernel on Tesla.
+ * Used by Vectormap_CUDA_Pakced and Applier.
+ */
 template <class Caller, class Funct, class... Args>
-void invoke(Caller *caller, int start, int nc, Cell_Data<Body> &r,
-            int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
-            Funct f, Args... args) {
+void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
+             int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
+             Funct f, Args... args) {
   using BV = typename Caller::Body;
   using BA = typename Caller::BodyAttr;
 
@@ -579,9 +582,9 @@ void invoke(Caller *caller, int start, int nc, Cell_Data<Body> &r,
     printf("invoke(start=%d ncells=%d)\n", start, nc);
 
     for (int i = 0; 0 && i < nc; i++) {
-      Cell_Data<BV> &lc = std::get<0>(caller->cellpairs_[start + i]);
-      Cell_Data<BA> &ac = std::get<1>(caller->cellpairs_[start + i]);
-      Cell_Data<BV> &rc = std::get<2>(caller->cellpairs_[start + i]);
+      Cell_Data<BV> &lc = std::get<0>(caller->cellpairs2_[start + i]);
+      Cell_Data<BA> &ac = std::get<1>(caller->cellpairs2_[start + i]);
+      Cell_Data<BV> &rc = std::get<2>(caller->cellpairs2_[start + i]);
       assert(rc.data == r.data);
       assert(ac.size == lc.size);
       printf("pair(celll=%p[%d] cellr=%p[%d])\n",
@@ -654,7 +657,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
   inline void invoke(Vectormap *caller, int start, int nc, Cell_Data<Body> &r,
                      int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
                      seq<ParamIdx...>) {
-    ::tapas::invoke(caller, start, nc, r, tilesize, nblocks, ctasize, scratchpadsize, f_, std::get<ParamIdx>(args_)...);
+    ::tapas::invoke2(caller, start, nc, r, tilesize, nblocks, ctasize, scratchpadsize, f_, std::get<ParamIdx>(args_)...);
   }
 
   // ctor. not thread safe.
@@ -833,11 +836,14 @@ struct Vectormap_CUDA_Packed
   using Attr_List = Cell_Data<BT_ATTR>;
   using MapData2 = std::tuple<Body_List, Attr_List, Body_List>;
 
-  // Pairs of bodies to which the user function is applied
-  std::vector<MapData2> cellpairs_;
+  // Data for 1-parameter Map()
+  std::mutex pack1_mutex_; // mutex for map1
+  
+  // Data for 2-parameter Map()
+  std::vector<MapData2> cellpairs2_;
   Mirror_Data<Body_List> body_list2_; // body list for 2-parameter Map()
   Mirror_Data<Attr_List> attr_list2_; // body attr list for 2-parameter Map()
-  std::mutex pack2_mutex_;
+  std::mutex pack2_mutex_; // mutex for map2
   
   // funct_id_ is used to check if the same Funct is used for all cell pairs.
   // In the current implementation, it is assumed that a single function and
@@ -852,7 +858,7 @@ struct Vectormap_CUDA_Packed
   
   void start() {
     //printf(";; start\n"); fflush(0);
-    cellpairs_.clear();
+    cellpairs2_.clear();
   }
 
   /**
@@ -860,9 +866,10 @@ struct Vectormap_CUDA_Packed
    * not thread safe
    */
   Vectormap_CUDA_Packed()
-      : cellpairs_()
+      : cellpairs2_()
       , body_list2_()
       , attr_list2_()
+      , pack1_mutex_()
       , pack2_mutex_()
       , applier_mutex_()
       , funct_id_(0)
@@ -870,14 +877,14 @@ struct Vectormap_CUDA_Packed
       , time_device_call_(0)
   { }
 
-  inline std::vector<MapData2> &cellparis() {
-    return cellpairs_;
+  inline std::vector<MapData2> &cellparis2() {
+    return cellpairs2_;
   }
 
   inline Mirror_Data<Body_List> &body_list2() {
     return body_list2_;
   }
-
+  
   inline Mirror_Data<Attr_List> &attr_list2() {
     return attr_list2_;
   }
@@ -931,13 +938,13 @@ struct Vectormap_CUDA_Packed
     
     if (c0 == c1) {
       pack2_mutex_.lock();
-      cellpairs_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
+      cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
       pack2_mutex_.unlock();
     } else {
       pack2_mutex_.lock();
-      cellpairs_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
+      cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
       // mutual interaction is not supported in this CUDA version.
-      //cellpairs_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d1, a1, d0)); // mutual is not supported in CUDA version
+      //cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d1, a1, d0)); // mutual is not supported in CUDA version
       pack2_mutex_.unlock();
     }
   }
