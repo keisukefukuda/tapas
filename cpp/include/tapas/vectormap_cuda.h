@@ -269,12 +269,11 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
   }
 }
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
-struct Vectormap_CUDA_Simple {
+template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+struct Vectormap_CUDA_Base {
   using Body = _BT;
   using BodyAttr = _BT_ATTR;
-
-  TESLA tesla_dev_;
+  using CellAttr = _CELL_ATTR;
 
   /**
    * \brief Memory allocator for the unified memory.  
@@ -313,7 +312,17 @@ struct Vectormap_CUDA_Simple {
       : std::allocator<T>(a) {}
 
     ~um_allocator() throw() {}
-  };
+  }; // end of class um_allocator
+}; // end of class Vectormap_CUDA_Base 
+
+
+template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
+  using Body = _BT;
+  using BodyAttr = _BT_ATTR;
+  using CellAttr = _CELL_ATTR;
+
+  TESLA tesla_dev_;
 
   void setup(int cta, int nstreams) {
     assert(nstreams <= TAPAS_CUDA_MAX_NSTREAMS);
@@ -767,9 +776,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
   }
 }; // class Applier2
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Packed
-    : public Vectormap_CUDA_Simple<_DIM, _FP, _BT, _BT_ATTR> {
+    : public Vectormap_CUDA_Simple<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
   using BV = _BT;
   using BA = _BT_ATTR;
 
@@ -777,7 +786,7 @@ struct Vectormap_CUDA_Packed
   using BodyAttr = _BT_ATTR;
   
   using CellPair = std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>;
-  using Vectormap = Vectormap_CUDA_Packed<_DIM, _FP, _BT, _BT_ATTR>; // self
+  using Vectormap = Vectormap_CUDA_Packed<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>; // self
 
   // Pairs of bodies to which the user function is applied
   std::vector<CellPair> cellpairs_;

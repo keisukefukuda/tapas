@@ -54,10 +54,10 @@ public:
   ~vectormap_allocator__() throw() {}
 };
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Simple;
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Packed;
 
 #else /* else __CUDACC__ */

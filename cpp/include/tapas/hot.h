@@ -1349,11 +1349,11 @@ struct HOT {
   using Threading = tapas::threading::Default;
 
 #ifdef __CUDACC__
-  using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR>;
+  using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
   template<class T> using Allocator = typename Vectormap::template um_allocator<T>;
   template<class _CELL, class _BODY, class _LET>  using Mapper = hot::GPUMapper<_CELL, _BODY, _LET>;
 #else
-  using Vectormap = tapas::Vectormap_CPU<_DIM, _FP, _BODY_TYPE, _BODY_ATTR>;
+  using Vectormap = tapas::Vectormap_CPU<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
   template<class T> using Allocator = std::allocator<T>;
   template<class _CELL, class _BODY, class _LET>  using Mapper = hot::CPUMapper<_CELL, _BODY, _LET>;
 #endif

@@ -337,8 +337,12 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
 
   using Base = CPUMapper<Cell, Body, LET>;
   using Data = typename Cell::Data;
-  using Vectormap = tapas::Vectormap_CUDA_Packed<Cell::Dim, typename Cell::FP, typename Cell::Body, typename Cell::BodyAttr>;
-
+  using Vectormap = tapas::Vectormap_CUDA_Packed<Cell::Dim,
+                                                 typename Cell::FP,
+                                                 typename Cell::Body,
+                                                 typename Cell::BodyAttr,
+                                                 typename Cell::AttrType>;
+  
   Vectormap vmap_;
 
   std::chrono::high_resolution_clock::time_point map2_all_beg_, map2_all_end_;

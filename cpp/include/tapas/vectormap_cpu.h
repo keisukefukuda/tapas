@@ -19,7 +19,7 @@
 
 namespace tapas {
 
-template<int _DIM, class _FP, class _BT, class _BT_ATTR>
+template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CPU {
 
   template <typename T>
