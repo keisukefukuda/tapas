@@ -387,7 +387,7 @@ struct Vectormap_CUDA_Base {
    */
   void Release() {
     for (int i = 0; i < tesla_dev_.n_streams; i++) {
-      CUDA_SAFE_CALL(cudaStreamDestroy(tesla_dev_.streams[i]));
+      CUDA_SAFE_CALL( cudaStreamDestroy(tesla_dev_.streams[i]) );
     }
   }
 
@@ -471,9 +471,12 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
    * preloading of the second cells). 
    */
   template <class Funct, class Cell, class... Args>
-  void vectormap_cuda_plain2(Funct f, Cell &c0, Cell &c1, Args... args) {
-    using BV = Body;
-    using BA = BodyAttr;
+  void Plain2(Funct f, Cell &c0, Cell &c1, Args... args) {
+    static_assert(std::is_same<Body, typename Cell::BT::type>::value, "inconsistent template arguments");
+    static_assert(std::is_same<BodyAttr, typename Cell::BT_ATTR>::value, "inconsistent template arguments");
+                   
+    using BT = Body;
+    using BT_ATTR = BodyAttr;
 
     // nvcc's bug? the compiler cannot find base class' member function
     // so we need "Base::"
@@ -485,16 +488,16 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
       mutex1.lock();
       CUDA_SAFE_CALL(cudaFuncGetAttributes(
           &tesla_attr1,
-          &vectormap_cuda_plain_kernel2<Funct, BV, BA, Args...>));
+          &vectormap_cuda_plain_kernel2<Funct, BT, BT_ATTR, Args...>));
       mutex1.unlock();
     }
     assert(tesla_attr1.binaryVersion != 0);
 
     assert(c0.IsLeaf() && c1.IsLeaf());
     /* (Cast to drop const, below). */
-    BV* v0 = (BV*)&(c0.body(0));
-    BV* v1 = (BV*)&(c1.body(0));
-    BA* a0 = (BA*)&(c0.body_attr(0));
+    BT* v0 = (BT*)&(c0.body(0));
+    BT* v1 = (BT*)&(c1.body(0));
+    BT_ATTR* a0 = (BT_ATTR*)&(c0.body_attr(0));
     size_t n0 = c0.nb();
     size_t n1 = c1.nb();
     assert(n0 != 0 && n1 != 0);
@@ -522,10 +525,10 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 
     int s = (((unsigned long)&c0 >> 4) % dev.n_streams);
     vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
-      dev.streams[s]>>>
-      (v0, v1, a0, n0, n1, tilesize, f, args...);
-  }
-
+        dev.streams[s]>>>
+        (v0, v1, a0, n0, n1, tilesize, f, args...);
+  } // end of void Plain2
+  
   /** 
    * \fn Vectormap_CUDA_Simple::vector_map2
    * \brief Calls a function FN given by the user on each data pair in the
@@ -541,10 +544,10 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     const Cell &c0 = prod.first().cell();
     const Cell &c1 = prod.second().cell();
     if (c0 == c1) {
-      vectormap_cuda_plain2(f, c0, c1, args...);
+      Plain2(f, c0, c1, args...);
     } else {
-      vectormap_cuda_plain2(f, c0, c1, args...);
-      //vectormap_cuda_plain2(f, c1, c0, args...); // mutual is not supported 
+      Plain2(f, c0, c1, args...);
+      //Plain2(f, c1, c0, args...); // mutual is not supported 
     }
   }
 }; // end of class Vectormap_CUD_Simple
