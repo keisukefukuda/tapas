@@ -1,5 +1,8 @@
+
 /* vectormap_cuda.h -*- Coding: us-ascii-unix; -*- */
 /* Copyright (C) 2015-2015 RIKEN AICS */
+
+#include <type_traits>
 
 #ifndef TAPAS_VECTORMAP_CUDA_H_
 #define TAPAS_VECTORMAP_CUDA_H_
@@ -530,13 +533,13 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
   } // end of void Plain2
   
   /** 
-   * \fn Vectormap_CUDA_Simple::vector_map2
+   * \fn Vectormap_CUDA_Simple::map2
    * \brief Calls a function FN given by the user on each data pair in the
    *        cells.  f takes arguments of Body&, Body&,
    *        BodyAttr&, and extra call arguments. 
    */
   template <class Funct, class Cell, class...Args>
-  void vector_map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
+  void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
                    Args... args) {
     printf("vector_map2X\n"); fflush(0);
     
@@ -661,7 +664,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
     if (func_attrs_.binaryVersion == 0) {
       CUDA_SAFE_CALL(cudaFuncGetAttributes(
           &func_attrs_,
-          &vectormap_cuda_pack_kernel2<Funct, BV, BA, Cell_Data, Args...>));
+          &vectormap_cuda_pack_kernel2<Funct, Body, BodyAttr, Cell_Data, Args...>));
 
 #ifdef TAPAS_DEBUG
       fprintf(stderr,
@@ -675,7 +678,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
               func_attrs_.ptxVersion,         func_attrs_.sharedSizeBytes);
 #endif
     }
-
+    
     TAPAS_ASSERT(func_attrs_.binaryVersion != 0);
   }
 
@@ -686,18 +689,15 @@ class Applier2 : public AbstractApplier<Vectormap> {
     using BV = Body;
     using BA = BodyAttr;
     using namespace std::chrono;
-    
-    using CellTuple = std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>;
+
+    using MapData2 = typename Vectormap::MapData2;
 
     auto t0 = high_resolution_clock::now();
 
     TESLA &tesla_dev = vm->tesla_dev();
 
-    if (vm->cellpairs_.size() == 0) {
-      return;
-    }
-
-    printf(";; pairs=%ld\n", vm->cellpairs_.size());
+    assert(vm->cellpairs().size() != 0);
+    printf(";; pairs=%ld\n", vm->cellpairs().size());
 
     // cta = cooperative thread array = thread block
     int cta0 = (TAPAS_CEILING(tesla_dev.cta_size, 32) * 32);
@@ -712,52 +712,33 @@ class Applier2 : public AbstractApplier<Vectormap> {
     int scratchpadsize = (sizeof(Body) * tilesize);
     size_t nblocks = TAPAS_CEILING(Vectormap::N0, ctasize);
 
-    // Re-use pre-allocated memory region, or re-allocate if neceessary
-    if (vm->npairs_ < vm->cellpairs_.size()) {
-      CUDA_SAFE_CALL( cudaFree(vm->dvcells_) );
-      CUDA_SAFE_CALL( cudaFree(vm->dacells_) );
-      CUDA_SAFE_CALL( cudaFree(vm->hvcells_) );
-      CUDA_SAFE_CALL( cudaFree(vm->hacells_) );
-
-      // dvcells : Device bodies' Values memory
-      // dacells : Device bodies' Attrs memory
-      // hvcells : Host boddies' Values memory
-      // hacells : Host bodies' Attrs  memory
-      vm->npairs_ = vm->cellpairs_.size();
-      CUDA_SAFE_CALL( cudaMalloc(&vm->dvcells_, (sizeof(Cell_Data<BV>) * vm->npairs_)) );
-      CUDA_SAFE_CALL( cudaMalloc(&vm->dacells_, (sizeof(Cell_Data<BA>) * vm->npairs_)) );
-      CUDA_SAFE_CALL( cudaMallocHost(&vm->hvcells_, (sizeof(Cell_Data<BV>) * vm->npairs_)) );
-      CUDA_SAFE_CALL( cudaMallocHost(&vm->hacells_, (sizeof(Cell_Data<BA>) * vm->npairs_)) );
-    }
+    size_t nn = vm->cellpairs().size();
+    vm->body_lists2().assure_size(nn);
+    vm->attr_lists2().assure_size(nn);
 
     auto t1 = high_resolution_clock::now();
-    
-    auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>();
 
+    auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>();
     std::sort(vm->cellpairs_.begin(), vm->cellpairs_.end(), comp);
-    for (size_t i = 0; i < vm->npairs_; i++) {
-      std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>> &c = vm->cellpairs_[i];
-      vm->hvcells_[i] = std::get<0>(c);
-    }
-    CUDA_SAFE_CALL(cudaMemcpy(vm->dvcells_, vm->hvcells_, (sizeof(Cell_Data<BV>) * vm->npairs_),
-                              cudaMemcpyHostToDevice));
     
     for (size_t i = 0; i < vm->npairs_; i++) {
-      std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>> &c = vm->cellpairs_[i];
-      vm->hacells_[i] = std::get<1>(c);
+      MapData2 &c = vm->cellpairs()[i];
+      vm->body_lists2().hdata[i] = std::get<0>(c);
+      vm->attr_lists2().hdata[i] = std::get<1>(c);
     }
-    CUDA_SAFE_CALL(cudaMemcpy(vm->dacells_, vm->hacells_, (sizeof(Cell_Data<BA>) * vm->npairs_),
-                              cudaMemcpyHostToDevice));
     
+    vm->body_lists2().copy_in(nn);
+    vm->body_lists2().copy_in(nn);
+
     auto t2 = high_resolution_clock::now();
     
     Cell_Data<BV> xr = std::get<2>(vm->cellpairs_[0]);
     int xncells = 0;
     int xndata = 0;
     
-    for (size_t i = 0; i < vm->npairs_; i++) {
-      CellTuple &c = vm->cellpairs_[i];
-      Cell_Data<BV> &r = std::get<2>(c);
+    for (size_t i = 0; i < nn; i++) {
+      MapData2 &c = vm->cellpairs()[i];
+      Cell_Data<Body> &r = std::get<2>(c);
       if (xr.data != r.data) {
         assert(i != 0 && xncells > 0);
         this->invoke(vm, (i - xncells), xncells, xr,
@@ -767,7 +748,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
         xndata = 0;
         xr = r;
       }
-      Cell_Data<BV> &l = std::get<0>(c);
+      Cell_Data<Body> &l = std::get<0>(c);
       size_t nb = TAPAS_CEILING((xndata + l.size), ctasize);
       //std::cerr << "nb = " << nb << ", nblocks = " << nblocks << std::endl;
       if (nb > nblocks) {
@@ -803,34 +784,67 @@ class Applier2 : public AbstractApplier<Vectormap> {
   }
 }; // class Applier2
 
+template <typename T>
+struct Mirror_Data {
+  T* ddata;
+  T* hdata;
+  size_t size;
+
+  void assure_size(size_t n) {
+    if (size < n) {
+      free_data();
+      size = n;
+      cudaError_t ce;
+      ce = cudaMalloc(&this->ddata, (sizeof(T) * n));
+      assert(ce == cudaSuccess);
+      ce = cudaMallocHost(&this->hdata, (sizeof(T) * n));
+      assert(ce == cudaSuccess);
+    }
+  }
+
+  void free_data() {
+    cudaError_t ce;
+    ce = cudaFree(this->ddata);
+    assert(ce == cudaSuccess);
+    ce = cudaFree(this->hdata);
+    assert(ce == cudaSuccess);
+  }
+
+  void copy_in(size_t n) {
+    assert(size == n);
+    cudaError_t ce;
+    ce = cudaMemcpy(this->ddata, this->hdata, (sizeof(T) * size),
+                    cudaMemcpyHostToDevice);
+    assert(ce == cudaSuccess);
+  }
+};
+
 template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Packed
-    : public Vectormap_CUDA_Simple<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
-  using BV = _BT;
-  using BA = _BT_ATTR;
+    : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
+  using VectorMap = Vectormap_CUDA_Packed<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>; // self
+  using BT = _BT;
+  using BT_ATTR = _BT_ATTR;
 
   using Body = _BT;
   using BodyAttr = _BT_ATTR;
-  
-  using CellPair = std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>;
-  using Vectormap = Vectormap_CUDA_Packed<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>; // self
+
+  using Body_List = Cell_Data<BT>;
+  using Attr_List = Cell_Data<BT_ATTR>;
+  using MapData2 = std::tuple<Body_List, Attr_List, Body_List>;
 
   // Pairs of bodies to which the user function is applied
-  std::vector<CellPair> cellpairs_;
-  std::mutex pairs_mutex_;
-  size_t npairs_;
-
-  Cell_Data<BV>* dvcells_;
-  Cell_Data<BV>* hvcells_;
-  Cell_Data<BA>* dacells_;
-  Cell_Data<BA>* hacells_;
-
+  std::vector<MapData2> cellpairs_;
+  Mirror_Data<Body_List> body_list2_; // body list for 2-parameter Map()
+  Mirror_Data<Attr_List> attr_list2_; // body attr list for 2-parameter Map()
+  std::mutex pack2_mutex_;
+  
   // funct_id_ is used to check if the same Funct is used for all cell pairs.
   // In the current implementation, it is assumed that a single function and
   // the same optional arguments (= Args...) are used to all cell pairs.
   std::mutex applier_mutex_;
   intptr_t funct_id_;
-  AbstractApplier<Vectormap> *applier_;
+  AbstractApplier<VectorMap> *applier_;
 
   cudaFuncAttributes func_attrs_;
 
@@ -846,24 +860,32 @@ struct Vectormap_CUDA_Packed
    * not thread safe
    */
   Vectormap_CUDA_Packed()
-      : npairs_(0)
-      , dvcells_(nullptr)
-      , hvcells_(nullptr)
-      , dacells_(nullptr)
-      , hacells_(nullptr)
+      : cellpairs_()
+      , body_list2_()
+      , attr_list2_()
+      , pack2_mutex_()
       , applier_mutex_()
       , funct_id_(0)
       , applier_(nullptr)
       , time_device_call_(0)
   { }
 
+  inline std::vector<MapData2> &cellparis() {
+    return cellpairs_;
+  }
+
+  inline Mirror_Data<Body_List> &body_list2() {
+    return body_list2_;
+  }
+
+  inline Mirror_Data<Attr_List> &attr_list2() {
+    return attr_list2_;
+  }
+
   /* (Two argument mapping with left packing.) */
 
   template <class Cell, class Funct, class... Args>
   void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args... args) {
-    using BV = Body;
-    using BA = BodyAttr;
-
     static_assert(std::is_same<typename Cell::Body, Body>::value, "inconsistent Cell and Body types");
     static_assert(std::is_same<typename Cell::BodyAttr, BodyAttr>::value, "inconsistent Cell and BodyAttr types");
 
@@ -877,7 +899,7 @@ struct Vectormap_CUDA_Packed
     if (applier_ == nullptr) {
       applier_mutex_.lock();
       if (applier_ == nullptr) {
-        applier_ = new Applier2<Vectormap, Funct, Args...>(f, args...);
+        applier_ = new Applier2<VectorMap, Funct, Args...>(f, args...);
         funct_id_ = Type2Int<Funct>::value();
 
         // Memo [Jan 18, 2016]
@@ -891,28 +913,32 @@ struct Vectormap_CUDA_Packed
     TAPAS_ASSERT(funct_id_ == Type2Int<Funct>::value());
 
     /* (Cast to drop const, below). */
-    Cell_Data<BV> d0;
-    Cell_Data<BV> d1;
-    Cell_Data<BA> a0;
-    //Cell_Data<BA> a1;
+    Cell_Data<BT> d0;
+    Cell_Data<BT> d1;
+    Cell_Data<BT_ATTR> a0;
+    Cell_Data<BT_ATTR> a1;
+    //Cell_Data<BT_ATTR> a1;
     d0.size = c0.nb();
-    d0.data = (BV*)&(c0.body(0));
+    d0.data = (BT*)&(c0.body(0));
     a0.size = c0.nb();
-    a0.data = (BA*)&(c0.body_attr(0));
+    a0.data = (BT_ATTR*)&(c0.body_attr(0));
     d1.size = c1.nb();
-    d1.data = (BV*)&(c1.body(0));
+    d1.data = (BT*)&(c1.body(0));
+    a0.size = c1.nb();
+    a0.data = (BT_ATTR*)&(c1.body_attr(0));
     //a1.size = c1.nb();
-    //a1.data = (BA*)&(c1.body_attr(0));
+    //a1.data = (BT_ATTR*)&(c1.body_attr(0));
     
     if (c0 == c1) {
-      pairs_mutex_.lock();
-      cellpairs_.push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d0, a0, d1));
-      pairs_mutex_.unlock();
+      pack2_mutex_.lock();
+      cellpairs_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
+      pack2_mutex_.unlock();
     } else {
-      pairs_mutex_.lock();
-      cellpairs_.push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d0, a0, d1));
-      //cellpairs_.push_back(std::tuple<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(d1, a1, d0)); // mutual is not supported in CUDA version
-      pairs_mutex_.unlock();
+      pack2_mutex_.lock();
+      cellpairs_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
+      // mutual interaction is not supported in this CUDA version.
+      //cellpairs_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d1, a1, d0)); // mutual is not supported in CUDA version
+      pack2_mutex_.unlock();
     }
   }
   
