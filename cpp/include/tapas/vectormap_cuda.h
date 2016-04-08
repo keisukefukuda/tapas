@@ -313,18 +313,17 @@ struct Vectormap_CUDA_Base {
 
     ~um_allocator() throw() {}
   }; // end of class um_allocator
-}; // end of class Vectormap_CUDA_Base 
 
-
-template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
-struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
-  using Body = _BT;
-  using BodyAttr = _BT_ATTR;
-  using CellAttr = _CELL_ATTR;
-
+  /**
+   * CUDA GPU device information
+   */
   TESLA tesla_dev_;
+  inline TESLA& tesla_dev() { return tesla_dev_; }
 
-  void setup(int cta, int nstreams) {
+  /**
+   * \brief Setup CUDA devices: allocate 1 GPU per process (considering multiple processes per node)
+   */
+  void Setup(int cta, int nstreams) {
     assert(nstreams <= TAPAS_CUDA_MAX_NSTREAMS);
 
     tesla_dev_.cta_size = cta;
@@ -382,20 +381,39 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
       CUDA_SAFE_CALL(cudaStreamCreate(&tesla_dev_.streams[i]));
     }
   }
-  
-  void release() {
+
+  /**
+   * \brief Release the CUDA device
+   */
+  void Release() {
     for (int i = 0; i < tesla_dev_.n_streams; i++) {
       CUDA_SAFE_CALL(cudaStreamDestroy(tesla_dev_.streams[i]));
     }
   }
 
-  void start() {}
+  /**
+   * \brief Pre-processing of Map functions
+   */
+  void Start() {}
 
-  void finish() {
+  
+  /**
+   * \brief Post-processing of Map functions
+   */
+  void Finish() {
     vectormap_check_error("vectormap_end", __FILE__, __LINE__);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
   }
+}; // end of class Vectormap_CUDA_Base 
 
+
+template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
+  using Body = _BT;
+  using BodyAttr = _BT_ATTR;
+  using CellAttr = _CELL_ATTR;
+  using Base = Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>;
+  
   /* (One argument mapping) */
 
   /* NOTE IT RUNS ON CPUs.  The kernel "tapas_kernel::L2P()" is not
@@ -410,6 +428,7 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
     }
   }
 
+  
 #if 0
   template <class Funct, class Cell, class... Args>
   static void vector_map1(Funct f,
@@ -417,6 +436,9 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
                           Args... args) {
     static std::mutex mutex0;
     static struct cudaFuncAttributes tesla_attr0;
+
+    TESLA &dev = Base::tesla_dev();
+    
     if (tesla_attr0.binaryVersion == 0) {
       mutex0.lock();
       CUDA_SAFE_CALL(cudaFuncGetAttributes(
@@ -432,8 +454,8 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
     size_t nblocks = TAPAS_CEILING(n0, ctasize);
 
     streamid++;
-    int s = (streamid % tesla_dev_.n_streams);
-    vectormap_cuda_kernel1<<<nblocks, ctasize, 0, tesla_dev_.streams[s]>>>
+    int s = (streamid % dev.n_streams);
+    vectormap_cuda_kernel1<<<nblocks, ctasize, 0, dev.streams[s]>>>
       (b0, n0, f, args...);
   }
 #endif
@@ -452,6 +474,10 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
   void vectormap_cuda_plain2(Funct f, Cell &c0, Cell &c1, Args... args) {
     using BV = Body;
     using BA = BodyAttr;
+
+    // nvcc's bug? the compiler cannot find base class' member function
+    // so we need "Base::"
+    TESLA &dev = Base::tesla_dev();
 
     static std::mutex mutex1;
     static struct cudaFuncAttributes tesla_attr1;
@@ -476,11 +502,11 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
     /*bool am = AllowMutual<T1_Iter, T2_Iter>::value(b0, b1);*/
     /*int n0up = (TAPAS_CEILING(n0, 256) * 256);*/
     /*int n0up = (TAPAS_CEILING(n0, 32) * 32);*/
-    int cta0 = (TAPAS_CEILING(tesla_dev_.cta_size, 32) * 32);
+    int cta0 = (TAPAS_CEILING(dev.cta_size, 32) * 32);
     int ctasize = std::min(cta0, tesla_attr1.maxThreadsPerBlock);
-    assert(ctasize == tesla_dev_.cta_size);
+    assert(ctasize == dev.cta_size);
 
-    int tile0 = (tesla_dev_.scratchpad_size / sizeof(Body));
+    int tile0 = (dev.scratchpad_size / sizeof(Body));
     int tile1 = (TAPAS_FLOOR(tile0, 32) * 32);
     int tilesize = std::min(ctasize, tile1);
     assert(tilesize > 0);
@@ -494,9 +520,9 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
     fflush(0);
 #endif
 
-    int s = (((unsigned long)&c0 >> 4) % tesla_dev_.n_streams);
+    int s = (((unsigned long)&c0 >> 4) % dev.n_streams);
     vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
-      tesla_dev_.streams[s]>>>
+      dev.streams[s]>>>
       (v0, v1, a0, n0, n1, tilesize, f, args...);
   }
 
@@ -521,9 +547,7 @@ struct Vectormap_CUDA_Simple : Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CE
       //vectormap_cuda_plain2(f, c1, c0, args...); // mutual is not supported 
     }
   }
-
-  inline TESLA& tesla_dev() { return tesla_dev_; } // used in the child class
-};
+}; // end of class Vectormap_CUD_Simple
 
 template <class T>
 struct Cell_Data {

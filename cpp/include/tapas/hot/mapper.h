@@ -387,17 +387,17 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
 
   inline void Setup() {
     // Called in tapas/hot.h
-    vmap_.setup(64,31);
+    vmap_.Setup(64,31);
   }
   
   // GPUMapper::Start for 2-param Map()
   inline void Start() {
-    vmap_.start();
+    vmap_.Start();
   }
 
   // GPUMapper::Finish for 2-param Map()
   inline void Finish() {
-    vmap_.finish();
+    vmap_.Finish();
   }
 
   /**
