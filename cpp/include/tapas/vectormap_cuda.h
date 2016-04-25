@@ -393,22 +393,7 @@ struct Vectormap_CUDA_Base {
       CUDA_SAFE_CALL( cudaStreamDestroy(tesla_dev_.streams[i]) );
     }
   }
-
-  /**
-   * \brief Pre-processing of Map functions
-   */
-  void Start() {}
-
-  
-  /**
-   * \brief Post-processing of Map functions
-   */
-  void Finish() {
-    vectormap_check_error("vectormap_end", __FILE__, __LINE__);
-    CUDA_SAFE_CALL(cudaDeviceSynchronize());
-  }
 }; // end of class Vectormap_CUDA_Base 
-
 
 template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
@@ -422,6 +407,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
   /* NOTE IT RUNS ON CPUs.  The kernel "tapas_kernel::L2P()" is not
      coded to be run on GPUs, since it accesses the cell. */
 
+#if 1
   template <class Funct, class Cell, class... Args>
   void vector_map1(Funct f, BodyIterator<Cell> iter,
                           Args... args) {
@@ -431,8 +417,8 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     }
   }
 
-  
-#if 0
+#else
+
   template <class Funct, class Cell, class... Args>
   static void vector_map1(Funct f,
                           BodyIterator<Cell> b0,
@@ -541,7 +527,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
   template <class Funct, class Cell, class...Args>
   void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
                    Args... args) {
-    printf("vector_map2X\n"); fflush(0);
+    printf("Vectormap_CUDA_Simple::map2\n"); fflush(0);
     
     typedef BodyIterator<Cell> Iter;
     const Cell &c0 = prod.first().cell();
@@ -848,17 +834,18 @@ struct Vectormap_CUDA_Packed
   // funct_id_ is used to check if the same Funct is used for all cell pairs.
   // In the current implementation, it is assumed that a single function and
   // the same optional arguments (= Args...) are used to all cell pairs.
-  std::mutex applier_mutex_;
+  std::mutex applier2_mutex_;
   intptr_t funct_id_;
-  AbstractApplier<VectorMap> *applier_;
+  AbstractApplier<VectorMap> *applier2_;
 
   cudaFuncAttributes func_attrs_;
 
   double time_device_call_;
   
-  void start() {
+  void Start() {
     //printf(";; start\n"); fflush(0);
     cellpairs2_.clear();
+    //cellpairs1_.clear();
   }
 
   /**
@@ -871,9 +858,9 @@ struct Vectormap_CUDA_Packed
       , attr_list2_()
       , pack1_mutex_()
       , pack2_mutex_()
-      , applier_mutex_()
+      , applier2_mutex_()
       , funct_id_(0)
-      , applier_(nullptr)
+      , applier2_(nullptr)
       , time_device_call_(0)
   { }
 
@@ -891,6 +878,9 @@ struct Vectormap_CUDA_Packed
 
   /* (Two argument mapping with left packing.) */
 
+  /**
+   * \brief Vectormap_CUDA_Packed::map2
+   */
   template <class Cell, class Funct, class... Args>
   void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args... args) {
     static_assert(std::is_same<typename Cell::Body, Body>::value, "inconsistent Cell and Body types");
@@ -903,18 +893,18 @@ struct Vectormap_CUDA_Packed
     if (c0.nb() == 0 || c1.nb() == 0) return;
 
     // Create Applier with Funct and Args...
-    if (applier_ == nullptr) {
-      applier_mutex_.lock();
-      if (applier_ == nullptr) {
-        applier_ = new Applier2<VectorMap, Funct, Args...>(f, args...);
+    if (applier2_ == nullptr) {
+      applier2_mutex_.lock();
+      if (applier2_ == nullptr) {
+        applier2_ = new Applier2<VectorMap, Funct, Args...>(f, args...);
         funct_id_ = Type2Int<Funct>::value();
 
         // Memo [Jan 18, 2016]
-        // func_id_ is not used as of now. This check integer is for when there are multiple kernels
+        // func_id_ is not used as of now. This check value is for when there are multiple kernels
         // for bodies x bodies product map.
         // An interaction list is created for each function (stored in a unordered_map of which keys are integers).
       }
-      applier_mutex_.unlock();
+      applier2_mutex_.unlock();
     }
     
     TAPAS_ASSERT(funct_id_ == Type2Int<Funct>::value());
@@ -933,16 +923,16 @@ struct Vectormap_CUDA_Packed
     d1.data = (BT*)&(c1.body(0));
     a0.size = c1.nb();
     a0.data = (BT_ATTR*)&(c1.body_attr(0));
-    //a1.size = c1.nb();
-    //a1.data = (BT_ATTR*)&(c1.body_attr(0));
+    a1.size = c1.nb();
+    a1.data = (BT_ATTR*)&(c1.body_attr(0));
     
     if (c0 == c1) {
       pack2_mutex_.lock();
-      cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
+      cellpairs2_.push_back(MapData2(d0, a0, d1));
       pack2_mutex_.unlock();
     } else {
       pack2_mutex_.lock();
-      cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d0, a0, d1));
+      cellpairs2_.push_back(MapData2(d0, a0, d1));
       // mutual interaction is not supported in this CUDA version.
       //cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d1, a1, d0)); // mutual is not supported in CUDA version
       pack2_mutex_.unlock();
@@ -955,30 +945,30 @@ struct Vectormap_CUDA_Packed
 
   /* Starts launching a kernel on collected cells. */
   
-  void on_collected() {
+  void on_collected2() {
     auto t1 = std::chrono::high_resolution_clock::now();
     
-    applier_->apply(this);
+    applier2_->apply(this);
 
     auto t2 = std::chrono::high_resolution_clock::now();
     
     time_device_call_ = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() * 1e-6;
   }
   
-  void finish() {
+  void Finish2() {
     //printf(";; Vectormap_CUDA_Packed::finish\n"); fflush(0);
-    on_collected();
+    on_collected2();
     vectormap_check_error("Vectormap_CUDA_Packed::end", __FILE__, __LINE__);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
     
-    if (applier_ != nullptr) {
-      applier_mutex_.lock();
-      if (applier_ != nullptr) {
-        delete applier_;
-        applier_ = nullptr;
+    if (applier2_ != nullptr) {
+      applier2_mutex_.lock();
+      if (applier2_ != nullptr) {
+        delete applier2_;
+        applier2_ = nullptr;
         funct_id_ = 0;
       }
-      applier_mutex_.unlock();
+      applier2_mutex_.unlock();
     }
   }
 }; // Vectormap_CUDA_Packed

@@ -626,7 +626,10 @@ int main(int argc, char ** argv) {
 
 #ifdef __CUDACC__
   if (args.mutual) {
-    std::cerr << "Mutual is not supported for CUDA implementation in this version." << std::endl;
+    std::cerr << "TapasFMM: [Error] Mutual is not supported for CUDA implementation in this version." << std::endl;
+#ifdef USE_MPI
+    MPI_Finalize();
+#endif
     exit(-1);
   }
 #endif

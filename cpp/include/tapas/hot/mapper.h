@@ -397,7 +397,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
 
   // GPUMapper::Finish for 2-param Map()
   inline void Finish() {
-    vmap_.Finish();
+    vmap_.Finish2();
   }
 
   /**
