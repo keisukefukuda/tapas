@@ -540,10 +540,14 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   // bodies
   template <class Funct, class... Args>
   inline void Map(Funct f, BodyIterator<Cell> iter, Args...args) {
+#if 0
     for (int i = 0; i < iter.size(); ++i) {
       f(*iter, iter.attr(), args...);
       iter++;
     }
+#else
+    vmap_.map1(f, iter, args...);
+#endif
   }
 
   template<class Funct, class...Args>

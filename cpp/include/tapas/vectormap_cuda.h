@@ -409,8 +409,8 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 
 #if 1
   template <class Funct, class Cell, class... Args>
-  void vector_map1(Funct f, BodyIterator<Cell> iter,
-                          Args... args) {
+  void map1(Funct f, BodyIterator<Cell> iter, Args... args) {
+    //std::cout << "Vectormap_CUDA_Simple::map1() is called. " << iter.size() << std::endl;
     int sz = iter.size();
     for (int i = 0; i < sz; i++) {
       f(*(iter + i), args...);
@@ -420,9 +420,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 #else
 
   template <class Funct, class Cell, class... Args>
-  static void vector_map1(Funct f,
-                          BodyIterator<Cell> b0,
-                          Args... args) {
+  void map1(Funct f, BodyIterator<Cell> b0, Args... args) {
     static std::mutex mutex0;
     static struct cudaFuncAttributes tesla_attr0;
 
@@ -874,6 +872,16 @@ struct Vectormap_CUDA_Packed
   
   inline Mirror_Data<Attr_List> &attr_list2() {
     return attr_list2_;
+  }
+
+  template <class Funct, class Cell, class... Args>
+  void map1(Funct f, BodyIterator<Cell> iter, Args... args) {
+    //std::cout << "Yey! new Vectormap_CUDA_Packed::Map1() is called. " << iter.size() << std::endl;
+    int sz = iter.size();
+    for (int i = 0; i < sz; i++) {
+      f(*iter, iter.attr(), args...);
+      iter++;
+    }
   }
 
   /* (Two argument mapping with left packing.) */
