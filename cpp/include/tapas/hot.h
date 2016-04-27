@@ -417,7 +417,9 @@ class Cell {
     return prev;
   }
 
-  Mapper& mapper() { return data_->mapper_; }
+  Mapper& mapper() {
+    return data_->mapper_;
+  }
   const Mapper &mapper() const { return data_->mapper; }
 
   inline FP Distance(Cell &rhs, tapas::CenterClass) {
