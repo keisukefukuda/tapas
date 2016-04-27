@@ -241,8 +241,9 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
   }
 
   int ntiles = TAPAS_CEILING(rsize, tilesize);
-  BV &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0];
+  BV &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0]; // body value
   BA q0 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
+  BA q1 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
 
   for (int t = 0; t < ntiles; t++) {
     if ((tilesize * t + threadIdx.x) < rsize && threadIdx.x < tilesize) {
@@ -255,7 +256,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
 #pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
         BV &p1 = scratchpad[j];
-        f(&p0, &p1, q0, args...); // q0 -> biattr
+        f(p0, q0, p1, q1, args...); // q0 -> biattr
       }
     }
     __syncthreads();
@@ -525,7 +526,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
   template <class Funct, class Cell, class...Args>
   void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
                    Args... args) {
-    printf("Vectormap_CUDA_Simple::map2\n"); fflush(0);
+    //printf("Vectormap_CUDA_Simple::map2\n"); fflush(0);
     
     typedef BodyIterator<Cell> Iter;
     const Cell &c0 = prod.first().cell();
@@ -581,7 +582,8 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
   int s = (streamid % tesla_dev.n_streams);
   vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
       tesla_dev.streams[s]>>>
-      (&(caller->dvcells_[start]), &(caller->dacells_[start]), nc, r.size, r.data,
+      (&(caller->body_list2_.ddata[start]), &(caller->attr_list2_.ddata[start]),
+       nc, r.size, r.data,
        tilesize, f, args...);
 }
 
@@ -616,6 +618,7 @@ template<class Vectormap>
 class AbstractApplier {
  public:
   virtual void apply(Vectormap *vm) = 0;
+  virtual ~AbstractApplier() { }
 };
 
 /**
@@ -682,9 +685,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
     auto t0 = high_resolution_clock::now();
 
     TESLA &tesla_dev = vm->tesla_dev();
-
-    assert(vm->cellpairs().size() != 0);
-    printf(";; pairs=%ld\n", vm->cellpairs().size());
+    
+    assert(vm->cellpairs2_.size() != 0);
+    printf(";; pairs=%ld\n", vm->cellpairs2_.size());
 
     // cta = cooperative thread array = thread block
     int cta0 = (TAPAS_CEILING(tesla_dev.cta_size, 32) * 32);
@@ -699,32 +702,32 @@ class Applier2 : public AbstractApplier<Vectormap> {
     int scratchpadsize = (sizeof(Body) * tilesize);
     size_t nblocks = TAPAS_CEILING(Vectormap::N0, ctasize);
 
-    size_t nn = vm->cellpairs().size();
-    vm->body_lists2().assure_size(nn);
-    vm->attr_lists2().assure_size(nn);
+    size_t nn = vm->cellpairs2_.size();
+    vm->body_list2().assure_size(nn);
+    vm->attr_list2().assure_size(nn);
 
     auto t1 = high_resolution_clock::now();
 
-    auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>();
-    std::sort(vm->cellpairs_.begin(), vm->cellpairs_.end(), comp);
+    auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(); // compare func
+    std::sort(vm->cellpairs2_.begin(), vm->cellpairs2_.end(), comp);
     
-    for (size_t i = 0; i < vm->npairs_; i++) {
-      MapData2 &c = vm->cellpairs()[i];
-      vm->body_lists2().hdata[i] = std::get<0>(c);
-      vm->attr_lists2().hdata[i] = std::get<1>(c);
+    for (size_t i = 0; i < nn; i++) {
+      MapData2 &c = vm->cellpairs2_[i];
+      vm->body_list2().hdata[i] = std::get<0>(c);
+      vm->attr_list2().hdata[i] = std::get<1>(c);
     }
     
-    vm->body_lists2().copy_in(nn);
-    vm->body_lists2().copy_in(nn);
+    vm->body_list2().copy_in(nn);
+    vm->body_list2().copy_in(nn);
 
     auto t2 = high_resolution_clock::now();
     
-    Cell_Data<BV> xr = std::get<2>(vm->cellpairs_[0]);
+    Cell_Data<BV> xr = std::get<2>(vm->cellpairs2_[0]);
     int xncells = 0;
     int xndata = 0;
     
     for (size_t i = 0; i < nn; i++) {
-      MapData2 &c = vm->cellpairs()[i];
+      MapData2 &c = vm->cellpairs2_[i];
       Cell_Data<Body> &r = std::get<2>(c);
       if (xr.data != r.data) {
         assert(i != 0 && xncells > 0);
@@ -752,7 +755,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
       xndata += (TAPAS_CEILING(l.size, 32) * 32);
     }
     assert(xncells > 0);
-    this->invoke(vm, (vm->npairs_ - xncells), xncells, xr,
+    this->invoke(vm, (nn - xncells), xncells, xr,
                  tilesize, nblocks, ctasize, scratchpadsize,
                  ParamIdxSeq());
     
@@ -769,6 +772,8 @@ class Applier2 : public AbstractApplier<Vectormap> {
     std::cout << "CUDA map2 other      : " << std::scientific << time_other  << " s" << std::endl;
     std::cout << "CUDA map2 total      : " << std::scientific << time_total  << " s" << std::endl;
   }
+
+  virtual ~Applier2() { }
 }; // class Applier2
 
 template <typename T>
@@ -835,13 +840,13 @@ struct Vectormap_CUDA_Packed
   std::mutex applier2_mutex_;
   intptr_t funct_id_;
   AbstractApplier<VectorMap> *applier2_;
-
+  
   cudaFuncAttributes func_attrs_;
 
   double time_device_call_;
   
-  void Start() {
-    //printf(";; start\n"); fflush(0);
+  void Start2() {
+    printf(";; start\n"); fflush(0);
     cellpairs2_.clear();
     //cellpairs1_.clear();
   }
@@ -875,7 +880,7 @@ struct Vectormap_CUDA_Packed
   }
 
   template <class Funct, class Cell, class... Args>
-  void map1(Funct f, BodyIterator<Cell> iter, Args... args) {
+  inline void map1(Funct f, BodyIterator<Cell> iter, Args... args) {
     //std::cout << "Yey! new Vectormap_CUDA_Packed::Map1() is called. " << iter.size() << std::endl;
     int sz = iter.size();
     for (int i = 0; i < sz; i++) {
@@ -893,6 +898,8 @@ struct Vectormap_CUDA_Packed
   void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args... args) {
     static_assert(std::is_same<typename Cell::Body, Body>::value, "inconsistent Cell and Body types");
     static_assert(std::is_same<typename Cell::BodyAttr, BodyAttr>::value, "inconsistent Cell and BodyAttr types");
+
+    std::cout << "*** Vectormap_CUDA_Packed::map2()" << std::endl;
 
     const Cell &c0 = prod.first().cell();
     const Cell &c1 = prod.second().cell();
@@ -921,7 +928,6 @@ struct Vectormap_CUDA_Packed
     Cell_Data<BT> d0;
     Cell_Data<BT> d1;
     Cell_Data<BT_ATTR> a0;
-    Cell_Data<BT_ATTR> a1;
     //Cell_Data<BT_ATTR> a1;
     d0.size = c0.nb();
     d0.data = (BT*)&(c0.body(0));
@@ -931,8 +937,8 @@ struct Vectormap_CUDA_Packed
     d1.data = (BT*)&(c1.body(0));
     a0.size = c1.nb();
     a0.data = (BT_ATTR*)&(c1.body_attr(0));
-    a1.size = c1.nb();
-    a1.data = (BT_ATTR*)&(c1.body_attr(0));
+    //a1.size = c1.nb();
+    //a1.data = (BT_ATTR*)&(c1.body_attr(0)); // unused?
     
     if (c0 == c1) {
       pack2_mutex_.lock();
@@ -955,6 +961,8 @@ struct Vectormap_CUDA_Packed
   
   void on_collected2() {
     auto t1 = std::chrono::high_resolution_clock::now();
+
+    TAPAS_ASSERT(applier2_ != nullptr);
     
     applier2_->apply(this);
 
@@ -964,7 +972,7 @@ struct Vectormap_CUDA_Packed
   }
   
   void Finish2() {
-    //printf(";; Vectormap_CUDA_Packed::finish\n"); fflush(0);
+    printf(";; Vectormap_CUDA_Packed::Finish2\n"); fflush(0);
     on_collected2();
     vectormap_check_error("Vectormap_CUDA_Packed::end", __FILE__, __LINE__);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());

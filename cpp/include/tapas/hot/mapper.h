@@ -219,7 +219,7 @@ struct CPUMapper {
 
   // cell x cell
   template <class Funct, class...Args>
-  void Map(Funct f, Cell &c1, Cell &c2, Args... args) {
+  inline void Map(Funct f, Cell &c1, Cell &c2, Args... args) {
     SCOREP_USER_REGION_DEFINE(trav_handle)
     using Time = decltype(clock::now());
     Time net_bt, net_et;
@@ -321,7 +321,7 @@ struct CPUMapper {
 
   inline void Setup() {  }
 
-  inline void Start() {  }
+  inline void Start2() { }
 
   inline void Finish() {  }
 }; // class CPUMapper
@@ -351,7 +351,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
    * @brief Map function f over product of two iterators
    */
   template <class Funct, class T1_Iter, class T2_Iter, class... Args>
-  inline void Map(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args...args) {
+  inline void MapP2(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args...args) {
     if (prod.size() > 0) {
       ProductMapImpl(*this,
                      prod.t1_, 0, prod.t1_.size(),
@@ -360,16 +360,29 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     }
   }
 
-  /**
-   * @brief Map function f over product of two iterators
-   */
-  template <class Funct, class T1_Iter, class ...Args>
-  inline void Map(Funct f, ProductIterator<T1_Iter> prod, Args...args) {
+  template<class Funct, class...Args>
+  inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args...args) {
+    std::cout << "MapP2 (body)" << std::endl;
     if (prod.size() > 0) {
+      vmap_.map2(f, prod, args...);
+    }
+  }
+  
+  template <class Funct, class T1_Iter, class ...Args>
+  inline void MapP1(Funct f, ProductIterator<T1_Iter> prod, Args...args) {
+    if (prod.size() > 0) {
+      //vmap_.map2(f, prod, args...);
       ProductMapImpl(*this,
                      prod.t1_, 0, prod.t1_.size(),
                      prod.t2_, 0, prod.t2_.size(),
                      f, args...);
+    }
+  }
+  
+  template <class Funct, class ...Args>
+  inline void MapP1(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args...args) {
+    if (prod.size() > 0) {
+      vmap_.map2(f, prod, args...);
     }
   }
   
@@ -382,24 +395,28 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   template <class Funct, class...Args>
   inline void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args...args) {
     // Offload bodies x bodies interaction to GPU
+    // not used?
+    std::cout << "*** Map(body) correct one" << std::endl;
     vmap_.map2(f, prod, args...);
   }
-
+  
   inline void Setup() {
     // Called in tapas/hot.h
     vmap_.Setup(64,31);
   }
   
   // GPUMapper::Start for 2-param Map()
-  inline void Start() {
-    vmap_.Start();
+  inline void Start2() {
+    //std::cout << "*** Start2()" << std::endl;
+    vmap_.Start2();
   }
 
   // GPUMapper::Finish for 2-param Map()
   inline void Finish() {
+    //std::cout << "*** Finish()" << std::endl;
     vmap_.Finish2();
   }
-
+  
   /**
    *
    */
@@ -439,17 +456,11 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
 #ifdef TAPAS_DEBUG
       unsetenv("TAPAS_IN_LET");
 #endif
-    } else {
-      // mpi_size_ == 0
-      data.time_let_all = data.time_let_traverse
-                        = data.time_let_req
-                        = data.time_let_response
-                        = data.time_let_register
-                        = 0;
     }
 
-    // -- initialize GPU
-    Start();
+    // -- initialize GPU for 2-Param Map()
+    std::cout << "Calling Start2()" << std::endl;
+    Start2();
 
     // -- check
     if (this->Base::opt_mutual_) {
@@ -490,6 +501,8 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   inline void Map(Funct f, Cell &c1, Cell &c2, Args... args) {
     static std::chrono::high_resolution_clock::time_point t1, t2;
 
+    //std::cout << "GPUMapper::Map(2)  " << c1.key() << ", " << c2.key() << std::endl;
+    
     if (c1.IsRoot() && c2.IsRoot()) {
       Map2_Init(f, c1, c2, args...);
     }
@@ -555,6 +568,8 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
 #ifdef TAPAS_COMPILER_INTEL
 # pragma forceinline
 #endif
+    std::cout << "*** Map(body) Wrong one!!" << std::endl;
+    abort();
     f(*b1, b1.attr(), *b2, b2.attr(), args...);
   }
 }; // class GPUMapper
