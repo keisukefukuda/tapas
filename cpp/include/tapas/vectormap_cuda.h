@@ -215,19 +215,22 @@ void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
   }
 }
 
-template <class Funct, class BV, class BA,
+
+template <class Funct, class BT, class BT_ATTR,
           template <class T> class CELLDATA, class... Args>
 __global__
-void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
+void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
                                  size_t nc,
-                                 int rsize, BV* rdata, int tilesize,
+                                 int rsize, BT* rdata, int tilesize,
                                  Funct f, Args... args) {
-  static_assert(std::is_same<BA, kvec4>::value, "attribute type=kvec4");
+  // CELLDATA = Mirror_Data
+  // nc= #cells
+  static_assert(std::is_same<BT_ATTR, kvec4>::value, "attribute type=kvec4");
 
   assert(tilesize <= blockDim.x);
   int index = (blockDim.x * blockIdx.x + threadIdx.x);
-  extern __shared__ BV scratchpad[];
-
+  extern __shared__ BT scratchpad[];
+  
   int cell = -1;
   int item = 0;
   int base = 0;
@@ -241,21 +244,22 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
   }
 
   int ntiles = TAPAS_CEILING(rsize, tilesize);
-  BV &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0]; // body value
-  BA q0 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
-  BA q1 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
+  BT &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0]; // body value
+  BT_ATTR q0 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
+  BT_ATTR q1 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
 
   for (int t = 0; t < ntiles; t++) {
+    // load body data in the tile t to the shared memory
     if ((tilesize * t + threadIdx.x) < rsize && threadIdx.x < tilesize) {
       scratchpad[threadIdx.x] = rdata[tilesize * t + threadIdx.x];
     }
     __syncthreads();
-
+    
     if (cell != -1) {
       unsigned int jlim = min(tilesize, (int)(rsize - tilesize * t));
 #pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
-        BV &p1 = scratchpad[j];
+        BT &p1 = scratchpad[j];
         f(p0, q0, p1, q1, args...); // q0 -> biattr
       }
     }
@@ -263,9 +267,11 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BV>* v, CELLDATA<BA>* a,
   }
 
   if (cell != -1) {
-    // Really necessary?
+    if(!(item < a[cell].size)) {
+      //printf("nc=%d, cell=%d, base=%d, item=%d, a[cell].size=%d, assertion %s\n", nc, cell, base, item, a[cell].size, (item < a[cell].size ? "success" : "failed"));
+    }
     assert(item < a[cell].size);
-    BA &a0 = a[cell].data[item]; // FIXME: Dependency to ExaFMM !!!
+    BT_ATTR &a0 = a[cell].data[item];
     atomicAdd(&(a0[0]), q0[0]);
     atomicAdd(&(a0[1]), q0[1]);
     atomicAdd(&(a0[2]), q0[2]);
@@ -561,8 +567,8 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
   TESLA &tesla_dev = caller->tesla_dev();
   
   /*AHO*/
-  if (0) {
-    printf("kernel(nblocks=%ld ctasize=%d scratchpadsize=%d tilesize=%d\n",
+  if (1) {
+    printf("kernel(nblocks=%ld ctasize=%d scratchpadsize=%d tilesize=%d)\n",
            nblocks, ctasize, scratchpadsize, tilesize);
     printf("invoke(start=%d ncells=%d)\n", start, nc);
 
@@ -718,7 +724,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
     }
     
     vm->body_list2().copy_in(nn);
-    vm->body_list2().copy_in(nn);
+    vm->attr_list2().copy_in(nn);
 
     auto t2 = high_resolution_clock::now();
     
@@ -778,9 +784,11 @@ class Applier2 : public AbstractApplier<Vectormap> {
 
 template <typename T>
 struct Mirror_Data {
-  T* ddata;
-  T* hdata;
+  T* ddata; // device data
+  T* hdata; // host data
   size_t size;
+
+  Mirror_Data() : ddata(nullptr), hdata(nullptr), size(0) { }
 
   void assure_size(size_t n) {
     if (size < n) {
@@ -867,7 +875,7 @@ struct Vectormap_CUDA_Packed
       , time_device_call_(0)
   { }
 
-  inline std::vector<MapData2> &cellparis2() {
+  inline std::vector<MapData2> &cellpairs2() {
     return cellpairs2_;
   }
 
@@ -898,8 +906,6 @@ struct Vectormap_CUDA_Packed
   void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args... args) {
     static_assert(std::is_same<typename Cell::Body, Body>::value, "inconsistent Cell and Body types");
     static_assert(std::is_same<typename Cell::BodyAttr, BodyAttr>::value, "inconsistent Cell and BodyAttr types");
-
-    std::cout << "*** Vectormap_CUDA_Packed::map2()" << std::endl;
 
     const Cell &c0 = prod.first().cell();
     const Cell &c1 = prod.second().cell();

@@ -41,8 +41,7 @@ struct OptLET {
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
-  template<class T>
-  using Alloator = Mapper::Allocator<T>;
+  //template<class T> using Alloator = typename template TSP::Allocator<T>;
 
   class ProxyBodyAttr : public BodyAttrType {
    public:
