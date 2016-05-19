@@ -98,6 +98,7 @@ static void rank_in_node(MPI_Comm comm, int &rankofnode, int &rankinnode,
 
 #endif /* USE_MPI */
 
+#ifdef __CUDACC__
 
 void SetGPU() {
   if (getenv("CUDA_VISIBLE_DEVICES") != nullptr) {
@@ -132,6 +133,10 @@ void SetGPU() {
   cudaFree(p);
 #endif
 }
+
+#else
+void SetGPU() { }
+#endif
 
 }
 
