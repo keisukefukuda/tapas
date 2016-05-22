@@ -27,6 +27,11 @@ Basic compilation:
 * `USE_MPI` definition is for Tapas. MPI is not necessary for Tapas, but the current implementation does not support compiling without MPI and `USE_MPI` macro.
 * `Spherical`, `EXPANSION`, and `FP64` are definitions for TapasFMM, which is [ExaFMM](https://github.com/exafmm/exafmm) ported to Tapas. 
    * Although the original ExaFMM supports `Spherical` and `Cartesian` kernels, but only `Spherical` is ported as of now. `EXPANSION` is degree of multipole/local expansion (typically 10). `FP64` is to use double precision.
+   
+To build multithreaded code using MassiveThreads, add `-DMTHREAD=1` and specify include/library path to your MassiveThreads installation.
+
+    $ MYTH_DIR=YOUR-MYTH-DIR
+    $ mpicxx (snip) -DMTHREAD=1 -I${MYTH_DIR}/include -L${MYTH_DIR}/lib -lmyth-native
 
 Depending on how your MPI library is built, the mpicxx compiler may use its default compiler which does not support C++11.
 In such a case, you can speicfy the underlying C++ compiler via environment variables. See the documentation of the MPI for details.
@@ -38,6 +43,10 @@ For advanced optimization with Intel Compiler,
 
     $ mpicxx -std=c++11 -O2 -lrt tapas_exafmm.cxx -I../include -I../../../cpp/include -DUSE_MPI -DSpherical -DEXPANSION=10 -DFP64 -o parallel_tapas \
         -funroll-loops -xHOST -O3 -no-prec-div -fp-model fast=2 -no-inline-max-per-routine -no-inline-max-per-compile 
+        
+You may also want to inactivate debugging assertions:
+
+    $ mpicxx (snip) -DNDEBUG -DTAPAS_DEBUG=0
         
 ## Build FAQ
 
