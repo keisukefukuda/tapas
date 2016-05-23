@@ -47,6 +47,16 @@ For advanced optimization with Intel Compiler,
 You may also want to inactivate debugging assertions:
 
     $ mpicxx (snip) -DNDEBUG -DTAPAS_DEBUG=0
+    
+How to run:
+
+    $ mpiexec -np 10 ./parallel_tapas --numBodies 100000 --ncrit 64 --theta 0.34
+    
+* --nuBodies: Number of total bodies of the simulation (not number of bodies per process).
+* --ncrit : Ncrit parameter of FMM (each leaf has at most Ncrit bodies)
+* --theta : Multipole acceptance criteria
+
+To control number of threads, use `MYTH_WORKER_NUM` environment variable for MassiveThreads.
         
 ## Build FAQ
 
