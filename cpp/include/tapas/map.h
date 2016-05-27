@@ -195,22 +195,40 @@ static float _atomicAdd(float* address, float val) {
   return __int_as_float(old);
 }
 
-__device__
+__device__ __host__
 void Accumulate(double &to_val, double val) {
+#ifdef __CUDA__ARCH__
   _atomicAdd(&to_val, val);
+#else
+  to_val += val;
+#endif
 }
 
-__device__
+__device__ __host__
 void Accumulate(float &to_val, float val) {
+#ifdef __CUDA_ARCH__
   _atomicAdd(&to_val, val);
+#else
+  to_val += val;
+#endif
 }
 
-#endif  // __CUDACC__
+// host-only Accumulate.
+// In ExaFMM on Tapas, it is used for P2M on CPU.
+template<class T>
+__host__
+void Accumulate(T& to_val, T val) {
+  to_val += val;
+}
+
+#else // __CUDACC__
 
 template<class T>
 void Accumulate(T& to_val, T val) {
   to_val += val;
 }
+
+#endif  // __CUDACC__
 
 } // namespace tapas
 
