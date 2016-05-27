@@ -394,6 +394,11 @@ struct CPUMapper {
           
           map1_dir_ = Map1Dir::None;
           return;
+
+        case LET::MAP1_ONLY_ONE:
+          // MAP1_ONLY_ONE means there's only one cell in the space and the traverse direction does not matter.
+          f(c, args...);
+          break;
           
         default:
           if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction (in upward) : NOT UP => Wrong !!!" << std::endl;

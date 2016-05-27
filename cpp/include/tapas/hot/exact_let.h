@@ -43,6 +43,7 @@ struct ExactLET {
   enum {
     MAP1_UP,
     MAP1_DOWN,
+    MAP1_ONLY_ONE,
     MAP1_UNKNOWN
   };
 
@@ -318,10 +319,15 @@ struct ExactLET {
       }
     }
 
-    // Check direction (upward or downward) of 1-parameter Map
+    // Determine direction (upward or downward) of 1-parameter Map
     template<class UserFunct, class...Args>
     static int PredDir1(KeyType key, const Data &data, UserFunct f, Args...args) {
       ProxyCell cell(key, data);
+
+      if (cell.IsRoot() && cell.IsLeaf()) {
+        // Special case: if root is leaf, which means only 1 level and cell in the space
+        return MAP1_ONLY_ONE;
+      }
 
       f(cell, args...);
 

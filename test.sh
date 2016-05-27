@@ -328,6 +328,16 @@ for nb in ${NB[@]}; do
     done
 done
 
+# Check some special cases
+for MUTUAL in 1 0; do
+    rm -f $TMPFILE; sleep 1s
+    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas -n 1000 -c 1024 -d c --mutual $MUTUAL
+    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas -n 1000 -c 1024 -d c --mutual $MUTUAL > $TMPFILE
+    cat $TMPFILE
+    
+    accuracyCheck $TMPFILE
+done
+
 
 if [[ $STATUS -eq 0 ]]; then
     echo OK.
