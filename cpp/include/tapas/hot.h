@@ -319,6 +319,28 @@ class Cell {
   BodyType &body(index_t idx);
   const BodyType &body(index_t idx) const;
 
+  // Internal use only
+  inline index_t body_offset() {
+    // returns body offset in the local_bodies or let_bodies_
+    return bid_;
+  }
+
+  inline BodyType *body_base_ptr() {
+    if (is_local_) {
+      return data_->local_bodies_.data();
+    } else {
+      return data_->let_bodies_.data();
+    }
+  }
+
+  inline BodyAttrType *body_attr_base_ptr() {
+    if (is_local_) {
+      return this->data_->local_body_attrs_.data();
+    } else {
+      return this->data_->let_body_attrs_.data();
+    }
+  }
+
   BodyType &local_body(index_t idx);
   const BodyType &local_body(index_t idx) const;
 

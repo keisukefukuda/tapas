@@ -123,9 +123,11 @@ static float atomicAdd(float* address, float val) {
 
 template<class T0, class T1, class T2>
 struct cellcompare_r {
-  bool operator() (const std::tuple<T0, T1, T2> &i,
-                   const std::tuple<T0, T1, T2> &j) {
-    return ((std::get<2>(i).data) < (std::get<2>(j).data));
+  inline bool operator() (const std::tuple<T0, T1, T2> &i,
+                          const std::tuple<T0, T1, T2> &j) {
+    const auto *ip = std::get<2>(i).data();
+    const auto *jp = std::get<2>(j).data();
+    return (ip < jp);
   }
 };
 
@@ -244,11 +246,11 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
   }
 
   int ntiles = TAPAS_CEILING(rsize, tilesize);
-  BT &p0 = (cell != -1) ? v[cell].data[item] : v[0].data[0]; // body value
+  BT &p0 = (cell != -1) ? v[cell].data()[item] : v[cell].data()[0]; // body value
   BT_ATTR q0 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
   BT_ATTR q1 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
 
-  BT_ATTR &a0 = a[cell].data[item];
+  BT_ATTR &a0 = a[cell].data()[item];
 
   for (int t = 0; t < ntiles; t++) {
     // load body data in the tile t to the shared memory
@@ -436,7 +438,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
   }
 
 #else
-
+  // WIP: inactivated.
   template <class Funct, class Cell, class... Args>
   void map1(Funct f, BodyIterator<Cell> b0, Args... args) {
     static std::mutex mutex0;
@@ -483,6 +485,8 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     using BT = Body;
     using BT_ATTR = BodyAttr;
 
+    auto &data = c0.data();
+
     // nvcc's bug? the compiler cannot find base class' member function
     // so we need "Base::"
     TESLA &dev = Base::tesla_dev();
@@ -528,6 +532,12 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     fflush(0);
 #endif
 
+    // array of bodies for c0
+    //BT *bodies0 = c0.IsLocal() ? data.local_bodies_ : data.let_bodies_;
+    
+    // array of bodies for c1
+    //BT *bodies1 = c1.IsLocal() ? data.local_bodies_ : data.let_bodies_;
+
     int s = (((unsigned long)&c0 >> 4) % dev.n_streams);
     vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
         dev.streams[s]>>>
@@ -557,10 +567,28 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
   }
 }; // end of class Vectormap_CUD_Simple
 
+// Cell_Data
+// T is expected to be Body or BodyAttr of a certain cell
+// The cell's bodies/body attritbutes starts from (base_ptr + ofst).
+// Thus i-th Body/BodyAttr of the cell is
+//    base_ptr[ofst + i]
+// where (0 <= i < size)
 template <class T>
 struct Cell_Data {
   int size;
-  T* data;
+  size_t ofst; // Offset from base_ptr
+  T* base_ptr;
+  // data is removed.
+
+  __host__ __device__
+  inline T* data() {
+    return base_ptr + ofst;
+  }
+
+  __host__ __device__
+  inline const T* data() const {
+    return base_ptr + ofst;
+  }
 };
 
 /**
@@ -587,10 +615,10 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
       Cell_Data<BV> &lc = std::get<0>(caller->cellpairs2_[start + i]);
       Cell_Data<BA> &ac = std::get<1>(caller->cellpairs2_[start + i]);
       Cell_Data<BV> &rc = std::get<2>(caller->cellpairs2_[start + i]);
-      assert(rc.data == r.data);
+      assert(rc.base_ptr + rc.ofst == r.base_ptr + r.ofst);
       assert(ac.size == lc.size);
       printf("pair(celll=%p[%d] cellr=%p[%d])\n",
-             lc.data, lc.size, rc.data, rc.size);
+             lc.base_ptr + lc.ofst, lc.size, rc.base_ptr + rc.ofst, rc.size);
     }
     fflush(0);
   }
@@ -600,7 +628,7 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
   vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
       tesla_dev.streams[s]>>>
       (&(caller->body_list2_.ddata[start]), &(caller->attr_list2_.ddata[start]),
-       nc, r.size, r.data,
+       nc, r.size, r.data(),
        tilesize, f, args...);
 }
 
@@ -729,8 +757,10 @@ class Applier2 : public AbstractApplier<Vectormap> {
     auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(); // compare func
     std::sort(vm->cellpairs2_.begin(), vm->cellpairs2_.end(), comp);
 
+    // cudamemcpy?
     for (size_t i = 0; i < nn; i++) {
       MapData2 &c = vm->cellpairs2_[i];
+      // rewirte base_pointer to device memory?
       vm->body_list2().hdata[i] = std::get<0>(c);
       vm->attr_list2().hdata[i] = std::get<1>(c);
     }
@@ -747,7 +777,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
     for (size_t i = 0; i < nn; i++) {
       MapData2 &c = vm->cellpairs2_[i];
       Cell_Data<Body> &r = std::get<2>(c);
-      if (xr.data != r.data) {
+      if (xr.data() != r.data()) {
         assert(i != 0 && xncells > 0);
         this->invoke(vm, (i - xncells), xncells, xr,
                      tilesize, nblocks, ctasize, scratchpadsize,
@@ -780,8 +810,6 @@ class Applier2 : public AbstractApplier<Vectormap> {
     // Report time (In a ad-hoc way using std::cout. Needs refactoring)
     double time_mcopy = duration_cast<microseconds>(t2-t1).count() * 1e-6;
   }
-
-
 
   virtual ~Applier2() { }
 }; // class Applier2
@@ -913,8 +941,8 @@ struct Vectormap_CUDA_Packed
     static_assert(std::is_same<typename Cell::Body, Body>::value, "inconsistent Cell and Body types");
     static_assert(std::is_same<typename Cell::BodyAttr, BodyAttr>::value, "inconsistent Cell and BodyAttr types");
 
-    const Cell &c0 = prod.first().cell();
-    const Cell &c1 = prod.second().cell();
+    Cell &c0 = prod.first().cell();
+    Cell &c1 = prod.second().cell();
     assert(c0.IsLeaf() && c1.IsLeaf());
 
     if (c0.nb() == 0 || c1.nb() == 0) return;
@@ -942,11 +970,16 @@ struct Vectormap_CUDA_Packed
     Cell_Data<BT_ATTR> a0;
     //Cell_Data<BT_ATTR> a1;
     d0.size = c0.nb();
-    d0.data = (BT*)&(c0.body(0));
+    d0.base_ptr = c0.body_base_ptr();
+    d0.ofst = c0.body_offset();
+    
     a0.size = c0.nb();
-    a0.data = (BT_ATTR*)&(c0.body_attr(0));
+    a0.base_ptr = c0.body_attr_base_ptr();
+    a0.ofst = c0.body_offset();
+    
     d1.size = c1.nb();
-    d1.data = (BT*)&(c1.body(0));
+    d1.base_ptr = c1.body_base_ptr();
+    d1.ofst = c1.body_offset();
     //a1.size = c1.nb();
     //a1.data = (BT_ATTR*)&(c1.body_attr(0)); // unused?
 
@@ -962,7 +995,7 @@ struct Vectormap_CUDA_Packed
       pack2_mutex_.unlock();
     }
   }
-
+  
   /* Limit of the number of threads in grids. */
 
   static const constexpr int N0 = (16 * 1024);
