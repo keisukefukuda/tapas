@@ -33,10 +33,12 @@ struct P2P {
       real_t invR2 = 1.0 / R2;
       real_t invR = Bi.SRC * Bj.SRC * sqrt(invR2);
       dX *= invR2 * invR;
-      Bi_attr[0] += invR;
-      Bi_attr[1] -= dX[0];
-      Bi_attr[2] -= dX[1];
-      Bi_attr[3] -= dX[2];
+      tapas::Accumulate(Bi_attr[0], invR);
+      tapas::Accumulate(Bi_attr[1], -dX[0]);
+      tapas::Accumulate(Bi_attr[2], -dX[1]);
+      tapas::Accumulate(Bi_attr[3], -dX[2]);
+      
+      //printf("R2 %.12f invR2 %.12f dX %.12f %.12f %.12f\n", R2, invR2, dX[0], dX[1], dX[2]);
       
 #ifndef __CUDACC__ // CUDA version doest not support mutual
       if (mutual && Bi.X != Bj.X) {
