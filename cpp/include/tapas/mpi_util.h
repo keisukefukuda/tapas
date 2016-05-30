@@ -380,12 +380,14 @@ void Alltoallv2(VectorType& send_buf, std::vector<int>& dest,
   src.clear();
   src.resize(total_recv_counts, 0);
 
-  int p = 0;
-  for (int i = 0; i < total_recv_counts; i++) {
-    while (p < mpi_size-1 && i >= recv_disp[p+1]) {
-      p++;
+  {
+    int p = 0;
+    for (int i = 0; i < total_recv_counts; i++) {
+      while (p < mpi_size-1 && i >= recv_disp[p+1]) {
+        p++;
+      }
+      src[i] = p;
     }
-    src[i] = p;
   }
 
   auto src2 = src;
@@ -407,16 +409,6 @@ void Alltoallv2(VectorType& send_buf, std::vector<int>& dest,
 }
 
 template<class T>
-void* voidptr_cast(T* p) {
-  return reinterpret_cast<void*>(p);
-}
-
-template<class T>
-void* voidptr_cast(const T* p) {
-  return const_cast<void*>(reinterpret_cast<const void*>(p));
-}
-
-template<class T>
 void Alltoallv(const std::vector<T> &send_buf,
                const std::vector<int> &send_count,
                std::vector<T> &recv_buf, std::vector<int> &recv_count,
@@ -428,8 +420,8 @@ void Alltoallv(const std::vector<T> &send_buf,
   recv_count.clear();
   recv_count.resize(mpi_size);
 
-  int err = MPI_Alltoall((void*)send_count.data(), 1, MPI_INT,
-                         (void*)recv_count.data(), 1, MPI_INT,
+  int err = MPI_Alltoall(void_cast(send_count.data()), 1, MPI_INT,
+                         void_cast(recv_count.data()), 1, MPI_INT,
                          comm);
 
   if (err != MPI_SUCCESS) {
@@ -490,8 +482,8 @@ void Alltoallv(const std::vector<T> &send_buf,
     }
   }
 
-  int ret = MPI_Alltoallv(voidptr_cast(send_buf.data()), send_count2.data(), send_disp2.data(), kType,
-                          voidptr_cast(recv_buf.data()), recv_count2.data(), recv_disp2.data(), kType,
+  int ret = MPI_Alltoallv(void_cast(send_buf.data()), send_count2.data(), send_disp2.data(), kType,
+                          void_cast(recv_buf.data()), recv_count2.data(), recv_disp2.data(), kType,
                           comm);
   MPI_CHECK(ret, comm);
 }
