@@ -14,7 +14,7 @@
 #include "thread.h"
 #include <vector>
 
-#if PAPI
+#if defined(PAPI) && PAPI
 #include <cstring>
 #include <papi.h>
 #endif
