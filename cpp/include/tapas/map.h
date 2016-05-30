@@ -197,9 +197,11 @@ static float _atomicAdd(float* address, float val) {
 
 __device__ __host__
 void Accumulate(double &to_val, double val) {
-#ifdef __CUDA__ARCH__
+#ifdef __CUDA_ARCH__
+  //printf("_atomicAdd() (dobule) is called.\n");
   _atomicAdd(&to_val, val);
 #else
+  //printf("to_val += val  (double) is called.\n");
   to_val += val;
 #endif
 }
@@ -207,8 +209,10 @@ void Accumulate(double &to_val, double val) {
 __device__ __host__
 void Accumulate(float &to_val, float val) {
 #ifdef __CUDA_ARCH__
+  //printf("_atomicAdd() (float) is called.\n");
   _atomicAdd(&to_val, val);
 #else
+  //printf("to_val += val (float) is called.\n");
   to_val += val;
 #endif
 }
