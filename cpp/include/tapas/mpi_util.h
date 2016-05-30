@@ -407,6 +407,16 @@ void Alltoallv2(VectorType& send_buf, std::vector<int>& dest,
 }
 
 template<class T>
+void* voidptr_cast(T* p) {
+  return reinterpret_cast<void*>(p);
+}
+
+template<class T>
+void* voidptr_cast(const T* p) {
+  return const_cast<void*>(reinterpret_cast<const void*>(p));
+}
+
+template<class T>
 void Alltoallv(const std::vector<T> &send_buf,
                const std::vector<int> &send_count,
                std::vector<T> &recv_buf, std::vector<int> &recv_count,
@@ -480,8 +490,8 @@ void Alltoallv(const std::vector<T> &send_buf,
     }
   }
 
-  int ret = MPI_Alltoallv((void*)send_buf.data(), send_count2.data(), send_disp2.data(), kType,
-                          (void*)recv_buf.data(), recv_count2.data(), recv_disp2.data(), kType,
+  int ret = MPI_Alltoallv(voidptr_cast(send_buf.data()), send_count2.data(), send_disp2.data(), kType,
+                          voidptr_cast(recv_buf.data()), recv_count2.data(), recv_disp2.data(), kType,
                           comm);
   MPI_CHECK(ret, comm);
 }

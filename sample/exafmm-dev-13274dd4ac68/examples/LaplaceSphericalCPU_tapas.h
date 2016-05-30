@@ -26,6 +26,8 @@ extern uint64_t numP2P;
 # define INC_M2L
 #endif
 
+using tapas::index_t;
+
 namespace {
 
 const complex_t I(0.,1.);                                       // Imaginary
@@ -168,7 +170,7 @@ void M2M(Cell &C) {
   
   auto attr = C.attr();
 
-  for (int i = 0; i < C.nsubcells(); ++i) {
+  for (index_t i = 0; i < C.nsubcells(); ++i) {
     Cell &Cj=C.subcell(i);
     
     // Skip empty cell

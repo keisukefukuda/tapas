@@ -435,11 +435,11 @@ struct ExactLET {
       return key_ == 0;
     }
 
-    inline size_t local_nb() {
+    inline index_t local_nb() {
       return cell_ ? cell_->local_nb() : 0;
     }
 
-    inline size_t nb() {
+    inline index_t nb() {
       Touched();
       if (is_local_) {
         return cell_->nb();
@@ -508,7 +508,7 @@ struct ExactLET {
       Touched();
       if (is_local_) {
         TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");
-        TAPAS_ASSERT((size_t)idx < cell_->nb() && "Body index out of bound. Check nb()." );
+        TAPAS_ASSERT(idx < cell_->nb() && "Body index out of bound. Check nb()." );
 
         if (bodies_.size() != cell_->nb()) {
           InitBodies();
@@ -526,7 +526,7 @@ struct ExactLET {
       Touched();
       if (is_local_) {
         TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
-        TAPAS_ASSERT((size_t)idx < cell_->nb());
+        TAPAS_ASSERT(idx < cell_->nb());
 
         if (body_attrs_.size() != cell_->nb()) {
           InitBodies();
@@ -559,7 +559,7 @@ struct ExactLET {
         if (bodies_.size() != nb) {
           bodies_.resize(nb);
           body_attrs_.resize(nb);
-          for (size_t i = 0; i < nb; i++) {
+          for (index_t i = 0; i < nb; i++) {
             bodies_[i] = reinterpret_cast<ProxyBody*>(&cell_->body(i));
             body_attrs_[i] = reinterpret_cast<ProxyBodyAttr*>(&cell_->body_attr(i));
           }
@@ -1081,7 +1081,7 @@ struct ExactLET {
       int dest = leaf_dest[i];
       leaf_sendcnt[dest]++;
 
-      for (size_t bi = 0; bi < c->nb(); bi++) {
+      for (index_t bi = 0; bi < c->nb(); bi++) {
         body_sendbuf.push_back(c->body(bi));
         body_sendcnt[dest]++;
       }

@@ -368,13 +368,13 @@ class Cell {
    * In addition, if the cell spans over multiple processes, lcoal_nb() counts only local bodies
    * and does not return the "true" number.
    */
-  inline size_t local_nb() const {
-    return (size_t) local_nb_;
+  inline index_t local_nb() const {
+    return local_nb_;
   }
 
   static const constexpr bool Inspector = false;
 
-  inline size_t nb() const {
+  inline index_t nb() const {
 #ifdef TAPAS_DEBUG
     if (!this->IsLeaf()) {
       TAPAS_ASSERT(!"Cell::nb() is not allowed for non-leaf cells.");
@@ -466,8 +466,8 @@ class Cell {
   bool is_leaf_;
   Data* data_;
 
-  int nb_; //!< number of bodies in the local process (not bodies under this cell).
-  int local_nb_;
+  index_t nb_; //!< number of bodies in the local process (not bodies under this cell).
+  index_t local_nb_;
   index_t bid_;
 
   bool is_local_; //!< if it's a local cell or LET cell.
@@ -958,7 +958,7 @@ inline void Cell<TSP>::CheckBodyIndex(index_t idx) const {
   (void)idx;
 
   // debug
-  TAPAS_ASSERT((size_t)idx < this->nb());
+  TAPAS_ASSERT(idx < this->nb());
   TAPAS_ASSERT(this->IsLeaf() && "body or body attribute access is not allowed for non-leaf cells.");
 
   if (is_local_) {
@@ -1074,7 +1074,7 @@ typename TSP::BodyAttr &Cell<TSP>::local_body_attr(index_t idx) {
 template <class TSP> // Tapas static params
 class Partitioner {
  private:
-  const int max_nb_;
+  const index_t max_nb_;
 
   using BodyType = typename TSP::Body;
   using KeyType = typename Cell<TSP>::KeyType;
