@@ -221,7 +221,7 @@ struct CPUMapper {
     const auto &data = iter.cell().data();
     KeyType k = iter.cell().key();
     
-    for (int i = 0; i < iter.size(); i++) {
+    for (index_t i = 0; i < iter.size(); i++) {
       // In downward mode, if the subcells are out of the local process
       // (= the cell is a global leaf but not a local root)
       // just skip if.
