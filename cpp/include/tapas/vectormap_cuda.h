@@ -250,27 +250,25 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
   BT_ATTR q0 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
   BT_ATTR q1 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
 
-  BT_ATTR &a0 = a[cell].data()[item];
+  BT_ATTR &a0 = (cell != -1) ? a[cell].data()[item] : a[cell].data()[0];
 
   for (int t = 0; t < ntiles; t++) {
-    // load body data in the tile t to the shared memory
     if ((tilesize * t + threadIdx.x) < rsize && threadIdx.x < tilesize) {
-      scratchpad[threadIdx.x] = rdata[tilesize * t + threadIdx.x];
+      scratchpad[threadIdx.x] = rdata[tilesize * t + threadIdx.x]; // <-- HERE!!
     }
     __syncthreads();
-
+    
     if (cell != -1) {
       unsigned int jlim = min(tilesize, (int)(rsize - tilesize * t));
 #pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
         BT &p1 = scratchpad[j];
-        //f(p0, q0, p1, q1, args...); // q0 -> biattr
         f(p0, a0, p1, q1, args...); // q0 -> biattr
       }
     }
     __syncthreads();
   }
-
+  
   if (cell != -1) {
     assert(item < a[cell].size);
     // BT_ATTR &a0 = a[cell].data[item];
@@ -303,10 +301,11 @@ struct Vectormap_CUDA_Base {
 
     T* allocate(size_t n, const void* hint = 0) {
       T* p;
-      CUDA_SAFE_CALL(cudaMallocManaged(&p, (sizeof(T) * n), cudaMemAttachGlobal));
+      p = new T[n];
+      //CUDA_SAFE_CALL(cudaMallocManaged(&p, (sizeof(T) * n), cudaMemAttachGlobal));
       //CUDA_SAFE_CALL(cudaMallocManaged(&p, (sizeof(T) * n), cudaMemAttachHost));
       assert(p != nullptr);
-      // fprintf(stderr, ";; cudaMallocManaged() p=%p n=%zd sizeof(T)=%zd size=%zd\n", p, n, sizeof(T), n * sizeof(T)); fflush(0);
+      //fprintf(stderr, ";; cudaMallocManaged() p=%p n=%zd sizeof(T)=%zd size=%zd\n", p, n, sizeof(T), n * sizeof(T)); fflush(0);
       return p;
     }
 
@@ -580,13 +579,13 @@ struct Cell_Data {
   T* base_ptr;
   // data is removed.
 
-  __host__ __device__
-  inline T* data() {
+  __host__ __device__ __forceinline__
+  T* data() {
     return base_ptr + ofst;
   }
 
-  __host__ __device__
-  inline const T* data() const {
+  __host__ __device__ __forceinline__
+  const T* data() const {
     return base_ptr + ofst;
   }
 };
@@ -625,11 +624,15 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
 
   streamid++;
   int s = (streamid % tesla_dev.n_streams);
+  
   vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
       tesla_dev.streams[s]>>>
-      (&(caller->body_list2_.ddata[start]), &(caller->attr_list2_.ddata[start]),
+      (&(caller->body_list2_.ddata[start]),
+       &(caller->attr_list2_.ddata[start]),
        nc, r.size, r.data(),
        tilesize, f, args...);
+  
+  CUDA_SAFE_CALL(cudaDeviceSynchronize()); // to be removed
 }
 
 // Utility routine to support delayed dispatch of function template with variadic parameters.
@@ -684,6 +687,19 @@ class Applier2 : public AbstractApplier<Vectormap> {
   using Body = typename Vectormap::Body;
   using BodyAttr = typename Vectormap::BodyAttr;
 
+  using CellPairs = typename Vectormap::CellPairs;
+
+  const size_t local_nb_;
+  const size_t let_nb_;
+
+  Body *host_local_bodies_;
+  Body *host_let_bodies_;
+  BodyAttr *host_local_attrs_;
+
+  Body *dev_local_bodies_;
+  Body *dev_let_bodies_;
+  BodyAttr *dev_local_attrs_;
+
   // Call ::invoke() function with args...
   template<int ...ParamIdx>
   inline void invoke(Vectormap *caller, int start, int nc, Cell_Data<Body> &r,
@@ -693,9 +709,13 @@ class Applier2 : public AbstractApplier<Vectormap> {
   }
 
   // ctor. not thread safe.
-  Applier2(Funct f, Args... args) : f_(f), args_(args...), func_attrs_() {
-    using BV = Body;
-    using BA = BodyAttr;
+  Applier2(Body *local_bodies, Body *let_bodies, BodyAttr *local_attrs, size_t local_nb, size_t let_nb,
+           Funct f, Args... args)
+      : f_(f), args_(args...), func_attrs_()
+      , local_nb_(local_nb), let_nb_(let_nb)
+      , host_local_bodies_(local_bodies), host_let_bodies_(let_bodies), host_local_attrs_(local_attrs)
+      , dev_local_bodies_(nullptr), dev_let_bodies_(nullptr), dev_local_attrs_(nullptr) {
+
     if (func_attrs_.binaryVersion == 0) {
       CUDA_SAFE_CALL(cudaFuncGetAttributes(
           &func_attrs_,
@@ -715,6 +735,72 @@ class Applier2 : public AbstractApplier<Vectormap> {
     }
 
     TAPAS_ASSERT(func_attrs_.binaryVersion != 0);
+  }
+
+  void CopyH2D(CellPairs &host_data) {
+    // A subroutine for apply()
+    // Each Cell_Data in cell_pairs have (1) base_ptr, (2) offset, (3) size, 
+    // which respectively mean (1) SharedData::local_bodies_ or let_bodies_,
+    // (2) starting offset of bodies of the cell, and (3) number of bodies of the leaf cell.
+    // This function allocates device memory correspoinding to local_bodies and let_bodies_
+    // and create a copy of host_data, of which base_ptrs are updated to the device memory.
+    dev_local_bodies_ = nullptr;
+    dev_let_bodies_ = nullptr;
+    dev_local_attrs_ = nullptr;
+
+    cudaMalloc(&dev_local_bodies_, sizeof(dev_local_bodies_[0]) * local_nb_);
+    cudaMalloc(&dev_let_bodies_,   sizeof(dev_let_bodies_[0]) * let_nb_);
+    cudaMalloc(&dev_local_attrs_,  sizeof(dev_local_attrs_[0]) * local_nb_);
+
+    cudaMemcpy(dev_local_bodies_, host_local_bodies_, sizeof(host_local_bodies_[0]) * local_nb_, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_let_bodies_,   host_let_bodies_,   sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_local_attrs_,  host_local_attrs_,  sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyHostToDevice);
+
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    for (size_t i = 0; i < host_data.size(); i++) {
+      Cell_Data<Body> &trgb = std::get<0>(host_data[i]); // trg bodies
+      Cell_Data<BodyAttr> &trga = std::get<1>(host_data[i]); // trg attr
+      Cell_Data<Body> &srcb = std::get<2>(host_data[i]); // src bodies
+
+      // Rewirte CellData::base_ptr to device memory pointeres.
+        
+      // target cell's base_ptr must be SharedData::local_bodies_
+      // (because target cells are always local)
+      TAPAS_ASSERT(trgb.base_ptr == host_local_bodies_);
+      trgb.base_ptr = dev_local_bodies_;
+        
+      TAPAS_ASSERT(trga.base_ptr == host_local_attrs_);
+      trga.base_ptr = dev_local_attrs_;
+
+      // source cell's base_ptr can be either SharedData::local_bodies_ or let_bodies_
+      if (srcb.base_ptr == host_local_bodies_) {
+        srcb.base_ptr = dev_local_bodies_;
+      } else if (srcb.base_ptr == host_let_bodies_) {
+        srcb.base_ptr = dev_let_bodies_;
+      } else {
+        assert(0);
+      }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  void CopyD2H() {
+#if 1
+    tapas::debug::BarrierExec([this](int, int) {
+        std::cout << "Performing cudaMemcpy() back" << std::endl;
+        cudaMemcpy(host_local_bodies_, dev_local_bodies_, sizeof(host_local_bodies_[0]) * local_nb_, cudaMemcpyDeviceToHost);
+        cudaMemcpy(host_let_bodies_,   dev_let_bodies_,   sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyDeviceToHost);
+        cudaMemcpy(host_local_attrs_,  dev_local_attrs_,  sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyDeviceToHost);
+        std::cout << "Finished cudaMemcpy() back" << std::endl;
+      });
+#endif
+        
+    cudaFree(dev_local_bodies_);
+    cudaFree(dev_let_bodies_);
+    cudaFree(dev_local_attrs_);
   }
 
   /**
@@ -748,18 +834,24 @@ class Applier2 : public AbstractApplier<Vectormap> {
     int scratchpadsize = (sizeof(Body) * tilesize);
     size_t nblocks = TAPAS_CEILING(Vectormap::N0, ctasize);
 
-    size_t nn = vm->cellpairs2_.size();
+    // TODO
+    auto cellpairs = vm->cellpairs2_;
+    CellPairs cellpairs2_dev;
+    CopyH2D(cellpairs);
+
+    size_t nn = cellpairs.size();
+    //size_t nn = vm->cellpairs2_.size();
     vm->body_list2().assure_size(nn);
     vm->attr_list2().assure_size(nn);
 
     auto t1 = high_resolution_clock::now();
 
     auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(); // compare func
-    std::sort(vm->cellpairs2_.begin(), vm->cellpairs2_.end(), comp);
+    std::sort(cellpairs.begin(), cellpairs.end(), comp);
 
     // cudamemcpy?
     for (size_t i = 0; i < nn; i++) {
-      MapData2 &c = vm->cellpairs2_[i];
+      MapData2 &c = cellpairs[i];
       // rewirte base_pointer to device memory?
       vm->body_list2().hdata[i] = std::get<0>(c);
       vm->attr_list2().hdata[i] = std::get<1>(c);
@@ -770,12 +862,12 @@ class Applier2 : public AbstractApplier<Vectormap> {
 
     auto t2 = high_resolution_clock::now();
 
-    Cell_Data<BV> xr = std::get<2>(vm->cellpairs2_[0]);
+    Cell_Data<BV> xr = std::get<2>(cellpairs[0]);
     int xncells = 0;
     int xndata = 0;
 
     for (size_t i = 0; i < nn; i++) {
-      MapData2 &c = vm->cellpairs2_[i];
+      MapData2 &c = cellpairs[i];
       Cell_Data<Body> &r = std::get<2>(c);
       if (xr.data() != r.data()) {
         assert(i != 0 && xncells > 0);
@@ -811,7 +903,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
     double time_mcopy = duration_cast<microseconds>(t2-t1).count() * 1e-6;
   }
 
-  virtual ~Applier2() { }
+  virtual ~Applier2() {
+    CopyD2H();
+  }
 }; // class Applier2
 
 template <typename T>
@@ -864,6 +958,8 @@ struct Vectormap_CUDA_Packed
   using Body_List = Cell_Data<BT>;
   using Attr_List = Cell_Data<BT_ATTR>;
   using MapData2 = std::tuple<Body_List, Attr_List, Body_List>;
+
+  using CellPairs = std::vector<MapData2>;
 
   // Data for 1-parameter Map()
   std::mutex pack1_mutex_; // mutex for map1
@@ -951,7 +1047,12 @@ struct Vectormap_CUDA_Packed
     if (applier2_ == nullptr) {
       applier2_mutex_.lock();
       if (applier2_ == nullptr) {
-        applier2_ = new Applier2<VectorMap, Funct, Args...>(f, args...);
+        applier2_ = new Applier2<VectorMap, Funct, Args...>(c0.data().local_bodies_.data(),
+                                                            c0.data().let_bodies_.data(),
+                                                            c0.data().local_body_attrs_.data(),
+                                                            c0.data().local_bodies_.size(),
+                                                            c0.data().let_bodies_.size(),
+                                                            f, args...);
         funct_id_ = Type2Int<Funct>::value();
 
         // Memo [Jan 18, 2016]
@@ -1024,7 +1125,7 @@ struct Vectormap_CUDA_Packed
 
     if (applier2_ != nullptr) {
       applier2_mutex_.lock();
-
+      
       // record time
 
       if (applier2_ != nullptr) {
