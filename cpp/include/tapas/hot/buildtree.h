@@ -55,7 +55,8 @@ class SamplingOctree {
   using BodyType = typename TSP::Body;
   using BodyAttrType = typename TSP::BodyAttr;
   using Data = SharedData<TSP, SFC>;
-  template<class T> using Allocator = typename Data::template Allocator<T>;
+  //template<class T> using Allocator = typename Data::template Allocator<T>;
+  template<class T> using Allocator = std::allocator<T>;
   using Reg = tapas::Region<kDim, FP>;
 
   template<class T> using Vector = std::vector<T, Allocator<T>>;

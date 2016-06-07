@@ -631,8 +631,6 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
        &(caller->attr_list2_.ddata[start]),
        nc, r.size, r.data(),
        tilesize, f, args...);
-  
-  CUDA_SAFE_CALL(cudaDeviceSynchronize()); // to be removed
 }
 
 // Utility routine to support delayed dispatch of function template with variadic parameters.
@@ -788,15 +786,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
   }
 
   void CopyD2H() {
-#if 1
-    tapas::debug::BarrierExec([this](int, int) {
-        std::cout << "Performing cudaMemcpy() back" << std::endl;
-        cudaMemcpy(host_local_bodies_, dev_local_bodies_, sizeof(host_local_bodies_[0]) * local_nb_, cudaMemcpyDeviceToHost);
-        cudaMemcpy(host_let_bodies_,   dev_let_bodies_,   sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyDeviceToHost);
-        cudaMemcpy(host_local_attrs_,  dev_local_attrs_,  sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyDeviceToHost);
-        std::cout << "Finished cudaMemcpy() back" << std::endl;
-      });
-#endif
+    cudaMemcpy(host_local_bodies_, dev_local_bodies_, sizeof(host_local_bodies_[0]) * local_nb_, cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_let_bodies_,   dev_let_bodies_,   sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_local_attrs_,  dev_local_attrs_,  sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyDeviceToHost);
         
     cudaFree(dev_local_bodies_);
     cudaFree(dev_let_bodies_);
