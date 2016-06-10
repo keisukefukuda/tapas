@@ -136,14 +136,14 @@ void Report(const Data &data) {
 
   // Map2 breakdown
   {
-    RankCSV csv {"all", "let", "net_traverse"
+    RankCSV csv {"all", "insp", "exec"
 #ifdef __CUDACC__
           , "device_call"
 #endif
           };
     csv.At("all") = data.time_map2_all;
-    csv.At("let") = data.time_map2_let;
-    csv.At("net_traverse") = data.time_map2_net;
+    csv.At("insp") = data.time_map2_insp;
+    csv.At("exec") = data.time_map2_exec;
 #ifdef __CUDACC__
     csv.At("device_call") = data.time_map2_dev;
 #endif

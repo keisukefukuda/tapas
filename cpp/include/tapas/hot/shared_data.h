@@ -108,8 +108,8 @@ struct SharedData {
   double time_let_register; // ExchangeLET/register
 
   double time_map2_all;
-  double time_map2_let;     // Map2/LET (should be equivalent to time_let_all)
-  double time_map2_net;
+  double time_map2_insp;     // 2-param map inspector (should be equivalent to time_let_all)
+  double time_map2_exec;     // 2-param map executor
 #ifdef __CUDACC__
   double time_map2_dev;  // CUDA kernel runtime
 #endif
@@ -152,8 +152,8 @@ struct SharedData {
       , time_let_res_body_comm (0)
       , time_let_register (0)
       , time_map2_all(0)
-      , time_map2_let(0)
-      , time_map2_net(0)
+      , time_map2_insp(0)
+      , time_map2_exec(0)
 #ifdef __CUDACC__
       , time_map2_dev(0)
 #endif

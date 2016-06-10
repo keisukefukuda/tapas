@@ -266,7 +266,7 @@ struct CPUMapper {
       SCOREP_USER_REGION_BEGIN(trav_handle, "NetTraverse", SCOREP_USER_REGION_TYPE_COMMON);
 
       auto et = clock::now();
-      c1.data().time_map2_let = duration_cast<milliseconds>(et - bt).count() * 1e-3;
+      c1.data().time_map2_insp = duration_cast<milliseconds>(et - bt).count() * 1e-3;
 
       net_bt = clock::now();
     }
@@ -279,11 +279,11 @@ struct CPUMapper {
     if (c1.IsRoot() && c2.IsRoot()) {
       // Post-traverse procedure
       net_et = clock::now();
-      c1.data().time_map2_net = duration_cast<milliseconds>(net_et - net_bt).count() * 1e-3;
+      c1.data().time_map2_exec = duration_cast<milliseconds>(net_et - net_bt).count() * 1e-3;
       SCOREP_USER_REGION_END(trav_handle);
     }
   }
-
+  
   // cell x cell iter
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, CellIterator<Cell> &c2, Args...args) {
@@ -575,7 +575,6 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
       }
       exit(-1);
     }
-    data.time_map2_let = data.time_let_all;
   }
 
   /**
@@ -589,12 +588,13 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     auto &data = c1.data();
     Finish(); // Execute CUDA kernel
 
+    data.time_map2_dev = vmap_.time_device_call_;
+    
     // collect runtime information
     map2_all_end_  = std::chrono::high_resolution_clock::now();
-    auto d = map2_all_end_ - map2_all_beg_;
-
-    data.time_map2_dev = vmap_.time_device_call_;
-    data.time_map2_all = std::chrono::duration_cast<std::chrono::microseconds>(d).count() * 1e-6;
+    auto dt = map2_all_end_ - map2_all_beg_;
+    data.time_map2_all = std::chrono::duration_cast<std::chrono::microseconds>(dt).count() * 1e-6;
+    std::cout << "data.time_map2_all = " << data.time_map2_all << std::endl;
   }
 
   /*
