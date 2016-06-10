@@ -164,7 +164,7 @@ class Cell: public tapas::BasicCell<TSP> {
   bool operator==(const T &) const { return false; }
   bool IsRoot() const;
   bool IsLeaf() const;
-  int nsubcells() const;
+  size_t nsubcells() const;
   size_t local_nb() const { return nb_; } 
   Cell &subcell(int idx) const;
   Cell &parent() const;
@@ -452,7 +452,7 @@ void CompleteRegion(typename TSP::SFC::KeyType x,
 
 template <class TSP>
 void Cell<TSP>::PostOrderMap(Cell<TSP> &c, std::function<void(Cell<TSP>&)> f) {
-  for (int i = 0; i < c.nsubcells(); i++) {
+  for (size_t i = 0; i < c.nsubcells(); i++) {
     auto &chld = c.subcell(i);
     PostOrderMap(chld, f);
   }
@@ -462,7 +462,7 @@ void Cell<TSP>::PostOrderMap(Cell<TSP> &c, std::function<void(Cell<TSP>&)> f) {
 template <class TSP>
 void Cell<TSP>::PreOrderMap(Cell<TSP> &c, std::function<void(Cell<TSP>&)> f) {
   f(c);
-  for (int i = 0; i < c.nsubcells(); i++) {
+  for (size_t i = 0; i < c.nsubcells(); i++) {
     auto &chld = c.subcell(i);
     PreOrderMap(chld, f);
   }
@@ -489,7 +489,7 @@ bool Cell<TSP>::IsLeaf() const {
 }
 
 template <class TSP>
-int Cell<TSP>::nsubcells() const {
+size_t Cell<TSP>::nsubcells() const {
     if (IsLeaf()) return 0;
     else return (1 << TSP::Dim);
 }

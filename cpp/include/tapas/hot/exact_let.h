@@ -336,7 +336,7 @@ struct ExactLET {
       // if any of the children is modified
       bool lv1_mod = 0;
 
-      for (int i = 0; i < cell.nsubcells(); i++) {
+      for (size_t i = 0; i < cell.nsubcells(); i++) {
         lv1_mod |= cell.subcell(i).marked_modified_;
       }
 
@@ -361,7 +361,7 @@ struct ExactLET {
         f(ch, args...);
 
         bool lv2_mod = 0;
-        for (int i = 0; i < cell.nsubcells(); i++) {
+        for (size_t i = 0; i < cell.nsubcells(); i++) {
           lv2_mod |= cell.subcell(i).marked_modified_;
         }
         
@@ -465,7 +465,7 @@ struct ExactLET {
       Split();
 
       if (children_.size() == 0) {
-        int ns = nsubcells();
+        size_t ns = nsubcells();
         children_.resize(ns, nullptr);
         for (int i = 0; i < ns; i++) {
           children_[i] = new ProxyCell(SFC::Child(key_, i), data_);
@@ -483,7 +483,7 @@ struct ExactLET {
       return *parent_;
     }
 
-    inline int nsubcells() const {
+    inline size_t nsubcells() const {
       Split();
       return IsLeaf_real() ? 0 : (1 << TSP::Dim);
     }
@@ -555,11 +555,11 @@ struct ExactLET {
 
     void InitBodies() {
       if (cell_ != nullptr && cell_->nb() > 0) {
-        auto nb = cell_->nb();
-        if (bodies_.size() != nb) {
-          bodies_.resize(nb);
-          body_attrs_.resize(nb);
-          for (index_t i = 0; i < nb; i++) {
+        auto num_bodies = cell_->nb();
+        if (bodies_.size() != num_bodies) {
+          bodies_.resize(num_bodies);
+          body_attrs_.resize(num_bodies);
+          for (index_t i = 0; i < num_bodies; i++) {
             bodies_[i] = reinterpret_cast<ProxyBody*>(&cell_->body(i));
             body_attrs_[i] = reinterpret_cast<ProxyBodyAttr*>(&cell_->body_attr(i));
           }

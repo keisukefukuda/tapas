@@ -323,7 +323,7 @@ struct CPUMapper {
   // bodies
   template <class Funct, class...Args>
   void Map(Funct f, BodyIterator<Cell> iter, Args...args) {
-    for (int i = 0; i < iter.size(); ++i) {
+    for (size_t i = 0; i < iter.size(); ++i) {
       f(*iter, iter.attr(), args...);
       iter++;
     }

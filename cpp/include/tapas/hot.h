@@ -229,11 +229,11 @@ class Cell {
   /**
    * \brief Constuctor
    */
-  Cell(KeyType key, const Reg &region, index_t bid, index_t nb)
+  Cell(KeyType key, const Reg &reg, index_t bid, index_t numbodies)
       : key_(key)
-      , nb_(nb)
+      , nb_(numbodies)
       , bid_(bid)
-      , region_(CalcRegion(key, region))
+      , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
   {}
   //: tapas::BasicCell<TSP>(region, bid, nb)
@@ -271,7 +271,7 @@ class Cell {
   /**
    * @brief Returns the number of subcells. This is 0 or 2^DIM in HOT algorithm.
    */
-  int nsubcells() const;
+  size_t nsubcells() const;
 
   /**
    * @brief Returns idx-th subcell.
@@ -688,7 +688,7 @@ void LocalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
   if (c.IsLeaf()) {
     f(c, args...);
   } else {
-    int nc = c.nsubcells();
+    size_t nc = c.nsubcells();
     for (int ci = 0; ci < nc; ci++) {
       Cell<TSP> &child = c.subcell(ci);
       LocalUpwardTraversal(child, f, args...);
@@ -757,7 +757,7 @@ void GlobalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
   TAPAS_ASSERT(data.ht_gtree_.count(k) > 0);
 
   // c is not a global leaf.
-  int nc = c.nsubcells();
+  size_t nc = c.nsubcells();
   for (int ci = 0; ci < nc; ci++) {
     KeyType chk = SFC::Child(c.key(), ci);
     Cell<TSP> *child = data.ht_gtree_.at(chk);
@@ -837,7 +837,7 @@ bool Cell<TSP>::IsLocal() const {
 }
 
 template <class TSP>
-int Cell<TSP>::nsubcells() const {
+size_t Cell<TSP>::nsubcells() const {
   if (IsLeaf()) return 0;
   else return (1 << TSP::Dim);
 }

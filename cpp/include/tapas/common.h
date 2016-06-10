@@ -91,7 +91,7 @@ namespace tapas {
 using std::string;
 using std::ostream;
 
-typedef long index_t;
+typedef size_t index_t;
 
 inline void Exit(int status, const char *file, const char *func, int line) {
   if (status) {

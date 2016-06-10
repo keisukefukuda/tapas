@@ -24,8 +24,8 @@ class Region {
   Vec<Dim, FP> max_;
 
  public:
-  Region(const Vec<Dim, FP> &min, const Vec<Dim, FP> &max):
-      min_(min), max_(max) {
+  Region(const Vec<Dim, FP> &coord_min, const Vec<Dim, FP> &coord_max):
+      min_(coord_min), max_(coord_max) {
 #ifdef TAPAS_DEBUG
     for (int i = 0; i < Dim; i++) {
       if (!(min_[i] <= max_[i])) {
