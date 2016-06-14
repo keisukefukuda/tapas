@@ -1,9 +1,12 @@
 #ifndef TAPAS_MPI_UTIL_
 #define TAPAS_MPI_UTIL_
 
-#include <vector>
+#include <cmath>
+
 #include <algorithm>
 #include <functional>
+#include <numeric>
+#include <vector>
 
 #include <mpi.h>
 
@@ -154,7 +157,7 @@ template<class T> struct MPI_DatatypeTraits {
     static constexpr int count(size_t n) {          \
       return n;                                     \
     }                                               \
-  };
+  }
 
 DEF_MPI_DATATYPE(char, MPI_CHAR);
 DEF_MPI_DATATYPE(unsigned char, MPI_UNSIGNED_CHAR);
