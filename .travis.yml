@@ -19,10 +19,10 @@ before_install:
         mkdir llvm-$LLVM_VERSION;
         xzcat llvm-$LLVM_VERSION.tar.xz | tar -xvf - --strip 1 -C llvm-$LLVM_VERSION;
       fi;
-      llvm-$LLVM_VERSION/bin/llvm-config --version;
-      export LLVM_CONFIG="llvm-$LLVM_VERSION/bin/llvm-config";
-      export PATH=${HOME}/llvm-${LLVM_VERSION}/bin:${PATH}
-      export LD_LIBRARY_PATH=${HOME}/llvm-${LLVM_VERSION}/lib:${HOME}/llvm-${LLVM_VERSION}:$LD_LIBRARY_PATH
+      llvm-${LLVM_VERSION}/bin/llvm-config --version;
+      export LLVM_CONFIG="${HOME}/llvm-${LLVM_VERSION}/bin/llvm-config";
+      export PATH=${HOME}/llvm-${LLVM_VERSION}/bin:${PATH};
+      export LD_LIBRARY_PATH=${HOME}/llvm-${LLVM_VERSION}/lib:${HOME}/llvm-${LLVM_VERSION}:$LD_LIBRARY_PATH;
     fi;
       
 matrix:
