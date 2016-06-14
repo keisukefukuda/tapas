@@ -56,25 +56,25 @@ matrix:
     - os: linux
       compiler: clang
       env:
-        - COMPILER=clang++-3.5
+        - COMPILER=clang++
         - LLVM_VERSION=3.5.2
 
     - os: linux
       compiler: clang
       env:
-        - COMPILER=clang++-3.6.2
+        - COMPILER=clang++-
         - LLVM_VERSION=3.6.2
 
     - os: linux
       compiler: clang
       env:
-        - COMPILER=clang++-3.7.1
+        - COMPILER=clang++-
         - LLVM_VERSION=3.7.1
 
     - os: linux
       compiler: clang
       env:
-        - COMPILER=clang++-3.8.0
+        - COMPILER=clang++-
         - LLVM_VERSION=3.8.0
 
 branches:
