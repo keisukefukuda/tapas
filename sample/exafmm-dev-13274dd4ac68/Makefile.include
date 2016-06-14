@@ -31,8 +31,10 @@ else ifneq (,$(findstring g++,$(CXX)))
               -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual \
               -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel -Wstrict-overflow=5 -Wswitch-default -Wundef \
               -Wno-unused -Wno-unused-function # -Wsign-conversion
-	CXX    += -std=c++11 -Wall -Wextra -O3 -funroll-loops -fdiagnostics-color=auto -fno-openmp -lrt $(GCC_INLINE) $(GCC_WARNING)
-	MPICXX += -std=c++11 -Wall -Wextra -O3 -funroll-loops -fdiagnostics-color=auto -fno-openmp -lrt $(GCC_INLINE) $(GCC_WARNING)
+	# Mark MPI headers as system
+	GCC_SYSTEM := $(shell $(MPICXX) -show | grep -oE "[-]I(\S)+" | sed -e 's/-I//g')
+	CXX    += -std=c++11 -Wall -Wextra -O3 -funroll-loops -fdiagnostics-color=auto -fno-openmp -lrt $(GCC_INLINE) $(GCC_WARNING) -isystem $(GCC_SYSTEM)
+	MPICXX += -std=c++11 -Wall -Wextra -O3 -funroll-loops -fdiagnostics-color=auto -fno-openmp -lrt $(GCC_INLINE) $(GCC_WARNING) -isystem $(GCC_SYSTEM)
 else ifneq (,$(findstring icpc,$(CXX)))
 	# for ICC, we don't use -static option (as well as -fast which implicitly includes it) because it causes a linking error.
 	INTEL_INLINE=-no-inline-max-per-routine -no-inline-max-per-compile -inline-max-total-size=3000
