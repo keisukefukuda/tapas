@@ -220,7 +220,7 @@ struct CPUMapper {
 
     const auto &data = iter.cell().data();
     KeyType k = iter.cell().key();
-    
+
     for (index_t i = 0; i < iter.size(); i++) {
       // In downward mode, if the subcells are out of the local process
       // (= the cell is a global leaf but not a local root)
@@ -229,7 +229,7 @@ struct CPUMapper {
         KeyType ck = SFC::Child(iter.cell().key(), i);
         if (data.ht_.count(ck) == 0) continue;
       }
-      
+
       tg.createTask([=]() mutable { this->Map(f, *iter, args...); });
       iter++;
     }
@@ -283,7 +283,7 @@ struct CPUMapper {
       SCOREP_USER_REGION_END(trav_handle);
     }
   }
-  
+
   // cell x cell iter
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, CellIterator<Cell> &c2, Args...args) {
@@ -350,7 +350,7 @@ struct CPUMapper {
       auto pcell = data.ht_[k];
       f(*pcell, args...);
     }
-    
+
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
   }
 
@@ -367,31 +367,33 @@ struct CPUMapper {
         std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
         abort();
       }
-      
+
       auto dir = LET::FindMap1Direction(c, f, args...);
-      
+
       switch(dir) {
         case LET::MAP1_UP:
 #ifdef TAPAS_DEBUG
           if (c.data().mpi_rank_ == 0) std::cout << "In Upward: Determining 1-map direction (in upward) : UP => OK" << std::endl;
 #endif
           map1_dir_ = Map1Dir::Upward;
-          
-          StartUpwardMap(f, c, args...); // Run local upward first
+
+          if (c.data().mpi_size_ > 1) {
+            StartUpwardMap(f, c, args...); // Run local upward first
+          }
           f(c, args...);
-          
+
           map1_dir_ = Map1Dir::None;
           return;
-          
+
         case LET::MAP1_DOWN:
 #ifdef TAPAS_DEBUG
           if (c.data().mpi_rank_ == 0) std::cout << "Downward is detected." << std::endl;
 #endif
-          
+
           map1_dir_ = Map1Dir::Downward;
 
           f(c, args...);
-          
+
           map1_dir_ = Map1Dir::None;
           return;
 
@@ -399,7 +401,7 @@ struct CPUMapper {
           // MAP1_ONLY_ONE means there's only one cell in the space and the traverse direction does not matter.
           f(c, args...);
           break;
-          
+
         default:
           if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction (in upward) : NOT UP => Wrong !!!" << std::endl;
           TAPAS_ASSERT("Direction is Unknown.");
@@ -407,7 +409,7 @@ struct CPUMapper {
       }
     } else {
       auto &data = c.data();
-      
+
       // Non-root cells
       if (map1_dir_ == Map1Dir::None) {
         std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
@@ -427,7 +429,7 @@ struct CPUMapper {
       }
     }
   }
-  
+
 
   /**
    * CPUMapper::DownwardMap (deperecated)
@@ -437,7 +439,7 @@ struct CPUMapper {
     // This function is deprecated.
     TAPAS_ASSERT(!"Deperecated function");
     abort();
-    
+
     Cell::DownwardMap(f, c, args...);
   }
 
@@ -464,7 +466,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
                                                  typename Cell::Body,
                                                  typename Cell::BodyAttr,
                                                  typename Cell::AttrType>;
-  
+
   Vectormap vmap_;
 
   std::chrono::high_resolution_clock::time_point map2_all_beg_, map2_all_end_;
@@ -489,7 +491,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
       vmap_.map2(f, prod, args...);
     }
   }
-  
+
   template <class Funct, class T1_Iter, class ...Args>
   inline void MapP1(Funct f, ProductIterator<T1_Iter> prod, Args...args) {
     if (prod.size() > 0) {
@@ -500,14 +502,14 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
                      f, args...);
     }
   }
-  
+
   template <class Funct, class ...Args>
   inline void MapP1(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args...args) {
     if (prod.size() > 0) {
       vmap_.map2(f, prod, args...);
     }
   }
-  
+
   GPUMapper() : CPUMapper<Cell, Body, LET>() { }
 
   /**
@@ -520,12 +522,12 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     std::cout << "*** Map(body) correct one" << std::endl;
     vmap_.map2(f, prod, args...);
   }
-  
+
   inline void Setup() {
     // Called in tapas/hot.h
     vmap_.Setup(64,31);
   }
-  
+
   // GPUMapper::Start for 2-param Map()
   inline void Start2() {
     //std::cout << "*** Start2()" << std::endl;
@@ -589,7 +591,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     Finish(); // Execute CUDA kernel
 
     data.time_map2_dev = vmap_.time_device_call_;
-    
+
     // collect runtime information
     map2_all_end_  = std::chrono::high_resolution_clock::now();
     auto dt = map2_all_end_ - map2_all_beg_;
@@ -608,7 +610,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     static std::chrono::high_resolution_clock::time_point t1, t2;
 
     //std::cout << "GPUMapper::Map(2)  " << c1.key() << ", " << c2.key() << std::endl;
-    
+
     if (c1.IsRoot() && c2.IsRoot()) {
       Map2_Init(f, c1, c2, args...);
     }
@@ -673,7 +675,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   inline void Map(Funct f, Cell &c, Args...args) {
     Base::Map(f, c, args...);
   }
-  
+
   /**
    * GPUMapper::Map (subcelliterator)
    */
