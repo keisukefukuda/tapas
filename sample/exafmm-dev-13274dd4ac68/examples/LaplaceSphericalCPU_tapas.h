@@ -164,47 +164,70 @@ void P2M(Cell &C) {
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
-template<class Cell>
-void M2M(Cell &C) {
+vecP sumP(const vecP &a, const vecP &b) {
+  vecP res = {0};
+
+  for (int i = 0; i < P; i++) {
+    res[i] = a[i] + b[i];
+  }
+
+  return res;
+}
+
+vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &center) {
   complex_t Ynm[P*P], YnmTheta[P*P];
-  
-  auto attr = C.attr();
 
-  for (index_t i = 0; i < C.nsubcells(); ++i) {
-    Cell &Cj=C.subcell(i);
+  vec3 dX = tovec(center - Cj.center());
     
-    // Skip empty cell
-    // NOTE: This is not allowed in
-    // TODO: Do we want to allow this?
-    //if (Cj.nb() == 0) continue;
-    
-    vec3 dX = tovec(C.center() - Cj.center());
-    
-    real_t rho, alpha, beta;
-    cart2sph(rho, alpha, beta, dX);
-    evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
+  real_t rho, alpha, beta;
+  cart2sph(rho, alpha, beta, dX);
+  evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
 
-    for (int j=0; j<P; j++) {
-      for (int k=0; k<=j; k++) {
-        int jks = j * (j + 1) / 2 + k;
-        complex_t M = 0;
-        for (int n=0; n<=j; n++) {
-          for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
-            int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
-            int nm    = n * n + n - m;
-            M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-          }
-          for (int m=k; m<=std::min(n,j+k-n); m++) {
-            int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
-            int nm    = n * n + n - m;
-            M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-          }
+  vecP M = Cj.attr().M;
+
+  for (int j=0; j<P; j++) {
+    for (int k=0; k<=j; k++) {
+      int jks = j * (j + 1) / 2 + k;
+      complex_t M_jks = 0;
+      for (int n=0; n<=j; n++) {
+        for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
+          int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
+          int nm    = n * n + n - m;
+          M_jks += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
         }
-        attr.M[jks] += M;
+        for (int m=k; m<=std::min(n,j+k-n); m++) {
+          int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
+          int nm    = n * n + n - m;
+          M_jks += std::conj(M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+        }
       }
+      M[jks] += M_jks;
     }
   }
+  
+  if (Cj.parent().key() == 1) {
+    std::cout << "C 1 dM = " << M << std::endl;
+  }
+  return M;
+}
+
+template<class Cell>
+void M2M(Cell &C) {
+  vecP zero = {0};
+  auto attr = C.attr();
+  
+  if (C.key() == 1) {
+    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  }
+
+  // SubcellIter<ProxyCell>は取れているから，Proxy MapReduceは単にzeroを返せば良い？
+  attr.M = TapasFMM::MapReduce(calcM2M, C.subcells(), zero, sumP, C.center());
+
   C.attr() = attr;
+  
+  if (C.key() == 1) {
+    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  }
 }
 
 template<class Cell>

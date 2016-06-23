@@ -368,7 +368,9 @@ struct CPUMapper {
         abort();
       }
 
+      std::cout << "<FindMap1Direction>" << std::endl;
       auto dir = LET::FindMap1Direction(c, f, args...);
+      std::cout << "</FindMap1Direction>" << std::endl;
 
       switch(dir) {
         case LET::MAP1_UP:

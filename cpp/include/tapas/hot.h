@@ -1416,6 +1416,28 @@ struct Tapas {
   static inline void Map(Funct f, Cell &c, Args...args) {
     c.mapper().Map(f, c, args...);
   }
+
+  template<typename MapFunct, typename ReduceFunct, typename T, typename...Args>
+  static inline T MapReduce(MapFunct mapf, tapas::iterator::SubCellIterator<Cell> iter, const T &init, ReduceFunct reducef, Args...args) {
+    T v = init;
+    if (iter.cell().key() == 1) {
+      std::cout << "Starting MapReduce to Cell 1" << std::endl;
+    }
+    for (index_t i = 0; i < iter.size(); i++) {
+      if (iter.cell().key() == 1) {
+        std::cout << "MapReduce: Calling " << i << " Map" << std::endl;
+      }
+      T rhs = mapf(*iter, args...);
+      v = reducef(v, rhs);
+      iter++;
+    }
+    return v;
+  }
+  
+  template<typename MapFunct, typename ReduceFunct, typename T, typename...Args>
+  static inline T MapReduce(MapFunct mf, tapas::iterator::SubCellIterator<ProxyCell> iter, const T &init, ReduceFunct rf, Args...args) {
+    return init;
+  }
 };
 } // namespace tapas
 
