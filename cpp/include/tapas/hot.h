@@ -1439,4 +1439,10 @@ std::ostream& operator<<(std::ostream& os, tapas::hot::Cell<TSP> &cell) {
 }
 #endif
 
+#ifdef __CUDACC__
+#define TAPAS_KERNEL __host__ __device__ __forceinline__
+#else
+#define TAPAS_KERNEL
+#endif
+
 #endif // TAPAS_HOT_
