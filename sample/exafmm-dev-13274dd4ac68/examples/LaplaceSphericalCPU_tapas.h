@@ -169,7 +169,11 @@ void M2M(Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];
   
   auto attr = C.attr();
-
+  
+  if (C.key() == 1) {
+    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  }
+  
   for (index_t i = 0; i < C.nsubcells(); ++i) {
     Cell &Cj=C.subcell(i);
     
@@ -177,6 +181,9 @@ void M2M(Cell &C) {
     // NOTE: This is not allowed in
     // TODO: Do we want to allow this?
     //if (Cj.nb() == 0) continue;
+
+    auto dM = C.attr().M;
+    dM = 0;
     
     vec3 dX = tovec(C.center() - Cj.center());
     
@@ -200,11 +207,19 @@ void M2M(Cell &C) {
             M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
           }
         }
+        dM[jks] += M;
         attr.M[jks] += M;
       }
     }
+    if (C.key() == 1) {
+      std::cout << "C 1 dM = " << dM << std::endl;
+    }
   }
   C.attr() = attr;
+  
+  if (C.key() == 1) {
+    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  }
 }
 
 template<class Cell>
