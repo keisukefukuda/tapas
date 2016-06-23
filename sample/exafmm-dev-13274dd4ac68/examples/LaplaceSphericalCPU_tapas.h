@@ -183,7 +183,8 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
 
-  vecP M = Cj.attr().M;
+  vecP M = {0.0};
+  //vecP M = Cj.attr().M;
 
   for (int j=0; j<P; j++) {
     for (int k=0; k<=j; k++) {
