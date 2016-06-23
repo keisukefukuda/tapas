@@ -182,9 +182,7 @@ void M2M(Cell &C) {
     // TODO: Do we want to allow this?
     //if (Cj.nb() == 0) continue;
 
-    auto dM = C.attr().M;
-    dM = 0;
-    
+    vecP dM = {0.0};
     vec3 dX = tovec(C.center() - Cj.center());
     
     real_t rho, alpha, beta;
