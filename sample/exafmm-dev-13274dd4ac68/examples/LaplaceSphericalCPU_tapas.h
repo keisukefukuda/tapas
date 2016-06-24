@@ -210,7 +210,8 @@ void M2M(Cell &C) {
       }
     }
     if (C.key() == 1) {
-      std::cout << "C 1 dM = " << dM << std::endl;
+      std::cout << "C 1 " << "dX=" << dX << " "
+                << "dM = " << dM << std::endl;
     }
   }
   C.attr() = attr;
