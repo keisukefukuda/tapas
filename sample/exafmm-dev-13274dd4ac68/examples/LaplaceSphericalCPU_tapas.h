@@ -164,7 +164,7 @@ void P2M(Cell &C) {
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
-const constexpr int CHECK_CELL = 1;
+const constexpr int CHECK_CELL = 3;
 
 template<class Cell>
 void M2M(Cell &C) {
