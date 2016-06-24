@@ -205,6 +205,8 @@ vecP sumP(const vecP &a, const vecP &b) {
   return res;
 }
 
+const constexpr int CHECK_CELL = 3;
+
 // calculate M2M evaluation.
 // Cj : A child of a cell
 // center : center of the parent
@@ -230,16 +232,16 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
           int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
           int nm    = n * n + n - m;
           M_jks += M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-          if (Cj.parent().key() == 1) {
-            std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
+          if (Cj.parent().key() == CHECK_CELL) {
+            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
           }
         }
         for (int m=k; m<=std::min(n,j+k-n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
           int nm    = n * n + n - m;
           M_jks += std::conj(M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-          if (Cj.parent().key() == 1) {
-            std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
+          if (Cj.parent().key() == CHECK_CELL) {
+            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
           }
         }
       }
@@ -247,8 +249,8 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
     }
   }
   
-  if (Cj.parent().key() == 1) {
-    std::cout << "C 1 " << "dX=" << dX << " "
+  if (Cj.parent().key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
               << "dM = " << M << std::endl;
   }
   return M;
@@ -259,8 +261,8 @@ void M2M(Cell &C) {
   vecP zero = {0};
   auto attr = C.attr();
   
-  if (C.key() == 1) {
-    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  if (C.key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
   }
 
   // SubcellIter<ProxyCell>は取れているから，Proxy MapReduceは単にzeroを返せば良い？
@@ -268,8 +270,8 @@ void M2M(Cell &C) {
 
   C.attr() = attr;
   
-  if (C.key() == 1) {
-    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  if (C.key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
   }
 }
 
