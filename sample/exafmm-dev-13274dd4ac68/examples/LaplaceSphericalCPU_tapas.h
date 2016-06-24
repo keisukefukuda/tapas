@@ -198,11 +198,17 @@ void M2M(Cell &C) {
             int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
             int nm    = n * n + n - m;
             M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
+            if (C.key() == 1) {
+              std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
+            }
           }
           for (int m=k; m<=std::min(n,j+k-n); m++) {
             int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
             int nm    = n * n + n - m;
             M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+            if (C.key() == 1) {
+              std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
+            }
           }
         }
         dM[jks] += M;
