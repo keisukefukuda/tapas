@@ -173,7 +173,7 @@ void M2M(Cell &C) {
   auto attr = C.attr();
   
   if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
+    std::cout << "C " << CHECK_CELL << "  before: M = " << C.attr().M << std::endl;
   }
   
   for (index_t i = 0; i < C.nsubcells(); ++i) {
@@ -225,7 +225,7 @@ void M2M(Cell &C) {
   C.attr() = attr;
   
   if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
+    std::cout << "C " << CHECK_CELL << "  after: M = " << C.attr().M << std::endl;
   }
 }
 
