@@ -230,11 +230,17 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
           int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
           int nm    = n * n + n - m;
           M_jks += M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
+          if (Cj.parent().key() == 1) {
+            std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
+          }
         }
         for (int m=k; m<=std::min(n,j+k-n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
           int nm    = n * n + n - m;
           M_jks += std::conj(M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+          if (Cj.parent().key() == 1) {
+            std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
+          }
         }
       }
       M[jks] += M_jks;
