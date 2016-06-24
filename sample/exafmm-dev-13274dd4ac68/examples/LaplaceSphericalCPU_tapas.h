@@ -192,6 +192,9 @@ void P2M(Cell &C) {
     }
   }
   C.attr() = attr;
+  if (C.key() == 4) {
+    std::cout << "P2M: key=" << C.key() << " M = " << C.attr().M << std::endl;
+  }
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
@@ -231,17 +234,17 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
         for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
           int nm    = n * n + n - m;
-          M_jks += M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
+          M_jks += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
           if (Cj.parent().key() == CHECK_CELL) {
-            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
+            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
           }
         }
         for (int m=k; m<=std::min(n,j+k-n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
           int nm    = n * n + n - m;
-          M_jks += std::conj(M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+          M_jks += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
           if (Cj.parent().key() == CHECK_CELL) {
-            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << M[jnkms] << std::endl;
+            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
           }
         }
       }
@@ -251,7 +254,7 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
   
   if (Cj.parent().key() == CHECK_CELL) {
     std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
-              << "dM = " << M << "by cell " << Cj.key() << std::endl;
+              << "dM = " << M << "by cell " << Cj.key() << " " << (Cj.IsLeaf() ? "Leaf" : "Non-leaf") << std::endl;
   }
   return M;
 }
