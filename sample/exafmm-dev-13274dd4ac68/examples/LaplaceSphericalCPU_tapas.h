@@ -251,7 +251,7 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
   
   if (Cj.parent().key() == CHECK_CELL) {
     std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
-              << "dM = " << M << std::endl;
+              << "dM = " << M << "by cell " << Cj.key() << std::endl;
   }
   return M;
 }
@@ -262,7 +262,7 @@ void M2M(Cell &C) {
   auto attr = C.attr();
   
   if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
+    std::cout << "C " << CHECK_CELL << "  before: M = " << C.attr().M << std::endl;
   }
 
   // SubcellIter<ProxyCell>は取れているから，Proxy MapReduceは単にzeroを返せば良い？
@@ -271,7 +271,7 @@ void M2M(Cell &C) {
   C.attr() = attr;
   
   if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
+    std::cout << "C " << CHECK_CELL << "  after: M = " << C.attr().M << std::endl;
   }
 }
 
