@@ -164,14 +164,16 @@ void P2M(Cell &C) {
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
+const constexpr int CHECK_CELL = 1;
+
 template<class Cell>
 void M2M(Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];
   
   auto attr = C.attr();
   
-  if (C.key() == 1) {
-    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  if (C.key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
   }
   
   for (index_t i = 0; i < C.nsubcells(); ++i) {
@@ -198,16 +200,16 @@ void M2M(Cell &C) {
             int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
             int nm    = n * n + n - m;
             M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-            if (C.key() == 1) {
-              std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
+            if (C.key() == CHECK_CELL) {
+              std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
             }
           }
           for (int m=k; m<=std::min(n,j+k-n); m++) {
             int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
             int nm    = n * n + n - m;
             M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-            if (C.key() == 1) {
-              std::cout << "C 1 " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
+            if (C.key() == CHECK_CELL) {
+              std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
             }
           }
         }
@@ -215,15 +217,15 @@ void M2M(Cell &C) {
         attr.M[jks] += M;
       }
     }
-    if (C.key() == 1) {
-      std::cout << "C 1 " << "dX=" << dX << " "
+    if (C.key() == CHECK_CELL) {
+      std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
                 << "dM = " << dM << std::endl;
     }
   }
   C.attr() = attr;
   
-  if (C.key() == 1) {
-    std::cout << "C 1  M = " << C.attr().M << std::endl;
+  if (C.key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << "  M = " << C.attr().M << std::endl;
   }
 }
 
