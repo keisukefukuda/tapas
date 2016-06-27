@@ -164,17 +164,11 @@ void P2M(Cell &C) {
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
-const constexpr int CHECK_CELL = 3;
-
 template<class Cell>
 void M2M(Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];
   
   auto attr = C.attr();
-  
-  if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  before: M = " << C.attr().M << std::endl;
-  }
   
   for (index_t i = 0; i < C.nsubcells(); ++i) {
     Cell &Cj=C.subcell(i);
@@ -200,33 +194,19 @@ void M2M(Cell &C) {
             int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
             int nm    = n * n + n - m;
             M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-            if (C.key() == CHECK_CELL) {
-              std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
-            }
           }
           for (int m=k; m<=std::min(n,j+k-n); m++) {
             int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
             int nm    = n * n + n - m;
             M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-            if (C.key() == CHECK_CELL) {
-              std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
-            }
           }
         }
         dM[jks] += M;
         attr.M[jks] += M;
       }
     }
-    if (C.key() == CHECK_CELL) {
-      std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
-                << "dM = " << dM << std::endl;
-    }
   }
   C.attr() = attr;
-  
-  if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  after: M = " << C.attr().M << std::endl;
-  }
 }
 
 template<class Cell>
