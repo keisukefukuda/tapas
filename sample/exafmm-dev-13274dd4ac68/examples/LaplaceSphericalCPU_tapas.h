@@ -137,6 +137,37 @@ void evalLocal(real_t rho, real_t alpha, real_t beta, complex_t * Ynm) {
 }
 
 
+#if 0
+vecP dM = {0.0};
+vec3 dX = tovec(C.center() - Cj.center());
+
+real_t rho, alpha, beta;
+cart2sph(rho, alpha, beta, dX);
+evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
+
+for (int j=0; j<P; j++) {
+  for (int k=0; k<=j; k++) {
+    int jks = j * (j + 1) / 2 + k;
+    complex_t M = 0;
+    for (int n=0; n<=j; n++) {
+      for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
+        int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
+        int nm    = n * n + n - m;
+        M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
+      }
+      for (int m=k; m<=std::min(n,j+k-n); m++) {
+        int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
+        int nm    = n * n + n - m;
+        M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+      }
+    }
+    dM[jks] += M;
+    attr.M[jks] += M;
+  }
+}
+
+#endif
+
 template<class Cell>
 void P2M(Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];
@@ -161,52 +192,90 @@ void P2M(Cell &C) {
     }
   }
   C.attr() = attr;
+  if (C.key() == 4) {
+    std::cout << "P2M: key=" << C.key() << " M = " << C.attr().M << std::endl;
+  }
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
+}
+
+vecP sumP(const vecP &a, const vecP &b) {
+  vecP res = {0};
+
+  for (int i = 0; i < P; i++) {
+    res[i] = a[i] + b[i];
+  }
+
+  return res;
+}
+
+const constexpr int CHECK_CELL = 3;
+
+// calculate M2M evaluation.
+// Cj : A child of a cell
+// center : center of the parent
+// Mp : M vector of the parent
+vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &center, const vecP &Mp) {
+  complex_t Ynm[P*P], YnmTheta[P*P];
+  
+  vec3 dX = tovec(center - Cj.center());
+    
+  real_t rho, alpha, beta;
+  cart2sph(rho, alpha, beta, dX);
+  evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
+
+  vecP M = {0.0};
+  //vecP M = Cj.attr().M;
+
+  for (int j=0; j<P; j++) {
+    for (int k=0; k<=j; k++) {
+      int jks = j * (j + 1) / 2 + k;
+      complex_t M_jks = 0;
+      for (int n=0; n<=j; n++) {
+        for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
+          int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
+          int nm    = n * n + n - m;
+          M_jks += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
+          if (Cj.parent().key() == CHECK_CELL) {
+            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
+          }
+        }
+        for (int m=k; m<=std::min(n,j+k-n); m++) {
+          int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
+          int nm    = n * n + n - m;
+          M_jks += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+          if (Cj.parent().key() == CHECK_CELL) {
+            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
+          }
+        }
+      }
+      M[jks] += M_jks;
+    }
+  }
+  
+  if (Cj.parent().key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
+              << "dM = " << M << "by cell " << Cj.key() << " " << (Cj.IsLeaf() ? "Leaf" : "Non-leaf") << std::endl;
+  }
+  return M;
 }
 
 template<class Cell>
 void M2M(Cell &C) {
-  complex_t Ynm[P*P], YnmTheta[P*P];
-  
+  vecP zero = {0};
   auto attr = C.attr();
   
-  for (index_t i = 0; i < C.nsubcells(); ++i) {
-    Cell &Cj=C.subcell(i);
-    
-    // Skip empty cell
-    // NOTE: This is not allowed in
-    // TODO: Do we want to allow this?
-    //if (Cj.nb() == 0) continue;
-
-    vecP dM = {0.0};
-    vec3 dX = tovec(C.center() - Cj.center());
-    
-    real_t rho, alpha, beta;
-    cart2sph(rho, alpha, beta, dX);
-    evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
-
-    for (int j=0; j<P; j++) {
-      for (int k=0; k<=j; k++) {
-        int jks = j * (j + 1) / 2 + k;
-        complex_t M = 0;
-        for (int n=0; n<=j; n++) {
-          for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
-            int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
-            int nm    = n * n + n - m;
-            M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-          }
-          for (int m=k; m<=std::min(n,j+k-n); m++) {
-            int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
-            int nm    = n * n + n - m;
-            M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-          }
-        }
-        dM[jks] += M;
-        attr.M[jks] += M;
-      }
-    }
+  if (C.key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << "  before: M = " << C.attr().M << std::endl;
   }
+
+  // SubcellIter<ProxyCell>は取れているから，Proxy MapReduceは単にzeroを返せば良い？
+  attr.M = TapasFMM::MapReduce(calcM2M, C.subcells(), zero, sumP, C.center(), C.attr().M);
+
   C.attr() = attr;
+  
+  if (C.key() == CHECK_CELL) {
+    std::cout << "C " << CHECK_CELL << "  after: M = " << C.attr().M << std::endl;
+  }
 }
 
 template<class Cell>
