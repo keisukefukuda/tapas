@@ -152,50 +152,43 @@ struct ComputeForce {
   }
 };
 
+void Sum(float4 &lhs, const float4 &rhs) {
+  lhs.w += rhs.w;
+  lhs.x += rhs.x;
+  lhs.y += rhs.y;
+  lhs.z += rhs.z;
+}
+
 struct Approximate {
   template<class Cell>
-  inline void operator()(Cell &c) {
-    if (c.IsLeaf()) {
-      if (c.nb() == 0) {
-        auto attr = c.attr();
+  inline void operator()(Cell &parent, Cell &child) {
+    if (child.IsLeaf()) {
+      if (child.nb() == 0) {
+        auto attr = child.attr();
         attr.w = 0.0;
 #if 0
         attr.x = 0.0;
         attr.y = 0.0;
         attr.z = 0.0;
 #endif
-        c.attr() = attr;
-      } else if (c.nb() == 1) {
-        c.attr() = c.body(0);
+        child.attr() = attr;
+      } else if (child.nb() == 1) {
+        child.attr() = child.body(0);
       }
       else {
-        assert(false);
+        assert(false); // never happens
       }
     } else {
-      TapasBH::Map(*this, c.subcells());
-      float4 center = {0.0, 0.0, 0.0, 0.0};
-      for (int i = 0; i < c.nsubcells(); ++i) {
-        Cell &sc = c.subcell(i);
-        center.w += sc.attr().w;
-        center.x += sc.attr().x * sc.attr().w;
-        center.y += sc.attr().y * sc.attr().w;
-        center.z += sc.attr().z * sc.attr().w;
-      }
-      center.x /= center.w;
-      center.y /= center.w;
-      center.z /= center.w;
-#if 0
-      // <debug>
-      std::cout << "BH Non-Leaf Cell [" << c.key() << "] "
-                << "w = " << center.w << " "
-                << "x = " << center.x << " "
-                << "y = " << center.y << " "
-                << "z = " << center.z << " "
-                << std::endl;
-      // </debug>
-#endif
-      c.attr() = center;
+      // if not leaf
+      TapasBH::Map(*this, child.subcells());
+      auto attr = child.attr();
+      attr.x /= attr.w;
+      attr.y /= attr.w;
+      attr.z /= attr.w;
+      child.attr() = attr;
     }
+
+    TapasBH::Reduce(parent.attr(), child.attr(), Sum);
   }
 };
 
@@ -239,7 +232,7 @@ f4vec calc(f4vec &source) {
   TapasBH::Region r(Vec3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 1.0));
   TapasBH::Cell *root = TapasBH::Partition(source.data(), source.size(), 1);
 
-  TapasBH::Map(Approximate(), *root); // or, simply: approximate(*root);
+  TapasBH::Map(Approximate(), root->subcells()); // or, simply: approximate(*root);
   
   real_t theta = 0.5;
   TapasBH::Map(interact(), tapas::Product(*root, *root), theta);

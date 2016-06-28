@@ -1359,9 +1359,11 @@ struct Tapas {
   using Partitioner = typename TSP::template Partitioner<TSP>;
   using Region = tapas::Region<Dim, FP>;
   using Cell = hot::Cell<TSP>;
+  using CellAttr = typename Cell::AttrType;
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
   using ProxyCell = typename Cell::LET::ProxyCell;
+  using ProxyAttr = typename Cell::LET::ProxyAttr;
   using ProxyBodyIterator = typename Cell::LET::ProxyBodyIterator;
   
   /**
@@ -1433,12 +1435,25 @@ struct Tapas {
     }
     return v;
   }
-  
+
+  // To be removed
   template<typename MapFunct, typename ReduceFunct, typename T, typename...Args>
   static inline T MapReduce(MapFunct mf, tapas::iterator::SubCellIterator<ProxyCell> iter, const T &init, ReduceFunct rf, Args...args) {
     return init;
   }
-};
+
+  template<typename ReduceFunc>
+  static inline void Reduce(CellAttr &dst, CellAttr& src, ReduceFunc f) {
+    f(dst, src);
+  }
+  
+  template<class ReduceFunc>
+  static inline void Reduce(const ProxyAttr &dst, const ProxyAttr&, ReduceFunc) {
+    std::cout << "Mark 'modified' to cell " << dst.cell().key()  << " [" << dst.cell().depth() << "]" << std::endl;
+    dst.cell().MarkModified();
+    // nop.
+  }
+}; // struct Tapas
 } // namespace tapas
 
 #ifdef TAPAS_DEBUG_DUMP

@@ -70,6 +70,8 @@ struct ExactLET {
    public:
     ProxyAttr(ProxyCell *cell) : CellAttrType(), cell_(cell) { }
     ProxyAttr(ProxyCell *cell, CellAttrType &rhs) : CellAttrType(rhs), cell_(cell) { }
+
+    ProxyCell &cell() const { return *cell_; }
     
     ProxyAttr &operator=(const ProxyAttr &rhs) {
       this->CellAttrType::operator=(rhs);
@@ -324,12 +326,14 @@ struct ExactLET {
     static int PredDir1(KeyType key, const Data &data, UserFunct f, Args...args) {
       ProxyCell cell(key, data);
 
-      if (cell.IsRoot() && cell.IsLeaf()) {
+      if(data.max_depth_ <= 2) { // if(cell.IsRoot() && cell.IsLeaf()) {
         // Special case: if root is leaf, which means only 1 level and cell in the space
+        std::cout << "PredDir1: only one cell" << std::endl;
         return MAP1_ONLY_ONE;
       }
 
-      f(cell, args...);
+      std::cout << "Calling f to [" << cell.key() << ", " << cell.subcell(0).key() << std::endl;
+      f(cell, cell.subcell(0), args...);
 
       // if cell is modified
       bool lv0_mod = cell.marked_modified_;
@@ -339,6 +343,9 @@ struct ExactLET {
       for (size_t i = 0; i < cell.nsubcells(); i++) {
         lv1_mod |= cell.subcell(i).marked_modified_;
       }
+
+      std::cout << "lv0_mod = " << lv0_mod << std::endl;
+      std::cout << "lv1_mod = " << lv1_mod << std::endl;
 
       if (lv0_mod && !lv1_mod) {
         // Upward
@@ -358,7 +365,7 @@ struct ExactLET {
         // }
 
         ProxyCell &ch = cell.subcell(0);
-        f(ch, args...);
+        f(cell, ch, args...);
 
         bool lv2_mod = 0;
         for (size_t i = 0; i < cell.nsubcells(); i++) {
@@ -547,7 +554,7 @@ struct ExactLET {
 
     bool GetOptMutual() const { return data_.opt_mutual_; }
 
-   protected:
+    //protected:
     void Touched() const { marked_touched_ = true; }
     void Split() const  { marked_split_ = true; }
     void Body() const   { marked_body_ = true; }

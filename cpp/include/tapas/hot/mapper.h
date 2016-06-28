@@ -208,8 +208,165 @@ struct CPUMapper {
     }
   }
 
+  // before running upward traversal from the root,
+  // we need to run local upward first and communicate the global leaf values between processes.
+  template<class Funct, class...Args>
+  inline void StartUpwardMap(Funct f, Cell &c, Args...args) {
+    auto &data = c.data();
+
+    for (auto &k : data.lroots_) {
+      // TODO: parallelizable?
+      TAPAS_ASSERT(data.ht_.count(k) == 1);
+      Cell lrc = *data.ht_[k]; // local root cell
+
+      if (!lrc.IsLeaf()) {
+        auto iter = lrc.subcells();
+        for (index_t i = 0; i < iter.size(); i++) {
+          // TODO: parallelization
+          KeyType ck = SFC::Child(lrc.key(), i);
+          f(c, *iter, args...);
+          iter++;
+        }
+      }
+    }
+
+    Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
+  }
+
+  /**
+   * CPUMapper::Map  (1-parameter)
+   */
+  template<class Funct, class...Args>
+  //inline void Map(Funct f, Cell &c, Args...args) {
+  inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args...args) {
+
+    Cell &c = iter.cell();
+
+    if (c.IsRoot()) {
+      // Map() has just started.
+      // Find the direction of the function f (upward or downward)
+      if (map1_dir_ != Map1Dir::None) {
+        std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
+        abort();
+      }
+
+      std::cout << "<FindMap1Direction>" << std::endl;
+      auto dir = LET::FindMap1Direction(c, f, args...);
+      std::cout << "</FindMap1Direction>" << std::endl;
+
+      switch(dir) {
+        case LET::MAP1_UP:
+          // Upward
+          if (c.data().mpi_rank_ == 0) std::cout << "Determining 1-map direction (in upward) : UP" << std::endl;
+          map1_dir_ = Map1Dir::Upward;
+
+          if (c.data().mpi_size_ > 1) {
+            StartUpwardMap(f, c, args...); // Run local upward first
+          }
+          
+          for (index_t i = 0; i < iter.size(); i++) {
+            // TODO: parallelization
+            KeyType ck = SFC::Child(c.key(), i);
+            f(c, *iter, args...);
+            iter++;
+          }
+
+          map1_dir_ = Map1Dir::None;
+          return;
+
+        case LET::MAP1_DOWN:
+          // Downward
+          if (c.data().mpi_rank_ == 0) std::cout << "Downward is detected." << std::endl;
+
+          map1_dir_ = Map1Dir::Downward;
+
+          for (index_t i = 0; i < iter.size(); i++) {
+            // TODO: parallelization
+            KeyType ck = SFC::Child(c.key(), i);
+            f(c, *iter, args...);
+            iter++;
+          }
+
+          map1_dir_ = Map1Dir::None;
+          return;
+
+        case LET::MAP1_ONLY_ONE:
+          // MAP1_ONLY_ONE means there's only one cell in the space and the traverse direction does not matter.
+          for (index_t i = 0; i < iter.size(); i++) {
+            // TODO: parallelization
+            KeyType ck = SFC::Child(c.key(), i);
+            f(c, *iter, args...);
+            iter++;
+          }
+          break;
+          
+        default:
+          // Upward
+          for (index_t i = 0; i < iter.size(); i++) {
+            // TODO: parallelization
+            KeyType ck = SFC::Child(c.key(), i);
+            f(c, *iter, args...);
+            iter++;
+          }
+          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction (in upward)" << std::endl;
+          break;
+      }
+    } else { // for non-root cells
+      auto &data = c.data();
+
+      // Non-root cells
+      if (map1_dir_ == Map1Dir::None) {
+        std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
+        abort();
+      }
+
+      if (map1_dir_ == Map1Dir::Upward) {
+        // Upward
+        // Traversal for local trees is already done in StartUpwardMap().
+        // Here we just perform traversal in the global tree part.
+        if (data.gleaves_.count(c.key()) == 0) { // Stop traversal if c is a global leaf.
+          for (index_t i = 0; i < iter.size(); i++) {
+            // TODO: parallelization
+            KeyType ck = SFC::Child(c.key(), i);
+            f(c, *iter, args...);
+            iter++;
+          }
+        }
+      } else if (map1_dir_ == Map1Dir::Downward) {
+        // non-local cells are eliminated in Map(SubcellIterator).
+        for (index_t i = 0; i < iter.size(); i++) {
+          // TODO: parallelization
+          KeyType ck = SFC::Child(c.key(), i);
+          if (data.ht_.count(ck) > 0) {
+            f(c, *iter, args...);
+          }
+          iter++;
+        }
+      }
+    }
+  }
+  
+
+#if 0
+  /**
+   * CPUMapper::DownwardMap (deperecated)
+   */
+  template<class Funct, class...Args>
+  inline void DownwardMap(Funct f, Cell &c, Args...args) {
+    // This function is deprecated.
+    TAPAS_ASSERT(!"Deperecated function");
+    abort();
+    
+    Cell::DownwardMap(f, c, args...);
+  }
+#endif
+
+#if 0
   /**
    * CPUMapper::Map (SubcellIterator)
+   * 1-parameter Map for SubCellIterator
+   * This covers parent-to-child or child-to-parent tree traversal
+   * User's algorithm function f takes (at least) 2 arguments: parent cell and child cell.
    */
   template <class Funct, class...Args>
   void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args...args) {
@@ -230,11 +387,12 @@ struct CPUMapper {
         if (data.ht_.count(ck) == 0) continue;
       }
 
-      tg.createTask([=]() mutable { this->Map(f, *iter, args...); });
+      tg.createTask([=]() mutable { this->Map(f, iter.cell(), *iter, args...); });
       iter++;
     }
     tg.wait();
   }
+#endif
 
   // cell x cell
   template <class Funct, class...Args>
@@ -336,124 +494,6 @@ struct CPUMapper {
 # pragma forceinline
 #endif
     f(*b1, b1.attr(), *b2, b2.attr(), args...);
-  }
-
-  // before running upward traversal from the root,
-  // we need to run local upward first and communicate the global leaf values between processes.
-  template<class Funct, class...Args>
-  inline void StartUpwardMap(Funct f, Cell &c, Args...args) {
-    auto &data = c.data();
-
-    for (auto &k : data.lroots_) {
-      // parallelizable?
-      TAPAS_ASSERT(data.ht_.count(k) == 1);
-      auto pcell = data.ht_[k];
-      f(*pcell, args...);
-
-      // <debug>
-      if (pcell->data().mpi_rank_ == 0) {
-        std::cout << "BH local root cell [" << k << "] "
-                  << "w = " << pcell->attr().w << " "
-                  << "x = " << pcell->attr().x << " "
-                  << "y = " << pcell->attr().y << " "
-                  << "z = " << pcell->attr().z << " "
-                  << std::endl;
-      }
-      // </debug>
-    }
-
-    Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
-  }
-
-  /**
-   * CPUMapper::Map  (1-parameter)
-   */
-  template<class Funct, class...Args>
-  inline void Map(Funct f, Cell &c, Args...args) {
-
-    if (c.IsRoot()) {
-      // Map() has just started.
-      // Find the direction of the function f (upward or downward)
-      if (map1_dir_ != Map1Dir::None) {
-        std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
-        abort();
-      }
-
-      if (c.data().mpi_rank_ == 0) std::cout << "<FindMap1Direction>" << std::endl;
-      auto dir = LET::FindMap1Direction(c, f, args...);
-      if (c.data().mpi_rank_ == 0) std::cout << "</FindMap1Direction>" << std::endl;
-
-      switch(dir) {
-        case LET::MAP1_UP:
-#ifdef TAPAS_DEBUG
-          if (c.data().mpi_rank_ == 0) std::cout << "In Upward: Determining 1-map direction (in upward) : UP => OK" << std::endl;
-#endif
-          map1_dir_ = Map1Dir::Upward;
-
-          if (c.data().mpi_size_ > 1) {
-            StartUpwardMap(f, c, args...); // Run local upward first
-          }
-          f(c, args...);
-
-          map1_dir_ = Map1Dir::None;
-          return;
-
-        case LET::MAP1_DOWN:
-#ifdef TAPAS_DEBUG
-          if (c.data().mpi_rank_ == 0) std::cout << "Downward is detected." << std::endl;
-#endif
-
-          map1_dir_ = Map1Dir::Downward;
-
-          f(c, args...);
-
-          map1_dir_ = Map1Dir::None;
-          return;
-
-        case LET::MAP1_ONLY_ONE:
-          // MAP1_ONLY_ONE means there's only one cell in the space and the traverse direction does not matter.
-          f(c, args...);
-          break;
-
-        default:
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction (in upward) : NOT UP => Wrong !!!" << std::endl;
-          TAPAS_ASSERT("Direction is Unknown.");
-          return;
-      }
-    } else {
-      auto &data = c.data();
-
-      // Non-root cells
-      if (map1_dir_ == Map1Dir::None) {
-        std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
-        abort();
-      }
-
-      if (map1_dir_ == Map1Dir::Upward) {
-        // Upward
-        // Traversal for local trees is already done in StartUpwardMap().
-        // Here we just perform traversal in the global tree part.
-        if (data.gleaves_.count(c.key()) == 0) { // Stop traversal if c is a global leaf.
-          f(c, args...);
-        }
-      } else if (map1_dir_ == Map1Dir::Downward) {
-        // non-local cells are eliminated in Map(SubcellIterator).
-        f(c, args...);
-      }
-    }
-  }
-
-
-  /**
-   * CPUMapper::DownwardMap (deperecated)
-   */
-  template<class Funct, class...Args>
-  inline void DownwardMap(Funct f, Cell &c, Args...args) {
-    // This function is deprecated.
-    TAPAS_ASSERT(!"Deperecated function");
-    abort();
-
-    Cell::DownwardMap(f, c, args...);
   }
 
   inline void Setup() {  }
