@@ -243,6 +243,13 @@ struct CPUMapper {
     Cell &c = iter.cell();
 
     if (c.IsRoot()) {
+      if (c.IsRoot() && c.IsLeaf()) {
+        // which means there is only a single cell in the region (i.e. ncrit > #bodies)
+        // does nothing.
+        // However, this should not happen because 
+        return;
+      }
+      
       // Map() has just started.
       // Find the direction of the function f (upward or downward)
       if (map1_dir_ != Map1Dir::None) {
@@ -250,34 +257,32 @@ struct CPUMapper {
         abort();
       }
 
-      std::cout << "<FindMap1Direction>" << std::endl;
       auto dir = LET::FindMap1Direction(c, f, args...);
-      std::cout << "</FindMap1Direction>" << std::endl;
 
       switch(dir) {
         case LET::MAP1_UP:
+          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
           // Upward
-          if (c.data().mpi_rank_ == 0) std::cout << "Determining 1-map direction (in upward) : UP" << std::endl;
           map1_dir_ = Map1Dir::Upward;
-
+          
           if (c.data().mpi_size_ > 1) {
             StartUpwardMap(f, c, args...); // Run local upward first
           }
-          
+
+          // Global upward
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
             KeyType ck = SFC::Child(c.key(), i);
             f(c, *iter, args...);
             iter++;
           }
-
-          map1_dir_ = Map1Dir::None;
+          
+          map1_dir_ = Map1Dir::None; // Upward is done.
           return;
 
         case LET::MAP1_DOWN:
+          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
           // Downward
-          if (c.data().mpi_rank_ == 0) std::cout << "Downward is detected." << std::endl;
-
           map1_dir_ = Map1Dir::Downward;
 
           for (index_t i = 0; i < iter.size(); i++) {
@@ -290,14 +295,8 @@ struct CPUMapper {
           map1_dir_ = Map1Dir::None;
           return;
 
-        case LET::MAP1_ONLY_ONE:
-          // MAP1_ONLY_ONE means there's only one cell in the space and the traverse direction does not matter.
-          for (index_t i = 0; i < iter.size(); i++) {
-            // TODO: parallelization
-            KeyType ck = SFC::Child(c.key(), i);
-            f(c, *iter, args...);
-            iter++;
-          }
+        case LET::MAP1_NO_MATTER:
+          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_NO_MATTER" << std::endl;
           break;
           
         default:
@@ -308,7 +307,7 @@ struct CPUMapper {
             f(c, *iter, args...);
             iter++;
           }
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction (in upward)" << std::endl;
+          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction : default" << std::endl;
           break;
       }
     } else { // for non-root cells
@@ -323,11 +322,12 @@ struct CPUMapper {
       if (map1_dir_ == Map1Dir::Upward) {
         // Upward
         // Traversal for local trees is already done in StartUpwardMap().
-        // Here we just perform traversal in the global tree part.
-        if (data.gleaves_.count(c.key()) == 0) { // Stop traversal if c is a global leaf.
+        // We just perform traversal in the global tree part.
+        // Do not call f and stop traversal on global leaves.
+        if (data.gleaves_.count(c.key()) == 0) { 
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
-            KeyType ck = SFC::Child(c.key(), i);
+            //KeyType ck = SFC::Child(c.key(), i);
             f(c, *iter, args...);
             iter++;
           }

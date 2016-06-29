@@ -40,10 +40,13 @@ struct ExactLET {
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
+  /**
+   * Direction of Map-1 (Upward/Downward)
+   */
   enum {
     MAP1_UP,
     MAP1_DOWN,
-    MAP1_ONLY_ONE,
+    MAP1_NO_MATTER,
     MAP1_UNKNOWN
   };
 
@@ -253,10 +256,10 @@ struct ExactLET {
     using Mapper = ProxyMapper;
 
     // ctor
-    ProxyCell(KeyType key, const Data &data)
-        : key_(key), data_(data),
-          marked_touched_(false), marked_split_(false), marked_body_(false), marked_modified_(false),
-          is_local_(false), cell_(nullptr), bodies_(), body_attrs_(), attr_(this), parent_(nullptr), children_()
+    ProxyCell(KeyType key, const Data &data, int *clock = nullptr)
+        : key_(key), data_(data)
+        , marked_touched_(false), marked_split_(false), marked_body_(false), marked_modified_(false), clock_(clock)
+        , is_local_(false), cell_(nullptr), bodies_(), body_attrs_(), attr_(this), parent_(nullptr), children_()
     {
       if (data.ht_.count(key_) > 0) {
         is_local_ = true;
@@ -321,29 +324,27 @@ struct ExactLET {
       }
     }
 
-    // Determine direction (upward or downward) of 1-parameter Map
+    // Determine direction (upward or downward) of Map-1
     template<class UserFunct, class...Args>
     static int PredDir1(KeyType key, const Data &data, UserFunct f, Args...args) {
-      ProxyCell cell(key, data);
+      int clock = 1;
+      ProxyCell parent(key, data, &clock);
 
-      if(data.max_depth_ <= 2) { // if(cell.IsRoot() && cell.IsLeaf()) {
+      if(parent.IsRoot() && parent.IsLeaf()) {
         // Special case: if root is leaf, which means only 1 level and cell in the space
-        std::cout << "PredDir1: only one cell" << std::endl;
-        return MAP1_ONLY_ONE;
+        return MAP1_NO_MATTER;
       }
 
-      std::cout << "Calling f to [" << cell.key() << ", " << cell.subcell(0).key() << std::endl;
-      f(cell, cell.subcell(0), args...);
+      ProxyCell child = parent.subcell(0);
+      
+      f(parent, child, args...);
 
       // if cell is modified
-      bool lv0_mod = cell.marked_modified_;
+      bool lv0_mod = parent.marked_modified_;
+      
       // if any of the children is modified
-      bool lv1_mod = 0;
-
-      for (size_t i = 0; i < cell.nsubcells(); i++) {
-        lv1_mod |= cell.subcell(i).marked_modified_;
-      }
-
+      bool lv1_mod = child.marked_modified_;
+      
       std::cout << "lv0_mod = " << lv0_mod << std::endl;
       std::cout << "lv1_mod = " << lv1_mod << std::endl;
 
@@ -354,7 +355,10 @@ struct ExactLET {
         // Downward
         return MAP1_DOWN;
       }
-
+      
+      std::cout << "Unknown" << std::endl;
+      MPI_Finalize(); exit(0);
+#if 0
       if (!lv0_mod && !lv1_mod) {
         // if cell and its children are all unmodified, try one more level.
         // This happends when downward traversal routein is written like this:
@@ -377,6 +381,7 @@ struct ExactLET {
           return MAP1_DOWN;
         }
       }
+#endif
 
       std::cerr << "Tapas [ERROR] Cannot detect directdion for 1-argument map" << std::endl;
       exit(-1);
@@ -475,7 +480,7 @@ struct ExactLET {
         size_t ns = nsubcells();
         children_.resize(ns, nullptr);
         for (int i = 0; i < ns; i++) {
-          children_[i] = new ProxyCell(SFC::Child(key_, i), data_);
+          children_[i] = new ProxyCell(SFC::Child(key_, i), data_, clock_);
         }
       }
       return *children_[nch];
@@ -554,11 +559,28 @@ struct ExactLET {
 
     bool GetOptMutual() const { return data_.opt_mutual_; }
 
+    static int IncIfNotNull(int *p) {
+      if (p == nullptr) return 1;
+      else {
+        int v = *p;
+        *p += 1;
+        return v;
+      }
+    }
+
     //protected:
-    void Touched() const { marked_touched_ = true; }
-    void Split() const  { marked_split_ = true; }
-    void Body() const   { marked_body_ = true; }
-    void MarkModified() { marked_modified_ = true; }
+    void Touched() const {
+      marked_touched_ = IncIfNotNull(clock_);
+    }
+    void Split() const {
+      marked_split_ = IncIfNotNull(clock_);
+    }
+    void Body() const {
+      marked_body_ = IncIfNotNull(clock_);
+    }
+    void MarkModified() {
+      marked_modified_ = IncIfNotNull(clock_);
+    }
 
     void InitBodies() {
       if (cell_ != nullptr && cell_->nb() > 0) {
@@ -578,10 +600,11 @@ struct ExactLET {
     KeyType key_;
     const Data &data_;
 
-    mutable bool marked_touched_;
-    mutable bool marked_split_;
-    mutable bool marked_body_;
-    bool marked_modified_;
+    mutable int marked_touched_;
+    mutable int marked_split_;
+    mutable int marked_body_;
+    int marked_modified_;
+    mutable int *clock_;
 
     bool is_local_;
 
@@ -593,6 +616,7 @@ struct ExactLET {
     ProxyCell *parent_;
     std::vector<ProxyCell*> children_;
     Mapper mapper_; // FIXME: create Mapper for every ProxyCell is not efficient.
+    
   }; // end of class ProxyCell
 
   /**

@@ -1442,15 +1442,16 @@ struct Tapas {
     return init;
   }
 
-  template<typename ReduceFunc>
-  static inline void Reduce(CellAttr &dst, CellAttr& src, ReduceFunc f) {
-    f(dst, src);
+  template<typename T, typename ReduceFunc>
+  static inline void Reduce(Cell &, const T& dst, const T& src, ReduceFunc f) {
+    T& d = const_cast<T&>(dst);
+    f(d, src);
   }
   
-  template<class ReduceFunc>
-  static inline void Reduce(const ProxyAttr &dst, const ProxyAttr&, ReduceFunc) {
-    std::cout << "Mark 'modified' to cell " << dst.cell().key()  << " [" << dst.cell().depth() << "]" << std::endl;
-    dst.cell().MarkModified();
+  template<typename T, typename ReduceFunc>
+  static inline void Reduce(ProxyCell &cell, const T&, const T&, ReduceFunc) {
+    std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;
+    cell.MarkModified();
     // nop.
   }
 }; // struct Tapas

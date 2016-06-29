@@ -152,11 +152,8 @@ struct ComputeForce {
   }
 };
 
-void Sum(float4 &lhs, const float4 &rhs) {
-  lhs.w += rhs.w;
-  lhs.x += rhs.x;
-  lhs.y += rhs.y;
-  lhs.z += rhs.z;
+void Sum(real_t &dst, real_t src) {
+  dst += src;
 }
 
 struct Approximate {
@@ -188,7 +185,10 @@ struct Approximate {
       child.attr() = attr;
     }
 
-    TapasBH::Reduce(parent.attr(), child.attr(), Sum);
+    TapasBH::Reduce(parent, parent.attr().w, child.attr().w, Sum);
+    TapasBH::Reduce(parent, parent.attr().x, child.attr().x, Sum);
+    TapasBH::Reduce(parent, parent.attr().y, child.attr().y, Sum);
+    TapasBH::Reduce(parent, parent.attr().z, child.attr().z, Sum);
   }
 };
 
@@ -232,18 +232,21 @@ f4vec calc(f4vec &source) {
   TapasBH::Region r(Vec3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 1.0));
   TapasBH::Cell *root = TapasBH::Partition(source.data(), source.size(), 1);
 
-  TapasBH::Map(Approximate(), root->subcells()); // or, simply: approximate(*root);
+  if (!root->IsLeaf()) {
+    TapasBH::Map(Approximate(), root->subcells());
+  }
   
   real_t theta = 0.5;
   TapasBH::Map(interact(), tapas::Product(*root, *root), theta);
 
   // Get the evaluation result from Tapas
+  // This API needs refactoring.
   int nb = root->local_nb();
   f4vec out(&root->local_body_attr(0), &root->local_body_attr(0) + nb);
   source = f4vec(&root->local_body(0), &root->local_body(0) + nb);
 
   root->Report();
-
+  
   return out;
 }
 
