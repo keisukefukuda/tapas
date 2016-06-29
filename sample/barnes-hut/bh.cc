@@ -175,8 +175,16 @@ struct Approximate {
       else {
         assert(false); // never happens
       }
+      // <debug>
+      std::cout << "BH Leaf Cell [" << child.key() << "] "
+                << "w = " << child.attr().w << " "
+                << "x = " << child.attr().x << " "
+                << "y = " << child.attr().y << " "
+                << "z = " << child.attr().z << " "
+                << std::endl;
+      // </debug>
     } else {
-      // if not leaf
+      // child is not leaf
       TapasBH::Map(*this, child.subcells());
       auto attr = child.attr();
       attr.x /= attr.w;
