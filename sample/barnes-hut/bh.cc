@@ -184,6 +184,14 @@ struct Approximate {
       center.x /= center.w;
       center.y /= center.w;
       center.z /= center.w;
+      // <debug>
+      std::cout << "BH Cell [" << c.key() << "] "
+                << "w = " << center.w << " "
+                << "x = " << center.x << " "
+                << "y = " << center.y << " "
+                << "z = " << center.z << " "
+                << std::endl;
+          // </debug>
       c.attr() = center;
     }
   }
