@@ -344,9 +344,11 @@ struct ExactLET {
       
       // if any of the children is modified
       bool lv1_mod = child.marked_modified_;
-      
-      std::cout << "lv0_mod = " << lv0_mod << std::endl;
-      std::cout << "lv1_mod = " << lv1_mod << std::endl;
+
+      if (parent.data().mpi_rank_ == 0) {
+        std::cout << "lv0_mod = " << lv0_mod << std::endl;
+        std::cout << "lv1_mod = " << lv1_mod << std::endl;
+      }
 
       if (lv0_mod && !lv1_mod) {
         // Upward

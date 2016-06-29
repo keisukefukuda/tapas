@@ -214,20 +214,42 @@ struct CPUMapper {
   inline void StartUpwardMap(Funct f, Cell &c, Args...args) {
     auto &data = c.data();
 
+    MPI_Barrier(MPI_COMM_WORLD); // debug
+
     for (auto &k : data.lroots_) {
       // TODO: parallelizable?
       TAPAS_ASSERT(data.ht_.count(k) == 1);
-      Cell lrc = *data.ht_[k]; // local root cell
+      Cell &lrc = *data.ht_[k]; // local root cell
+
+      if (data.mpi_rank_ == 0) {
+        std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
+      }
 
       if (!lrc.IsLeaf()) {
         auto iter = lrc.subcells();
         for (index_t i = 0; i < iter.size(); i++) {
           // TODO: parallelization
           KeyType ck = SFC::Child(lrc.key(), i);
-          f(c, *iter, args...);
+          
+          if (data.mpi_rank_ == 0) {
+            std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
+          }
+
+          f(lrc, *iter, args...);
           iter++;
         }
       }
+
+      // <debug>
+      if (lrc.data().mpi_rank_ == 0) {
+        std::cout << "BH local root cell [" << k << "] "
+                  << "w = " << lrc.attr().w << " "
+                  << "x = " << lrc.attr().x << " "
+                  << "y = " << lrc.attr().y << " "
+                  << "z = " << lrc.attr().z << " "
+                  << std::endl;
+      }
+      // </debug>
     }
 
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
