@@ -184,6 +184,7 @@ struct Approximate {
       center.x /= center.w;
       center.y /= center.w;
       center.z /= center.w;
+#if 0
       // <debug>
       std::cout << "BH Non-Leaf Cell [" << c.key() << "] "
                 << "w = " << center.w << " "
@@ -192,6 +193,7 @@ struct Approximate {
                 << "z = " << center.z << " "
                 << std::endl;
       // </debug>
+#endif
       c.attr() = center;
     }
   }

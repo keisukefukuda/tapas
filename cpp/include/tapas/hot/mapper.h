@@ -349,6 +349,17 @@ struct CPUMapper {
       TAPAS_ASSERT(data.ht_.count(k) == 1);
       auto pcell = data.ht_[k];
       f(*pcell, args...);
+
+      // <debug>
+      if (pcell->data().mpi_rank_ == 0) {
+        std::cout << "BH local root cell [" << k << "] "
+                  << "w = " << pcell->attr().w << " "
+                  << "x = " << pcell->attr().x << " "
+                  << "y = " << pcell->attr().y << " "
+                  << "z = " << pcell->attr().z << " "
+                  << std::endl;
+      }
+      // </debug>
     }
 
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
@@ -368,9 +379,9 @@ struct CPUMapper {
         abort();
       }
 
-      std::cout << "<FindMap1Direction>" << std::endl;
+      if (c.data().mpi_rank_ == 0) std::cout << "<FindMap1Direction>" << std::endl;
       auto dir = LET::FindMap1Direction(c, f, args...);
-      std::cout << "</FindMap1Direction>" << std::endl;
+      if (c.data().mpi_rank_ == 0) std::cout << "</FindMap1Direction>" << std::endl;
 
       switch(dir) {
         case LET::MAP1_UP:
