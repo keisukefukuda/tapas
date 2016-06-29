@@ -154,7 +154,7 @@ class CellIterator {
   template <class T>
   bool operator==(const T &) const { return false; }
   void rewind(int ) {}
-  int size() const {
+  index_t size() const {
     return 1;
   }
 
@@ -204,7 +204,7 @@ class SubCellIterator {
     return c_.local_nb() >= 1000; // FIXME: make the number configurable
   }
   
-  inline int size() const {
+  inline index_t size() const {
     if (c_.IsLeaf()) {
       return 0;
     } else {
@@ -245,7 +245,7 @@ class SubCellIterator {
 
   // prefix increment operator
   inline SubCellIterator<CellType> &operator++() {
-    idx_ = std::min(size(), idx_ + 1);
+    idx_ = std::min((int)size(), idx_ + 1);
     return *this;
   }
   

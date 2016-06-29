@@ -198,7 +198,7 @@ void P2M(Cell &C) {
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
-vecP sumP(const vecP &a, const vecP &b) {
+vecP SumP(const vecP &a, const vecP &b) {
   vecP res = {0};
 
   for (int i = 0; i < P; i++) {
@@ -213,8 +213,8 @@ const constexpr int CHECK_CELL = 3;
 // calculate M2M evaluation.
 // Cj : A child of a cell
 // center : center of the parent
-// Mp : M vector of the parent
-vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &center, const vecP &Mp) {
+template<typename Cell>
+vecP calcM2M(const Cell &Cj, const typename Cell::Vec &center) {
   complex_t Ynm[P*P], YnmTheta[P*P];
   
   vec3 dX = tovec(center - Cj.center());
@@ -235,47 +235,23 @@ vecP calcM2M(const TapasFMM::Cell &Cj, const typename TapasFMM::Cell::Vec &cente
           int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
           int nm    = n * n + n - m;
           M_jks += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-          if (Cj.parent().key() == CHECK_CELL) {
-            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
-          }
         }
         for (int m=k; m<=std::min(n,j+k-n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
           int nm    = n * n + n - m;
           M_jks += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-          if (Cj.parent().key() == CHECK_CELL) {
-            std::cout << "C " << CHECK_CELL << " " << "M[jnkms:" << jnkms << "] = " << Cj.attr().M[jnkms] << std::endl;
-          }
         }
       }
       M[jks] += M_jks;
     }
   }
-  
-  if (Cj.parent().key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << " " << "dX=" << dX << " "
-              << "dM = " << M << "by cell " << Cj.key() << " " << (Cj.IsLeaf() ? "Leaf" : "Non-leaf") << std::endl;
-  }
   return M;
 }
 
 template<class Cell>
-void M2M(Cell &C) {
-  vecP zero = {0};
-  auto attr = C.attr();
-  
-  if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  before: M = " << C.attr().M << std::endl;
-  }
-
-  // SubcellIter<ProxyCell>は取れているから，Proxy MapReduceは単にzeroを返せば良い？
-  attr.M = TapasFMM::MapReduce(calcM2M, C.subcells(), zero, sumP, C.center(), C.attr().M);
-
-  C.attr() = attr;
-  
-  if (C.key() == CHECK_CELL) {
-    std::cout << "C " << CHECK_CELL << "  after: M = " << C.attr().M << std::endl;
-  }
+void M2M(Cell &parent, Cell &child) {
+  vecP dM = calcM2M(child, parent.center()); // partial contribution from child's M to parent's M
+  TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
 }
 
 template<class Cell>
@@ -380,13 +356,12 @@ void L2P(Body &b, BodyAttr &ba, TapasFMM::Cell *c) { // c is a pointer here to a
 }
 
 template<class Cell>
-void L2L(Cell &C) {
+void L2L(Cell &parent, Cell &child) {
   complex_t Ynm[P*P], YnmTheta[P*P];
-  const Cell &Cj = C.parent();
-  vec3 dX = tovec(C.center() - Cj.center());
+  vec3 dX = tovec(child.center() - parent.center());
   real_t rho, alpha, beta;
 
-  auto attr = C.attr();
+  auto attr = child.attr();
 
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
@@ -401,20 +376,20 @@ void L2L(Cell &C) {
         for (int m=j+k-n; m<0; m++) {
           int jnkm = (n - j) * (n - j) + n - j + m - k;
           int nms  = n * (n + 1) / 2 - m;
-          L += std::conj(Cj.attr().L[nms]) * Ynm[jnkm] * real_t(ODDEVEN(k));
+          L += std::conj(parent.attr().L[nms]) * Ynm[jnkm] * real_t(ODDEVEN(k));
         }
         for (int m=0; m<=n; m++) {
           if( n-j >= abs(m-k) ) {
             int jnkm = (n - j) * (n - j) + n - j + m - k;
             int nms  = n * (n + 1) / 2 + m;
-            L += Cj.attr().L[nms] * Ynm[jnkm] * real_t(ODDEVEN((m-k)*(m<k)));
+            L += parent.attr().L[nms] * Ynm[jnkm] * real_t(ODDEVEN((m-k)*(m<k)));
           }
         }
       }
       attr.L[jks] += L;
     }
   }
-  C.attr() = attr;
+  child.attr() = attr;
 }
 
 } // anon namespace

@@ -255,6 +255,8 @@ struct ExactLET {
 
     using Mapper = ProxyMapper;
 
+    using Vec = typename RealCellType::Vec;
+
     // ctor
     ProxyCell(KeyType key, const Data &data, int *clock = nullptr)
         : key_(key), data_(data)
@@ -481,7 +483,7 @@ struct ExactLET {
       if (children_.size() == 0) {
         size_t ns = nsubcells();
         children_.resize(ns, nullptr);
-        for (int i = 0; i < ns; i++) {
+        for (size_t i = 0; i < ns; i++) {
           children_[i] = new ProxyCell(SFC::Child(key_, i), data_, clock_);
         }
       }

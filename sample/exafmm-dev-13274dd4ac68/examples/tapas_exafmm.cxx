@@ -86,13 +86,13 @@ vec<DIM, FP> &asn(vec<DIM, FP> &dst, const tapas::Vec<DIM, FP> &src) {
 // UpDownPass::upwardPass
 struct FMM_Upward {
   template<class Cell>
-  inline void operator()(Cell &c, real_t theta) {
+  inline void operator()(Cell &parent, Cell &child, real_t theta) {
     // theta is not used now; to be deleted
-    auto attr = c.attr();
+    auto attr = parent.attr();
     attr.R = 0;
     attr.M = 0;
     attr.L = 0;
-    c.attr() = attr;
+    parent.attr() = attr;
 
 #ifdef TAPAS_DEBUG_DUMP
     {
@@ -103,38 +103,29 @@ struct FMM_Upward {
     }
 #endif
 
-    if (c.IsLeaf()) {
-      P2M(c);
+    // Compute the child cell recursively
+    if (child.IsLeaf()) {
+      P2M(child);
     } else {
-      TapasFMM::Map(*this, c.subcells(), theta);
-      M2M(c);
+      TapasFMM::Map(*this, child.subcells(), theta);
     }
-
-#if 0 // to be removed
-    for (int i = 0; i < 3; ++i) {
-      c.attr().R = std::max(c.width(i), c.attr().R);
-    }
-
-    c.attr().R = c.attr().R / 2 * 1.00001; // see bounds2box func
-    c.attr().R /= theta;
-#endif
+    
+    M2M(parent, child);
   }
 };
 
 struct FMM_Downward {
   template<class Cell>
-  inline void operator()(Cell &c) {
+  inline void operator()(Cell &parent, Cell &child) {
     //if (c.nb() == 0) return;
-    if (!c.IsRoot()) {
-      L2L(c);
-    }
+    L2L(parent, child);
     
-    if (c.IsLeaf()) {
-      if (c.nb() > 0) {
-        TapasFMM::Map(L2P, c.bodies(), &c);
+    if (child.IsLeaf()) {
+      if (child.nb() > 0) {
+        TapasFMM::Map(L2P, child.bodies(), &child);
       }
     } else {
-      TapasFMM::Map(*this, c.subcells());
+      TapasFMM::Map(*this, child.subcells());
     }
   }
 };

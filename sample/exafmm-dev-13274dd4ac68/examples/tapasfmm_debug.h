@@ -7,16 +7,25 @@ struct DumpM_Callback {
   std::ofstream &ofs_;
   std::mutex &mtx_;
   DumpM_Callback(std::ofstream &ofs, std::mutex &mtx) : ofs_(ofs), mtx_(mtx) { }
-  
+
   template<class Cell>
-  void operator()(Cell &cell) {
+  void DumpM(Cell &cell) {
     mtx_.lock();
     ofs_ << std::setw(20) << std::right << TapasFMM::TSP::SFC::Simplify(cell.key()) << " ";
     ofs_ << std::setw(3) << cell.depth() << " ";
     ofs_ << (cell.IsLeaf() ? "L" : "_") << " ";
     ofs_ << cell.attr().M << std::endl;
     mtx_.unlock();
-    TapasFMM::Map(*this, cell.subcells());
+  }
+  
+  template<class Cell>
+  void operator()(Cell &parent, Cell &child) {
+    if (parent.IsRoot()) {
+      DumpM(parent);
+    }
+
+    DumpM(child);
+    TapasFMM::Map(*this, child.subcells());
   }
 };
 
@@ -33,7 +42,9 @@ void dumpM(TapasFMM::Cell &root) {
   
   std::ofstream ofs(ss.str().c_str());
   std::mutex mtx;
-  TapasFMM::Map(DumpM_Callback(ofs, mtx), root);
+  if (!root.IsLeaf()) {
+    TapasFMM::Map(DumpM_Callback(ofs, mtx), root.subcells());
+  }
   ofs.close();
 }
 
@@ -43,8 +54,8 @@ struct DumpL_Callback {
 
   DumpL_Callback(std::ofstream &ofs, std::mutex &mtx) : ofs_(ofs), mtx_(mtx) { }
 
-  template<class Cell>
-  void operator()(Cell &cell) {
+  template<typename Cell>
+  void DumpL(Cell &cell) {
     mtx_.lock();
     ofs_ << std::setw(20) << std::right << cell.key() << " ";
     ofs_ << std::setw(3) << std::noshowpos << cell.depth() << " ";
@@ -59,15 +70,24 @@ struct DumpL_Callback {
       if (-1e-8 < imag && imag < 0) imag = +0.0;
 
       ofs_ << "("
-          << std::fixed << std::setprecision(5) << std::showpos << real << ","
-          << std::fixed << std::setprecision(5) << std::showpos << imag
-          << ") ";
+           << std::fixed << std::setprecision(5) << std::showpos << real << ","
+           << std::fixed << std::setprecision(5) << std::showpos << imag
+           << ") ";
     }
     //ofs_ << cell.attr().L << std::endl;
     ofs_ << std::endl;
     mtx_.unlock();
+  }
 
-    TapasFMM::Map(*this, cell.subcells());
+  template<class Cell>
+  void operator()(Cell &parent, Cell &child) {
+    if (parent.IsRoot()) {
+      DumpL(parent);
+    }
+
+    DumpL(child);
+    
+    TapasFMM::Map(*this, child.subcells());
   }
 };
 
@@ -84,7 +104,9 @@ void dumpL(TapasFMM::Cell &root) {
   
   std::ofstream ofs(ss.str().c_str());
   std::mutex mtx;
-  TapasFMM::Map(DumpL_Callback(ofs, mtx), root);
+  if (!root.IsLeaf()) {
+    TapasFMM::Map(DumpL_Callback(ofs, mtx), root.subcells());
+  }
   ofs.close();
 }
 
@@ -95,12 +117,12 @@ struct DumpBodies_Callback {
   DumpBodies_Callback(std::ofstream &ofs, std::mutex &mtx) : ofs_(ofs), mtx_(mtx) { }
 
   template<class Cell>
-  void operator()(Cell &cell) {
-    if (cell.IsLeaf()) {
+  void operator()(Cell &/*parent*/, Cell &child) {
+    if (child.IsLeaf()) {
       mtx_.lock();
-      //ofs_ << std::setw(20) << std::right << TapasFMM::SFC::Simplify(cell.key()) << " ";
-      auto iter = cell.bodies();
-      for (int bi = 0; bi < (int)cell.nb(); bi++, iter++) {
+      //ofs_ << std::setw(20) << std::right << TapasFMM::SFC::Simplify(child.key()) << " ";
+      auto iter = child.bodies();
+      for (int bi = 0; bi < (int)child.nb(); bi++, iter++) {
         ofs_ << std::showpos << iter->X << " ";
         ofs_ << std::showpos << iter->SRC << " " << "vec4= ";
         for (int j = 0; j < 4; j++) {
@@ -108,11 +130,11 @@ struct DumpBodies_Callback {
               << std::setiosflags(std::ios::showpos)
               << iter.attr()[j] << " ";
         }
-        ofs_ << " " << cell.key() << std::endl;
+        ofs_ << " " << child.key() << std::endl;
       }
       mtx_.unlock();
     } else {
-      TapasFMM::Map(*this, cell.subcells());
+      TapasFMM::Map(*this, child.subcells());
     }
   }
 };
@@ -130,7 +152,9 @@ void dumpBodies(TapasFMM::Cell &root) {
   
   std::ofstream ofs(ss.str().c_str());
   std::mutex mtx;
-  TapasFMM::Map(DumpBodies_Callback(ofs, mtx), root);
+  if (!root.IsLeaf()) {
+    TapasFMM::Map(DumpBodies_Callback(ofs, mtx), root.subcells());
+  }
   ofs.close();
 }
 
@@ -141,16 +165,16 @@ struct DumpLeaves_Callback {
   DumpLeaves_Callback(std::ofstream &ofs, std::mutex &mtx) : ofs_(ofs), mtx_(mtx) { }
 
   template<class Cell>
-  void operator()(Cell &cell) {
-    if (cell.IsLeaf()) {
+  void operator()(Cell & /*parent*/, Cell &child) {
+    if (child.IsLeaf()) {
       mtx_.lock();
-      ofs_ << std::setw(20) << cell.key() << ", depth=" << cell.depth() << ", nb=" << cell.nb() << std::endl;
-      for (int i = 0; i < (int)cell.nb(); i++) {
-        ofs_ << "    body[" << i << "]=(" << cell.body(i).X << ") " << std::endl;
+      ofs_ << std::setw(20) << child.key() << ", depth=" << child.depth() << ", nb=" << child.nb() << std::endl;
+      for (int i = 0; i < (int)child.nb(); i++) {
+        ofs_ << "    body[" << i << "]=(" << child.body(i).X << ") " << std::endl;
       }
       mtx_.unlock();
     } else {
-      TapasFMM::Map(*this, cell.subcells());
+      TapasFMM::Map(*this, child.subcells());
     }
   }
 };
@@ -168,7 +192,9 @@ void dumpLeaves(TapasFMM::Cell &root) {
   
   std::ofstream ofs(ss.str().c_str(), std::ios_base::app);
   std::mutex mtx;
-  TapasFMM::Map(DumpLeaves_Callback(ofs, mtx), root);
+  if (!root.IsLeaf()) {
+    TapasFMM::Map(DumpLeaves_Callback(ofs, mtx), root.subcells());
+  }
   ofs.close();
 }
 

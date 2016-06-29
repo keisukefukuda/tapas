@@ -221,9 +221,9 @@ struct CPUMapper {
       TAPAS_ASSERT(data.ht_.count(k) == 1);
       Cell &lrc = *data.ht_[k]; // local root cell
 
-      if (data.mpi_rank_ == 0) {
-        std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
-      }
+      // if (data.mpi_rank_ == 0) {
+      //   std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
+      // }
 
       if (!lrc.IsLeaf()) {
         auto iter = lrc.subcells();
@@ -231,15 +231,16 @@ struct CPUMapper {
           // TODO: parallelization
           KeyType ck = SFC::Child(lrc.key(), i);
           
-          if (data.mpi_rank_ == 0) {
-            std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
-          }
+          // if (data.mpi_rank_ == 0) {
+          //   std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
+          // }
 
           f(lrc, *iter, args...);
           iter++;
         }
       }
 
+#if 0
       // <debug>
       if (lrc.data().mpi_rank_ == 0) {
         std::cout << "BH local root cell [" << k << "] "
@@ -250,6 +251,7 @@ struct CPUMapper {
                   << std::endl;
       }
       // </debug>
+#endif
     }
 
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
