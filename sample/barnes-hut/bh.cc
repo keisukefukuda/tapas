@@ -183,20 +183,22 @@ struct Approximate {
       attr.y /= attr.w;
       attr.z /= attr.w;
       // <debug>
-      std::cout << "BH Non-Leaf Cell [" << child.key() << "] "
-                << "w = " << attr.w << " "
-                << "x = " << attr.x << " "
-                << "y = " << attr.y << " "
-                << "z = " << attr.z << " "
-                << std::endl;
-      // </debug>
+      if (parent.data().mpi_rank_ == 0) {
+        std::cout << "BH Non-Leaf Cell [" << child.key() << "] "
+                  << "w = " << attr.w << " "
+                  << "x = " << attr.x << " "
+                  << "y = " << attr.y << " "
+                  << "z = " << attr.z << " "
+                  << std::endl;
+        // </debug>
+      }
       child.attr() = attr;
     }
 
     TapasBH::Reduce(parent, parent.attr().w, child.attr().w, Sum);
-    TapasBH::Reduce(parent, parent.attr().x, child.attr().x, Sum);
-    TapasBH::Reduce(parent, parent.attr().y, child.attr().y, Sum);
-    TapasBH::Reduce(parent, parent.attr().z, child.attr().z, Sum);
+    TapasBH::Reduce(parent, parent.attr().x, child.attr().x * child.attr().w, Sum);
+    TapasBH::Reduce(parent, parent.attr().y, child.attr().y * child.attr().w, Sum);
+    TapasBH::Reduce(parent, parent.attr().z, child.attr().z * child.attr().w, Sum);
   }
 };
 
