@@ -171,6 +171,14 @@ struct Approximate {
       else {
         assert(false);
       }
+      // <debug>
+      std::cout << "BH Leaf Cell [" << c.key() << "] "
+                << "w = " << c.attr().w << " "
+                << "x = " << c.attr().x << " "
+                << "y = " << c.attr().y << " "
+                << "z = " << c.attr().z << " "
+                << std::endl;
+      // </debug>
     } else {
       TapasBH::Map(*this, c.subcells());
       float4 center = {0.0, 0.0, 0.0, 0.0};
@@ -184,14 +192,6 @@ struct Approximate {
       center.x /= center.w;
       center.y /= center.w;
       center.z /= center.w;
-      // <debug>
-      std::cout << "BH Cell [" << c.key() << "] "
-                << "w = " << center.w << " "
-                << "x = " << center.x << " "
-                << "y = " << center.y << " "
-                << "z = " << center.z << " "
-                << std::endl;
-          // </debug>
       c.attr() = center;
     }
   }
