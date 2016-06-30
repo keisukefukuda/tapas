@@ -70,28 +70,34 @@ struct ExactLET {
   }; // class ProxyBodyAttr
 
   class ProxyAttr : public CellAttrType {
-   public:
-    ProxyAttr(ProxyCell *cell) : CellAttrType(), cell_(cell) { }
-    ProxyAttr(ProxyCell *cell, CellAttrType &rhs) : CellAttrType(rhs), cell_(cell) { }
-
-    ProxyCell &cell() const { return *cell_; }
+    friend ProxyCell;
     
+   protected:
     ProxyAttr &operator=(const ProxyAttr &rhs) {
       this->CellAttrType::operator=(rhs);
       cell_ = rhs.cell_;
       return *this;
     }
 
-    template<class T>
-    inline ProxyAttr& operator=(const T&) {
+   public:
+    ProxyAttr(ProxyCell *cell) : CellAttrType(), cell_(cell) { }
+    ProxyAttr(ProxyCell *cell, CellAttrType &rhs) : CellAttrType(rhs), cell_(cell) { }
+
+    ProxyAttr(const ProxyAttr &) = delete;
+    
+    ProxyCell &cell() const { return *cell_; }
+
+    inline void operator=(const CellAttrType&) const {
+      std::cout << "ProxyAttr::operator=() is called for cell [" << cell_->key() << "]" << std::endl;
       cell_->MarkModified();
-      return *this;
+      //return *this;
     }
 
     template<class T>
-    inline const ProxyAttr& operator=(const T&) const {
+    inline void operator=(const CellAttrType&) const {
+      std::cout << "ProxyAttr::operator=() const is called for cell [" << cell_->key() << "]" << std::endl;
       cell_->MarkModified();
-      return *this;
+      //return *this;
     }
 
    private:
@@ -236,7 +242,7 @@ struct ExactLET {
    */
   class ProxyCell {
     friend ProxyAttr;
-    
+
    public:
     static const constexpr bool Inspector = true;
     // Export same type definitions as tapas::hot::Cell does.
@@ -280,6 +286,8 @@ struct ExactLET {
         children_.clear();
       }
     }
+
+    ProxyCell(const ProxyCell &rhs) = delete;
 
     // for debug
     inline Reg region() const {
@@ -337,25 +345,41 @@ struct ExactLET {
         return MAP1_NO_MATTER;
       }
 
-      ProxyCell child = parent.subcell(0);
-      
+      ProxyCell &child = parent.subcell(0);
+
+      //std::cout << "PredDir1: calling f()" << std::endl;
       f(parent, child, args...);
+      //std::cout << "PredDir1: calling f() done" << std::endl;
 
       // if cell is modified
-      bool lv0_mod = parent.marked_modified_;
+      int lv0_mod = parent.marked_modified_;
       
       // if any of the children is modified
-      bool lv1_mod = child.marked_modified_;
+      int lv1_mod = child.marked_modified_;
 
-      if (parent.data().mpi_rank_ == 0) {
-        std::cout << "lv0_mod = " << lv0_mod << std::endl;
-        std::cout << "lv1_mod = " << lv1_mod << std::endl;
-      }
+      // std::cout << "parent.marked_modified_ = " << child.marked_modified_ << std::endl;
+      // std::cout << "child.marked_modified_  = " << child.marked_modified_ << std::endl;
 
-      if (lv0_mod && !lv1_mod) {
+      // if (parent.data().mpi_rank_ == 0) {
+      //   std::cout << "lv0_mod = " << lv0_mod << std::endl;
+      //   std::cout << "lv1_mod = " << lv1_mod << std::endl;
+      //   std::cout << "lv1_split = " << child.marked_split_ << std::endl;
+      // }
+
+      // lv0_mod and lv1_mod represents the timing of modification to the cell.
+      // here `time' is measured by the 'clock' value.
+      // if lv0_mod == 0 or lv1_mod == 0, it means the cell was not modified.
+      // In this case assign numeric_limist<int>::max(), which means 'it will never written'
+
+      assert(lv0_mod != lv1_mod);
+
+      if (lv0_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
+      if (lv1_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
+
+      if (lv0_mod > lv1_mod) { // level 0 cell was updated later => Upward
         // Upward
         return MAP1_UP;
-      } else if (!lv0_mod && lv1_mod) {
+      } else if (lv0_mod < lv1_mod) { // level 1 cell was updated later => Downward
         // Downward
         return MAP1_DOWN;
       }
@@ -584,6 +608,8 @@ struct ExactLET {
     }
     void MarkModified() {
       marked_modified_ = IncIfNotNull(clock_);
+      std::cout << "ProxyCell::MarkModified() key=" << key() << ", marked_modified_ = " << marked_modified_
+                << std::endl;
     }
 
     void InitBodies() {

@@ -88,7 +88,7 @@ struct FMM_Upward {
   template<class Cell>
   inline void operator()(Cell &parent, Cell &child, real_t theta) {
     // theta is not used now; to be deleted
-    auto attr = parent.attr();
+    CellAttr attr = parent.attr();
     attr.R = 0;
     attr.M = 0;
     attr.L = 0;
@@ -118,6 +118,9 @@ struct FMM_Downward {
   template<class Cell>
   inline void operator()(Cell &parent, Cell &child) {
     //if (c.nb() == 0) return;
+    
+    std::cout << "FMM_Downward is called. [" << parent.key() << ", " << child.key() << "]" << std::endl;
+    
     L2L(parent, child);
     
     if (child.IsLeaf()) {

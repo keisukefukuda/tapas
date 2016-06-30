@@ -172,7 +172,7 @@ template<class Cell>
 void P2M(Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];
 
-  auto attr = C.attr();
+  CellAttr attr = C.attr();
   
   for (size_t i = 0; i < C.nb(); ++i) {
     const Body &B = C.body(i);
@@ -261,8 +261,8 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   
   complex_t Ynmi[P*P], Ynmj[P*P];
   //vec3 dX = Ci.attr().X - Cj.attr().X - Xperiodic;
-  auto attr_i = Ci.attr();
-  auto attr_j = Cj.attr();
+  CellAttr attr_i = Ci.attr();
+  CellAttr attr_j = Cj.attr();
 
   vec3 dX;
   asn(dX, Ci.center() - Cj.center());
@@ -361,7 +361,7 @@ void L2L(Cell &parent, Cell &child) {
   vec3 dX = tovec(child.center() - parent.center());
   real_t rho, alpha, beta;
 
-  auto attr = child.attr();
+  CellAttr attr = child.attr();
 
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
