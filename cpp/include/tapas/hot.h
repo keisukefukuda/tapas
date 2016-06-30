@@ -236,6 +236,9 @@ class Cell {
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
   {}
+  
+  Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
+  Cell(Cell&& rhs) = delete; // move constructor is neither allowed.
   //: tapas::BasicCell<TSP>(region, bid, nb)
 
   //========================================================
@@ -1443,9 +1446,23 @@ struct Tapas {
   }
 
   template<typename T, typename ReduceFunc>
-  static inline void Reduce(Cell &, const T& dst, const T& src, ReduceFunc f) {
+  static inline void Reduce(Cell &parent, const T& dst, const T& src, ReduceFunc f) {
+    // if (parent.key() == 1) {
+    //   std::cout << "M2M: before Reduce()  M=" << dst
+    //             << " &M=" << &(parent.attr().M)
+    //             << std::endl;
+    //   std::cout << "M2M: before Reduce() dM=" << src
+    //             << std::endl;
+    // }
+  
     T& d = const_cast<T&>(dst);
     f(d, src);
+  
+    // if (parent.key() == 1) {
+    //   std::cout << "M2M: after Reduce() M=" << parent.attr().M
+    //             << " &M=" << &(parent.attr().M)
+    //             << std::endl;
+    // }
   }
   
   template<typename T, typename ReduceFunc>

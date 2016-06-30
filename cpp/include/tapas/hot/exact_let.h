@@ -360,27 +360,27 @@ struct ExactLET {
       // std::cout << "parent.marked_modified_ = " << child.marked_modified_ << std::endl;
       // std::cout << "child.marked_modified_  = " << child.marked_modified_ << std::endl;
 
-      // if (parent.data().mpi_rank_ == 0) {
-      //   std::cout << "lv0_mod = " << lv0_mod << std::endl;
-      //   std::cout << "lv1_mod = " << lv1_mod << std::endl;
-      //   std::cout << "lv1_split = " << child.marked_split_ << std::endl;
-      // }
+      if (parent.data().mpi_rank_ == 0) {
+        std::cout << "lv0_mod = " << lv0_mod << std::endl;
+        std::cout << "lv1_mod = " << lv1_mod << std::endl;
+        std::cout << "lv1_split = " << child.marked_split_ << std::endl;
+      }
 
       // lv0_mod and lv1_mod represents the timing of modification to the cell.
       // here `time' is measured by the 'clock' value.
-      // if lv0_mod == 0 or lv1_mod == 0, it means the cell was not modified.
-      // In this case assign numeric_limist<int>::max(), which means 'it will never written'
-
+      
       assert(lv0_mod != lv1_mod);
 
-      if (lv0_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
-      if (lv1_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
+      //if (lv0_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
+      //if (lv1_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
 
       if (lv0_mod > lv1_mod) { // level 0 cell was updated later => Upward
         // Upward
+        std::cout << "MAP1_UP" << std::endl;
         return MAP1_UP;
       } else if (lv0_mod < lv1_mod) { // level 1 cell was updated later => Downward
         // Downward
+        std::cout << "MAP1_DOWN" << std::endl;
         return MAP1_DOWN;
       }
       
@@ -522,7 +522,7 @@ struct ExactLET {
 
       return *parent_;
     }
-
+    
     inline size_t nsubcells() const {
       Split();
       return IsLeaf_real() ? 0 : (1 << TSP::Dim);

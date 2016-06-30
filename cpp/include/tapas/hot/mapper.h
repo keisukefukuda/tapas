@@ -324,7 +324,7 @@ struct CPUMapper {
           break;
           
         default:
-          // Upward
+          assert(0);
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
             KeyType ck = SFC::Child(c.key(), i);
@@ -351,10 +351,27 @@ struct CPUMapper {
         if (data.gleaves_.count(c.key()) == 0) { 
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
-            //KeyType ck = SFC::Child(c.key(), i);
+            // if (c.key() == 1) { // ここではMベクトルの値はOK
+            //   std::cout << "M2M: before f [" << i << "] key=" << c.key() << "," << (*iter).key() << " M=" << c.attr().M
+            //             << std::endl;
+            // }
             f(c, *iter, args...);
+            
+            if (c.key() == 1) {
+              std::cout << "M2M: middle [" << i << "] key=" << c.key() << "," << (*iter).key() << " M=" << c.attr().M << std::endl;
+            }
+            
+            // if (c.key() == 1) { // ここではMベクトルの値はOK
+            //   std::cout << "M2M: after  f [" << i << "] key=" << c.key() << "," << (*iter).key() << " M=" << c.attr().M
+            //             << std::endl;
+            // }
             iter++;
           }
+          
+          // if (c.key() == 1) {
+          //   std::cout << "M2M: after key=" << c.key() << " M=" << c.attr().M
+          //             << "\n\n" << std::endl;
+          // }
         }
       } else if (map1_dir_ == Map1Dir::Downward) {
         // non-local cells are eliminated in Map(SubcellIterator).

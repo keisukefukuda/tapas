@@ -88,11 +88,6 @@ struct FMM_Upward {
   template<class Cell>
   inline void operator()(Cell &parent, Cell &child, real_t theta) {
     // theta is not used now; to be deleted
-    CellAttr attr = parent.attr();
-    attr.R = 0;
-    attr.M = 0;
-    attr.L = 0;
-    parent.attr() = attr;
 
 #ifdef TAPAS_DEBUG_DUMP
     {
@@ -103,6 +98,12 @@ struct FMM_Upward {
     }
 #endif
 
+    CellAttr attr = child.attr();
+    attr.R = 0;
+    attr.M = 0;
+    attr.L = 0;
+    child.attr() = attr;
+    
     // Compute the child cell recursively
     if (child.IsLeaf()) {
       P2M(child);
@@ -118,8 +119,6 @@ struct FMM_Downward {
   template<class Cell>
   inline void operator()(Cell &parent, Cell &child) {
     //if (c.nb() == 0) return;
-    
-    std::cout << "FMM_Downward is called. [" << parent.key() << ", " << child.key() << "]" << std::endl;
     
     L2L(parent, child);
     
@@ -575,9 +574,13 @@ int main(int argc, char ** argv) {
 #endif
       logger::startTimer("Upward pass");
       double bt = GetTime();
-
       TapasFMM::Cell &c = *root;
-      TapasFMM::Map(FMM_Upward(), c, args.theta);
+
+      std::cout << "================================ <Upward> ==================================" << std::endl;
+      if (!c.IsLeaf()) {
+        TapasFMM::Map(FMM_Upward(), c.subcells(), args.theta);
+      }
+      std::cout << "================================ </Upward> ==================================" << std::endl;
       
       double et = GetTime();
       logger::stopTimer("Upward pass");
@@ -618,8 +621,10 @@ int main(int argc, char ** argv) {
       logger::startTimer("Downward pass");
       double bt = GetTime();
 
-      TapasFMM::Map(FMM_Downward(), *root);
+      std::cout << "================================ <Downward> ==================================" << std::endl;
+      TapasFMM::Map(FMM_Downward(), root->subcells());
       //tapas::DownwardMap(FMM_Downward(), *root);
+      std::cout << "================================ </Downward> ==================================" << std::endl;
 
       double et = GetTime();
       logger::stopTimer("Downward pass");

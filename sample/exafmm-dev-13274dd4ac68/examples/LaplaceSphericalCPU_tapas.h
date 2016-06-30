@@ -198,14 +198,13 @@ void P2M(Cell &C) {
   //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
-vecP SumP(const vecP &a, const vecP &b) {
-  vecP res = {0};
-
+void SumP(vecP &a, const vecP &b) {
+  //std::cout << "M2M: middle SumP: a=" << a << std::endl;
+  //std::cout << "M2M: middle SumP: b=" << b << std::endl;
   for (int i = 0; i < P; i++) {
-    res[i] = a[i] + b[i];
+    a[i] += b[i];
   }
-
-  return res;
+  //std::cout << "M2M: middle SumP: a=" << a << std::endl;
 }
 
 const constexpr int CHECK_CELL = 3;
@@ -245,6 +244,11 @@ vecP calcM2M(const Cell &Cj, const typename Cell::Vec &center) {
       M[jks] += M_jks;
     }
   }
+  if (Cell::SFC::Parent(Cj.key()) == 1) {
+    std::cout << "M2M: middle key=" << Cell::SFC::Parent(Cj.key()) << "," << Cj.key() << " dM=" << M
+              << std::endl;
+  }
+
   return M;
 }
 
@@ -361,6 +365,10 @@ void L2L(Cell &parent, Cell &child) {
   vec3 dX = tovec(child.center() - parent.center());
   real_t rho, alpha, beta;
 
+  // if (parent.key() == 1 && child.key() == 2) {
+  //   std::cout << "L2L: before key=" << child.key() << "  L=" << child.attr().L << std::endl;
+  // }
+  
   CellAttr attr = child.attr();
 
   cart2sph(rho, alpha, beta, dX);
@@ -389,6 +397,9 @@ void L2L(Cell &parent, Cell &child) {
       attr.L[jks] += L;
     }
   }
+  // if (parent.key() == 1 && child.key() == 2) {
+  //   std::cout << "L2L: after key=" << child.key() << "  L=" << attr.L << std::endl;
+  // }
   child.attr() = attr;
 }
 
