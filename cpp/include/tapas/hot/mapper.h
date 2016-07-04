@@ -221,37 +221,25 @@ struct CPUMapper {
       TAPAS_ASSERT(data.ht_.count(k) == 1);
       Cell &lrc = *data.ht_[k]; // local root cell
 
-      // if (data.mpi_rank_ == 0) {
-      //   std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
-      // }
-
       if (!lrc.IsLeaf()) {
         auto iter = lrc.subcells();
         for (index_t i = 0; i < iter.size(); i++) {
           // TODO: parallelization
           KeyType ck = SFC::Child(lrc.key(), i);
-          
-          // if (data.mpi_rank_ == 0) {
-          //   std::cout << "StartUpwardMap: key = " << k << ", IsLeaf = " << lrc.IsLeaf() << std::endl;
-          // }
+
 
           f(lrc, *iter, args...);
           iter++;
         }
       }
+    }
 
-#if 0
-      // <debug>
-      if (lrc.data().mpi_rank_ == 0) {
-        std::cout << "BH local root cell [" << k << "] "
-                  << "w = " << lrc.attr().w << " "
-                  << "x = " << lrc.attr().x << " "
-                  << "y = " << lrc.attr().y << " "
-                  << "z = " << lrc.attr().z << " "
-                  << std::endl;
-      }
-      // </debug>
-#endif
+    if (data.mpi_rank_ == 0) {
+      KeyType k = 4035225266123964417;
+      std::cout << "debug: " << "I'm rank " << data.mpi_rank_ << std::endl;
+      std::cout << "debug: " << k << " in global tree? " << (data.ht_gtree_.count(k)) << std::endl;
+      std::cout << "debug: " << k << " is a global leaf? " << (data.gleaves_.count(k)) << std::endl;
+      std::cout << "debug: " << k << " is a local root? " << (data.lroots_.count(k)) << std::endl;
     }
 
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
@@ -288,19 +276,36 @@ struct CPUMapper {
           if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
           // Upward
           map1_dir_ = Map1Dir::Upward;
+          c.data().gleaf_attrs_.clear();
           
           if (c.data().mpi_size_ > 1) {
             StartUpwardMap(f, c, args...); // Run local upward first
+
+            KeyType k = 4035225266123964417;
+            if (c.data().mpi_rank_ == 0) {
+              const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
+              std::cout << "debug: #1" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
+              std::cout << "debug: #1 M=" << cc.attr().M << std::endl;
+            }
           }
 
           // Global upward
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
-            KeyType ck = SFC::Child(c.key(), i);
             f(c, *iter, args...);
             iter++;
           }
-          
+
+          {
+            KeyType k = 4035225266123964417;
+            if (c.data().mpi_rank_ == 0) {
+              const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
+              std::cout << "debug: #2" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
+              std::cout << "debug: #2 M=" << cc.attr().M << std::endl;
+            }
+          }
+
+          c.data().gleaf_attrs_.clear();
           map1_dir_ = Map1Dir::None; // Upward is done.
           return;
 
@@ -311,7 +316,6 @@ struct CPUMapper {
 
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
-            KeyType ck = SFC::Child(c.key(), i);
             f(c, *iter, args...);
             iter++;
           }
@@ -351,27 +355,14 @@ struct CPUMapper {
         if (data.gleaves_.count(c.key()) == 0) { 
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
-            // if (c.key() == 1) { // ここではMベクトルの値はOK
-            //   std::cout << "M2M: before f [" << i << "] key=" << c.key() << "," << (*iter).key() << " M=" << c.attr().M
-            //             << std::endl;
-            // }
             f(c, *iter, args...);
-            
-            if (c.key() == 1) {
-              std::cout << "M2M: middle [" << i << "] key=" << c.key() << "," << (*iter).key() << " M=" << c.attr().M << std::endl;
-            }
-            
-            // if (c.key() == 1) { // ここではMベクトルの値はOK
-            //   std::cout << "M2M: after  f [" << i << "] key=" << c.key() << "," << (*iter).key() << " M=" << c.attr().M
-            //             << std::endl;
-            // }
             iter++;
           }
-          
-          // if (c.key() == 1) {
-          //   std::cout << "M2M: after key=" << c.key() << " M=" << c.attr().M
-          //             << "\n\n" << std::endl;
-          // }
+        } else {
+          // c is a global leaf.
+          KeyType k = c.key();
+          assert(data.gleaf_attrs_.count(k) == 1);
+          c.attr() = data.gleaf_attrs_[k];
         }
       } else if (map1_dir_ == Map1Dir::Downward) {
         // non-local cells are eliminated in Map(SubcellIterator).

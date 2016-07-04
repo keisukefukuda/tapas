@@ -37,6 +37,7 @@ struct SharedData {
   KeySet        lroots_;   // set of local roots. It must be a subset of gleaves_. gleaves_ is "Allgatherv-ed" lroots.
   std::mutex    ht_mtx_;   //!< mutex to protect ht_
   KeySet        let_used_key_;
+  std::unordered_map<KeyType, CellAttr> gleaf_attrs_;
 
   std::vector<Reg> local_br_; // Bounding Region of the local process. local_br_ = [ C.region() for C in lroots_ ]
   // std::set might be better, but Region needs to have operator<() for that.

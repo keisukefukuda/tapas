@@ -88,14 +88,14 @@ struct ExactLET {
     ProxyCell &cell() const { return *cell_; }
 
     inline void operator=(const CellAttrType&) const {
-      std::cout << "ProxyAttr::operator=() is called for cell [" << cell_->key() << "]" << std::endl;
+      //std::cout << "ProxyAttr::operator=() is called for cell [" << cell_->key() << "]" << std::endl;
       cell_->MarkModified();
       //return *this;
     }
 
     template<class T>
     inline void operator=(const CellAttrType&) const {
-      std::cout << "ProxyAttr::operator=() const is called for cell [" << cell_->key() << "]" << std::endl;
+      //std::cout << "ProxyAttr::operator=() const is called for cell [" << cell_->key() << "]" << std::endl;
       cell_->MarkModified();
       //return *this;
     }

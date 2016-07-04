@@ -199,12 +199,9 @@ void P2M(Cell &C) {
 }
 
 void SumP(vecP &a, const vecP &b) {
-  //std::cout << "M2M: middle SumP: a=" << a << std::endl;
-  //std::cout << "M2M: middle SumP: b=" << b << std::endl;
-  for (int i = 0; i < P; i++) {
+  for (int i = 0; i < (int)a.size(); i++) {
     a[i] += b[i];
   }
-  //std::cout << "M2M: middle SumP: a=" << a << std::endl;
 }
 
 const constexpr int CHECK_CELL = 3;
@@ -244,16 +241,13 @@ vecP calcM2M(const Cell &Cj, const typename Cell::Vec &center) {
       M[jks] += M_jks;
     }
   }
-  if (Cell::SFC::Parent(Cj.key()) == 1) {
-    std::cout << "M2M: middle key=" << Cell::SFC::Parent(Cj.key()) << "," << Cj.key() << " dM=" << M
-              << std::endl;
-  }
 
   return M;
 }
 
 template<class Cell>
 void M2M(Cell &parent, Cell &child) {
+
   vecP dM = calcM2M(child, parent.center()); // partial contribution from child's M to parent's M
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
 }
@@ -267,6 +261,24 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   //vec3 dX = Ci.attr().X - Cj.attr().X - Xperiodic;
   CellAttr attr_i = Ci.attr();
   CellAttr attr_j = Cj.attr();
+
+  if (Ci.data().mpi_rank_ == 0 && Cj.key() == 4035225266123964417) {
+    auto k =Cj.key();
+    const auto &Cj2 = *(Cj.data().ht_gtree_.find(k)->second);
+    std::cout << "debug: M2L: key=" << k << std::endl;
+    std::cout << "debug: M2L: M=" << Cj2.attr().M << std::endl;
+    std::cout << "debug: M2L: &M=" << &(Cj2.attr().M) << std::endl;
+  }
+
+  if (Ci.data().mpi_rank_ == 0 && Ci.key() == 2) {
+    std::cout << "M2L: ----------------" << std::endl;
+    std::cout << "M2L: to 2 from " << Cj.key() << " "
+              << "M= " << Cj.attr().M
+              << std::endl;
+    std::cout << "M2L: to 2 from " << Cj.key() << " "
+              << "L= " << Ci.attr().L
+              << std::endl;
+  }
 
   vec3 dX;
   asn(dX, Ci.center() - Cj.center());
@@ -321,8 +333,15 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
       }
     }
   }
+  
   Ci.attr() = attr_i;
   if (mutual) Cj.attr() = attr_j;
+  
+  if (Ci.data().mpi_rank_ == 0 && Ci.key() == 2) {
+    std::cout << "M2L: to 2 from " << Cj.key() << " "
+              << "L= " << Ci.attr().L
+              << std::endl;
+  }
 }
 
 void L2P(Body &b, BodyAttr &ba, TapasFMM::Cell *c) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.
@@ -371,6 +390,21 @@ void L2L(Cell &parent, Cell &child) {
   
   CellAttr attr = child.attr();
 
+  vecP dL = {0.0};
+
+  if (parent.data().mpi_rank_ == 0 && child.key() == 2) {
+    std::cout << "L2L: ----------------" << std::endl;
+    std::cout << "L2L: " << parent.key() << " "
+              << child.key() << " "
+              << "parent L= " << parent.attr().L << std::endl;
+    std::cout << "L2L: " << parent.key() << " "
+              << child.key() << " "
+              << "child  L= " << child.attr().L << std::endl;
+    std::cout << "L2L: " << parent.key() << " "
+              << child.key() << " "
+              << "child  M= " << child.attr().M << std::endl;
+  }
+  
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
 #if MASS
@@ -394,12 +428,21 @@ void L2L(Cell &parent, Cell &child) {
           }
         }
       }
+      dL[jks] += L;
       attr.L[jks] += L;
     }
   }
-  // if (parent.key() == 1 && child.key() == 2) {
-  //   std::cout << "L2L: after key=" << child.key() << "  L=" << attr.L << std::endl;
-  // }
+  
+  if (parent.data().mpi_rank_ == 0 && child.key() == 2) {
+    std::cout << "L2L: ----------------" << std::endl;
+    std::cout << "L2L: " << parent.key() << " "
+              << child.key() << " "
+              << "dL= " << parent.attr().L << std::endl;
+    std::cout << "L2L: " << parent.key() << " "
+              << child.key() << " "
+              << "child L= " << child.attr().L << std::endl;
+  }
+  
   child.attr() = attr;
 }
 

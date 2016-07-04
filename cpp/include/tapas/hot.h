@@ -310,6 +310,7 @@ class Cell {
   }
 
   Data &data() { return *data_; }
+  const Data &data() const { return *data_; }
   Data* data_ptr() { return data_; }
 
 #ifdef DEPRECATED
@@ -702,6 +703,8 @@ void LocalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
 
 /**
  * \brief Exchange cell attrs of global leaves
+ * Used in upward traversal. After all local trees are traversed, exchange global leaves 
+ * between processes.
  */
 template<class TSP>
 void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree,
@@ -728,8 +731,19 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
 
   for (size_t i = 0; i < keys_recv.size(); i++) {
     KeyType key = keys_recv[i];
+
     TAPAS_ASSERT(gtree.count(key) == 1);
     gtree[key]->attr() = attr_recv[i];
+    data.gleaf_attrs_[key] = attr_recv[i];
+    
+    if (key == 4035225266123964417 && data.mpi_rank_ == 0) {
+      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "key= " << key << std::endl;
+      std::cout << "debug: gtree.count(key) = " << gtree.count(key) << std::endl;
+      std::cout << "debug: ht.count(key) = " << data.ht_.count(key) << std::endl;
+      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << attr_recv[i].M << std::endl;
+      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << gtree[key]->attr().M << std::endl;
+      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "&M= " << &(gtree[key]->attr().M) << std::endl;
+    }
   }
 
   TAPAS_ASSERT(keys_recv.size() == attr_recv.size());
@@ -1447,21 +1461,19 @@ struct Tapas {
 
   template<typename T, typename ReduceFunc>
   static inline void Reduce(Cell &parent, const T& dst, const T& src, ReduceFunc f) {
-    // if (parent.key() == 1) {
-    //   std::cout << "M2M: before Reduce()  M=" << dst
-    //             << " &M=" << &(parent.attr().M)
-    //             << std::endl;
-    //   std::cout << "M2M: before Reduce() dM=" << src
-    //             << std::endl;
+    // if (parent.key() == 4035225266123964417) {
+    //   std::cout << "M2M: ---" << std::endl;
+    //   std::cout << "M2M: I'm rank " << parent.data().mpi_rank_ << std::endl;
+    //   std::cout << "M2M: key=" << parent.key() << " IsLeaf=" << parent.IsLeaf() << std::endl;
+    //   std::cout << "M2M:  M " << dst << std::endl;
     // }
-  
+    
     T& d = const_cast<T&>(dst);
     f(d, src);
   
-    // if (parent.key() == 1) {
-    //   std::cout << "M2M: after Reduce() M=" << parent.attr().M
-    //             << " &M=" << &(parent.attr().M)
-    //             << std::endl;
+    // if (parent.key() == 4035225266123964417) {
+    //   std::cout << "M2M: dM " << src << std::endl;
+    //   std::cout << "M2M:  M " << dst << std::endl;
     // }
   }
   

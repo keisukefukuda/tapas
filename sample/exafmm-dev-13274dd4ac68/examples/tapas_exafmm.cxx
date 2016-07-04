@@ -98,6 +98,7 @@ struct FMM_Upward {
     }
 #endif
 
+    // これが原因
     CellAttr attr = child.attr();
     attr.R = 0;
     attr.M = 0;
@@ -106,11 +107,16 @@ struct FMM_Upward {
     
     // Compute the child cell recursively
     if (child.IsLeaf()) {
+      // CellAttr attr = child.attr();
+      // attr.R = 0;
+      // attr.M = 0;
+      // attr.L = 0;
+      // child.attr() = attr;
       P2M(child);
     } else {
       TapasFMM::Map(*this, child.subcells(), theta);
     }
-    
+
     M2M(parent, child);
   }
 };
@@ -131,9 +137,6 @@ struct FMM_Downward {
     }
   }
 };
-
-#define RANK 0
-#define KEY 2522015791327477762
 
 template<class Cell, class L>
 void Debug(Cell &Ci, Cell &Cj, L lambda) {
@@ -574,14 +577,18 @@ int main(int argc, char ** argv) {
 #endif
       logger::startTimer("Upward pass");
       double bt = GetTime();
-      TapasFMM::Cell &c = *root;
 
-      std::cout << "================================ <Upward> ==================================" << std::endl;
-      if (!c.IsLeaf()) {
-        TapasFMM::Map(FMM_Upward(), c.subcells(), args.theta);
+      if (rank == 0) {
+        std::cout << "================================ <Upward> ==================================" << std::endl;
       }
-      std::cout << "================================ </Upward> ==================================" << std::endl;
-      
+      if (!root->IsLeaf()) {
+        TapasFMM::Map(FMM_Upward(), root->subcells(), args.theta);
+      }
+
+      if (rank == 0) {
+        std::cout << "================================ </Upward> ==================================" << std::endl;
+      }
+
       double et = GetTime();
       logger::stopTimer("Upward pass");
 
