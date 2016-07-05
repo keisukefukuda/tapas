@@ -247,9 +247,12 @@ vecP calcM2M(const Cell &Cj, const typename Cell::Vec &center) {
 
 template<class Cell>
 void M2M(Cell &parent, Cell &child) {
-
   vecP dM = calcM2M(child, parent.center()); // partial contribution from child's M to parent's M
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
+
+  if (parent.key() == 2305843009213693953) {
+    std::cout << "M2M: " << parent.key() << " child=" << child.key() << " " << "dM=" << dM << std::endl;
+  }
 }
 
 template<class Cell>
@@ -262,24 +265,11 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   CellAttr attr_i = Ci.attr();
   CellAttr attr_j = Cj.attr();
 
-  if (Ci.data().mpi_rank_ == 0 && Cj.key() == 4035225266123964417) {
-    auto k =Cj.key();
-    const auto &Cj2 = *(Cj.data().ht_gtree_.find(k)->second);
-    std::cout << "debug: M2L: key=" << k << std::endl;
-    std::cout << "debug: M2L: M=" << Cj2.attr().M << std::endl;
-    std::cout << "debug: M2L: &M=" << &(Cj2.attr().M) << std::endl;
-  }
-
-  if (Ci.data().mpi_rank_ == 0 && Ci.key() == 2) {
-    std::cout << "M2L: ----------------" << std::endl;
-    std::cout << "M2L: to 2 from " << Cj.key() << " "
-              << "M= " << Cj.attr().M
-              << std::endl;
-    std::cout << "M2L: to 2 from " << Cj.key() << " "
-              << "L= " << Ci.attr().L
-              << std::endl;
-  }
-
+  // if (Ci.data().mpi_rank_ == 0) {
+  //   std::cout << "M2L: " << Ci.key() << " " << Cj.key() << " " << "Ci before L= " << Ci.attr().L << std::endl;
+  //   std::cout << "M2L: " << Ci.key() << " " << Cj.key() << " " << "Cj M= " << Cj.attr().M << std::endl;
+  // }
+  
   vec3 dX;
   asn(dX, Ci.center() - Cj.center());
   dX -= Xperiodic;
@@ -337,10 +327,8 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   Ci.attr() = attr_i;
   if (mutual) Cj.attr() = attr_j;
   
-  if (Ci.data().mpi_rank_ == 0 && Ci.key() == 2) {
-    std::cout << "M2L: to 2 from " << Cj.key() << " "
-              << "L= " << Ci.attr().L
-              << std::endl;
+  if (Ci.data().mpi_rank_ == 0) {
+    std::cout << "M2L: " << Ci.key() << " " << Cj.key() << " " << "Ci after L= " << Ci.attr().L << std::endl;
   }
 }
 
@@ -392,7 +380,7 @@ void L2L(Cell &parent, Cell &child) {
 
   vecP dL = {0.0};
 
-  if (parent.data().mpi_rank_ == 0 && child.key() == 2) {
+  if (parent.data().mpi_rank_ == 0) {
     std::cout << "L2L: ----------------" << std::endl;
     std::cout << "L2L: " << parent.key() << " "
               << child.key() << " "
@@ -433,7 +421,7 @@ void L2L(Cell &parent, Cell &child) {
     }
   }
   
-  if (parent.data().mpi_rank_ == 0 && child.key() == 2) {
+  if (parent.data().mpi_rank_ == 0) {
     std::cout << "L2L: ----------------" << std::endl;
     std::cout << "L2L: " << parent.key() << " "
               << child.key() << " "

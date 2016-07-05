@@ -211,11 +211,12 @@ struct CPUMapper {
   // before running upward traversal from the root,
   // we need to run local upward first and communicate the global leaf values between processes.
   template<class Funct, class...Args>
-  inline void StartUpwardMap(Funct f, Cell &c, Args...args) {
+  inline void LocalUpwardMap(Funct f, Cell &c, Args...args) {
     auto &data = c.data();
 
     MPI_Barrier(MPI_COMM_WORLD); // debug
 
+    // Apply the algorithm function f to local trees, of which roots are in data.lroots_
     for (auto &k : data.lroots_) {
       // TODO: parallelizable?
       TAPAS_ASSERT(data.ht_.count(k) == 1);
@@ -231,17 +232,29 @@ struct CPUMapper {
           f(lrc, *iter, args...);
           iter++;
         }
+      } else { // lrc.IsLeaf()
+        // Upward algorithm function takes two cells: parent and child.
+        // The problem here is taht if a local root is also a leaf (which means a local tree is just a leaf),
+        // the cell is not yet processed.
+        // Thus, such parent/child pairs must be computed before the communication.
+        assert(lrc.IsRoot() == false);
+        Cell &p = lrc.parent();
+        f(p, lrc, args...);
+        data.local_upw_results_[p.key()] = p.attr();
+        if (p.key() == 2305843009213693953) {
+          std::cout << "M2M: LocalUpwardMap " << p.key() << " M=" << p.attr().M;
+        }
       }
     }
-
-    if (data.mpi_rank_ == 0) {
-      KeyType k = 4035225266123964417;
-      std::cout << "debug: " << "I'm rank " << data.mpi_rank_ << std::endl;
-      std::cout << "debug: " << k << " in global tree? " << (data.ht_gtree_.count(k)) << std::endl;
-      std::cout << "debug: " << k << " is a global leaf? " << (data.gleaves_.count(k)) << std::endl;
-      std::cout << "debug: " << k << " is a local root? " << (data.lroots_.count(k)) << std::endl;
-    }
-
+    
+    // if (data.mpi_rank_ == 0) {
+    //   KeyType k = 4035225266123964417;
+    //   std::cout << "debug: " << "I'm rank " << data.mpi_rank_ << std::endl;
+    //   std::cout << "debug: " << k << " in global tree? " << (data.ht_gtree_.count(k)) << std::endl;
+    //   std::cout << "debug: " << k << " is a global leaf? " << (data.gleaves_.count(k)) << std::endl;
+    //   std::cout << "debug: " << k << " is a local root? " << (data.lroots_.count(k)) << std::endl;
+    // }
+    
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
   }
 
@@ -276,17 +289,19 @@ struct CPUMapper {
           if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
           // Upward
           map1_dir_ = Map1Dir::Upward;
-          c.data().gleaf_attrs_.clear();
+          c.data().local_upw_results_.clear();
           
           if (c.data().mpi_size_ > 1) {
-            StartUpwardMap(f, c, args...); // Run local upward first
+            if (c.data().mpi_rank_ == 0) std::cout << "M2M: --- local upward map begin" << std::endl;
+            LocalUpwardMap(f, c, args...); // Run local upward first
+            if (c.data().mpi_rank_ == 0) std::cout << "M2M: --- local upward map end" << std::endl;
 
-            KeyType k = 4035225266123964417;
-            if (c.data().mpi_rank_ == 0) {
-              const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
-              std::cout << "debug: #1" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
-              std::cout << "debug: #1 M=" << cc.attr().M << std::endl;
-            }
+            // KeyType k = 4035225266123964417;
+            // if (c.data().mpi_rank_ == 0) {
+            //   const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
+            //   std::cout << "debug: #1" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
+            //   std::cout << "debug: #1 M=" << cc.attr().M << std::endl;
+            // }
           }
 
           // Global upward
@@ -296,16 +311,16 @@ struct CPUMapper {
             iter++;
           }
 
-          {
-            KeyType k = 4035225266123964417;
-            if (c.data().mpi_rank_ == 0) {
-              const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
-              std::cout << "debug: #2" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
-              std::cout << "debug: #2 M=" << cc.attr().M << std::endl;
-            }
-          }
-
-          c.data().gleaf_attrs_.clear();
+          // {
+          //   KeyType k = 4035225266123964417;
+          //   if (c.data().mpi_rank_ == 0) {
+          //     const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
+          //     std::cout << "debug: #2" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
+          //     std::cout << "debug: #2 M=" << cc.attr().M << std::endl;
+          //   }
+          // }
+          
+          c.data().local_upw_results_.clear();
           map1_dir_ = Map1Dir::None; // Upward is done.
           return;
 
@@ -347,22 +362,28 @@ struct CPUMapper {
         abort();
       }
 
-      if (map1_dir_ == Map1Dir::Upward) {
-        // Upward
+      if (map1_dir_ == Map1Dir::Upward) { // Upward
+        // Write back the results computed in LocalUpwardMap().
+        if (data.local_upw_results_.count(c.key()) != 0) {
+          c.attr() = data.local_upw_results_[c.key()];
+          data.local_upw_results_.erase(c.key());
+        }
+        
         // Traversal for local trees is already done in StartUpwardMap().
         // We just perform traversal in the global tree part.
-        // Do not call f and stop traversal on global leaves.
-        if (data.gleaves_.count(c.key()) == 0) { 
+        // TODO: parallelization
+        if (data.gleaves_.count(c.key()) == 0) { // Do not call f and stop traversal on global leaves.
           for (index_t i = 0; i < iter.size(); i++) {
-            // TODO: parallelization
-            f(c, *iter, args...);
+            Cell &parent = c;
+            Cell &child = *iter;
+
+            if (!(data.gleaves_.count(child.key()) != 0 && child.IsLeaf())) {
+              // Skip such parent/child pairs (the child is  a global leaf as well as a real leaf)
+              // because already processes in LocalUpwardMap(). See LocalUpwardMap() for details.
+              f(parent, child, args...);
+            }
             iter++;
           }
-        } else {
-          // c is a global leaf.
-          KeyType k = c.key();
-          assert(data.gleaf_attrs_.count(k) == 1);
-          c.attr() = data.gleaf_attrs_[k];
         }
       } else if (map1_dir_ == Map1Dir::Downward) {
         // non-local cells are eliminated in Map(SubcellIterator).

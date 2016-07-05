@@ -675,6 +675,7 @@ void CompleteRegion(typename TSP::SFC::KeyType x,
   std::sort(std::begin(s), std::end(s));
 }
 
+#if 0
 /**
  * \brief UpwardMap starting from a local cell. The subtree under c must be completely local.
  */
@@ -700,6 +701,7 @@ void LocalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
     f(c, args...);
   }
 }
+#endif
 
 /**
  * \brief Exchange cell attrs of global leaves
@@ -729,21 +731,39 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
   tapas::mpi::Allgatherv(keys_send, keys_recv, MPI_COMM_WORLD);
   tapas::mpi::Allgatherv(attr_send, attr_recv, MPI_COMM_WORLD);
 
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  // const constexpr int RANK = 0;
+  // if (data.mpi_rank_ == RANK) {
+  //   std::cout << "M2M: in ExchangeGlobalLeaves:" << std::endl;
+  //   std::cout << "M2M: -----------------------------" << std::endl;
+  //   for (size_t i = 0; i < keys_recv.size(); i++) {
+  //     std::cout << "M2M: "
+  //               << keys_recv[i]
+  //               << " M=" << ""
+  //               << attr_recv[i].M << ""
+  //               << std::endl;
+  //   }
+  //   std::cout << "M2M: -----------------------------" << std::endl;
+  // }
+  
+  MPI_Barrier(MPI_COMM_WORLD);
+
   for (size_t i = 0; i < keys_recv.size(); i++) {
     KeyType key = keys_recv[i];
 
     TAPAS_ASSERT(gtree.count(key) == 1);
     gtree[key]->attr() = attr_recv[i];
-    data.gleaf_attrs_[key] = attr_recv[i];
+    data.local_upw_results_[key] = attr_recv[i];
     
-    if (key == 4035225266123964417 && data.mpi_rank_ == 0) {
-      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "key= " << key << std::endl;
-      std::cout << "debug: gtree.count(key) = " << gtree.count(key) << std::endl;
-      std::cout << "debug: ht.count(key) = " << data.ht_.count(key) << std::endl;
-      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << attr_recv[i].M << std::endl;
-      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << gtree[key]->attr().M << std::endl;
-      std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "&M= " << &(gtree[key]->attr().M) << std::endl;
-    }
+    // if (key == 4035225266123964417 && data.mpi_rank_ == RANK) {
+    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "key= " << key << std::endl;
+    //   std::cout << "debug: gtree.count(key) = " << gtree.count(key) << std::endl;
+    //   std::cout << "debug: ht.count(key) = " << data.ht_.count(key) << std::endl;
+    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << attr_recv[i].M << std::endl;
+    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << gtree[key]->attr().M << std::endl;
+    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "&M= " << &(gtree[key]->attr().M) << std::endl;
+    // }
   }
 
   TAPAS_ASSERT(keys_recv.size() == attr_recv.size());
@@ -1461,25 +1481,13 @@ struct Tapas {
 
   template<typename T, typename ReduceFunc>
   static inline void Reduce(Cell &parent, const T& dst, const T& src, ReduceFunc f) {
-    // if (parent.key() == 4035225266123964417) {
-    //   std::cout << "M2M: ---" << std::endl;
-    //   std::cout << "M2M: I'm rank " << parent.data().mpi_rank_ << std::endl;
-    //   std::cout << "M2M: key=" << parent.key() << " IsLeaf=" << parent.IsLeaf() << std::endl;
-    //   std::cout << "M2M:  M " << dst << std::endl;
-    // }
-    
     T& d = const_cast<T&>(dst);
     f(d, src);
-  
-    // if (parent.key() == 4035225266123964417) {
-    //   std::cout << "M2M: dM " << src << std::endl;
-    //   std::cout << "M2M:  M " << dst << std::endl;
-    // }
   }
   
   template<typename T, typename ReduceFunc>
   static inline void Reduce(ProxyCell &cell, const T&, const T&, ReduceFunc) {
-    std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;
+    //std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;
     cell.MarkModified();
     // nop.
   }

@@ -608,8 +608,7 @@ struct ExactLET {
     }
     void MarkModified() {
       marked_modified_ = IncIfNotNull(clock_);
-      std::cout << "ProxyCell::MarkModified() key=" << key() << ", marked_modified_ = " << marked_modified_
-                << std::endl;
+      //std::cout << "ProxyCell::MarkModified() key=" << key() << ", marked_modified_ = " << marked_modified_ << std::endl;
     }
 
     void InitBodies() {
@@ -646,7 +645,6 @@ struct ExactLET {
     ProxyCell *parent_;
     std::vector<ProxyCell*> children_;
     Mapper mapper_; // FIXME: create Mapper for every ProxyCell is not efficient.
-    
   }; // end of class ProxyCell
 
   /**

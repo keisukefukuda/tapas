@@ -98,7 +98,6 @@ struct FMM_Upward {
     }
 #endif
 
-    // これが原因
     CellAttr attr = child.attr();
     attr.R = 0;
     attr.M = 0;
@@ -107,16 +106,27 @@ struct FMM_Upward {
     
     // Compute the child cell recursively
     if (child.IsLeaf()) {
-      // CellAttr attr = child.attr();
-      // attr.R = 0;
-      // attr.M = 0;
-      // attr.L = 0;
-      // child.attr() = attr;
       P2M(child);
     } else {
       TapasFMM::Map(*this, child.subcells(), theta);
     }
 
+    // if (child.key() == 2305843009213693953) {
+    //   std::cout << "M2M: " << child.key() << " M=" << child.attr().M << std::endl;
+    // }
+    
+    if (child.key() == 2305843009213693953) {
+      auto &c = child;
+      auto &data = c.data();
+      std::cout << "M2M: ------------------------------" << std::endl;
+      std::cout << "M2M: " << c.key() << " parent=" << c.parent().key() << std::endl;
+      std::cout << "M2M: " << c.key() << " IsLeaf=" << c.IsLeaf() << std::endl;
+      std::cout << "M2M: " << c.key() << " g-tree? " << data.ht_gtree_.count(c.key()) << std::endl;
+      std::cout << "M2M: " << c.key() << " global leaf? " << data.gleaves_.count(c.key()) << std::endl;
+      std::cout << "M2M: " << c.key() << " local root? " << data.lroots_.count(c.key()) << std::endl;
+      std::cout << "M2M: " << c.key() << " M=" << c.attr().M << std::endl;
+    }
+    
     M2M(parent, child);
   }
 };
@@ -628,10 +638,14 @@ int main(int argc, char ** argv) {
       logger::startTimer("Downward pass");
       double bt = GetTime();
 
-      std::cout << "================================ <Downward> ==================================" << std::endl;
+      if (rank == 0) {
+        std::cout << "================================ <Downward> ==================================" << std::endl;
+      }
       TapasFMM::Map(FMM_Downward(), root->subcells());
       //tapas::DownwardMap(FMM_Downward(), *root);
-      std::cout << "================================ </Downward> ==================================" << std::endl;
+      if (rank == 0) {
+        std::cout << "================================ </Downward> ==================================" << std::endl;
+      }
 
       double et = GetTime();
       logger::stopTimer("Downward pass");
