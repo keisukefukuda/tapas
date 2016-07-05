@@ -83,7 +83,7 @@ struct ExactLET {
     ProxyAttr(ProxyCell *cell) : CellAttrType(), cell_(cell) { }
     ProxyAttr(ProxyCell *cell, CellAttrType &rhs) : CellAttrType(rhs), cell_(cell) { }
 
-    ProxyAttr(const ProxyAttr &) = delete;
+    //ProxyAttr(const ProxyAttr &) = delete;
     
     ProxyCell &cell() const { return *cell_; }
 

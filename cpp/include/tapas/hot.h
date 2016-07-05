@@ -1480,7 +1480,7 @@ struct Tapas {
   }
 
   template<typename T, typename ReduceFunc>
-  static inline void Reduce(Cell &parent, const T& dst, const T& src, ReduceFunc f) {
+  static inline void Reduce(Cell &/*parent*/, const T& dst, const T& src, ReduceFunc f) {
     T& d = const_cast<T&>(dst);
     f(d, src);
   }

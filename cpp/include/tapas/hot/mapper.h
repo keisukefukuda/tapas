@@ -241,9 +241,9 @@ struct CPUMapper {
         Cell &p = lrc.parent();
         f(p, lrc, args...);
         data.local_upw_results_[p.key()] = p.attr();
-        if (p.key() == 2305843009213693953) {
-          std::cout << "M2M: LocalUpwardMap " << p.key() << " M=" << p.attr().M;
-        }
+        // if (p.key() == 2305843009213693953) {
+        //   std::cout << "M2M: LocalUpwardMap " << p.key() << " M=" << p.attr().M;
+        // }
       }
     }
     

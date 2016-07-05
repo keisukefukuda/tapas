@@ -161,7 +161,7 @@ struct Approximate {
   inline void operator()(Cell &parent, Cell &child) {
     if (child.IsLeaf()) {
       if (child.nb() == 0) {
-        auto attr = child.attr();
+        float4 attr = child.attr();
         attr.w = 0.0;
 #if 0
         attr.x = 0.0;
@@ -178,7 +178,7 @@ struct Approximate {
     } else {
       // child is not leaf
       TapasBH::Map(*this, child.subcells());
-      auto attr = child.attr();
+      float4 attr = child.attr();
       attr.x /= attr.w;
       attr.y /= attr.w;
       attr.z /= attr.w;
