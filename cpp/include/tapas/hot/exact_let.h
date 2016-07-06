@@ -46,7 +46,6 @@ struct ExactLET {
   enum {
     MAP1_UP,
     MAP1_DOWN,
-    MAP1_NO_MATTER,
     MAP1_UNKNOWN
   };
 
@@ -340,16 +339,9 @@ struct ExactLET {
       int clock = 1;
       ProxyCell parent(key, data, &clock);
 
-      if(parent.IsRoot() && parent.IsLeaf()) {
-        // Special case: if root is leaf, which means only 1 level and cell in the space
-        return MAP1_NO_MATTER;
-      }
-
       ProxyCell &child = parent.subcell(0);
 
-      //std::cout << "PredDir1: calling f()" << std::endl;
       f(parent, child, args...);
-      //std::cout << "PredDir1: calling f() done" << std::endl;
 
       // if cell is modified
       int lv0_mod = parent.marked_modified_;
@@ -357,62 +349,21 @@ struct ExactLET {
       // if any of the children is modified
       int lv1_mod = child.marked_modified_;
 
-      // std::cout << "parent.marked_modified_ = " << child.marked_modified_ << std::endl;
-      // std::cout << "child.marked_modified_  = " << child.marked_modified_ << std::endl;
-
-      if (parent.data().mpi_rank_ == 0) {
-        std::cout << "lv0_mod = " << lv0_mod << std::endl;
-        std::cout << "lv1_mod = " << lv1_mod << std::endl;
-        std::cout << "lv1_split = " << child.marked_split_ << std::endl;
-      }
-
       // lv0_mod and lv1_mod represents the timing of modification to the cell.
       // here `time' is measured by the 'clock' value.
       
       assert(lv0_mod != lv1_mod);
 
-      //if (lv0_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
-      //if (lv1_mod == 0) lv0_mod = std::numeric_limits<decltype(clock)>::max();
-
       if (lv0_mod > lv1_mod) { // level 0 cell was updated later => Upward
         // Upward
-        std::cout << "MAP1_UP" << std::endl;
         return MAP1_UP;
       } else if (lv0_mod < lv1_mod) { // level 1 cell was updated later => Downward
         // Downward
-        std::cout << "MAP1_DOWN" << std::endl;
         return MAP1_DOWN;
       }
       
-      std::cout << "Unknown" << std::endl;
-      MPI_Finalize(); exit(0);
-#if 0
-      if (!lv0_mod && !lv1_mod) {
-        // if cell and its children are all unmodified, try one more level.
-        // This happends when downward traversal routein is written like this:
-        // if (!cell.IsRoot()) {
-        //    Cell &parent = cell.parent();
-        //    // computation using parent.attr()
-        //    cell.attr() = ...;
-        // }
-
-        ProxyCell &ch = cell.subcell(0);
-        f(cell, ch, args...);
-
-        bool lv2_mod = 0;
-        for (size_t i = 0; i < cell.nsubcells(); i++) {
-          lv2_mod |= cell.subcell(i).marked_modified_;
-        }
-        
-        if (!lv1_mod && lv2_mod) {
-          // Downward
-          return MAP1_DOWN;
-        }
-      }
-#endif
-
       std::cerr << "Tapas [ERROR] Cannot detect directdion for 1-argument map" << std::endl;
-      exit(-1);
+      abort();
       return MAP1_UNKNOWN; // Error
     }
 

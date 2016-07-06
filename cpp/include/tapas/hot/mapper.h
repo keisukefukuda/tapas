@@ -241,19 +241,8 @@ struct CPUMapper {
         Cell &p = lrc.parent();
         f(p, lrc, args...);
         data.local_upw_results_[p.key()] = p.attr();
-        // if (p.key() == 2305843009213693953) {
-        //   std::cout << "M2M: LocalUpwardMap " << p.key() << " M=" << p.attr().M;
-        // }
       }
     }
-    
-    // if (data.mpi_rank_ == 0) {
-    //   KeyType k = 4035225266123964417;
-    //   std::cout << "debug: " << "I'm rank " << data.mpi_rank_ << std::endl;
-    //   std::cout << "debug: " << k << " in global tree? " << (data.ht_gtree_.count(k)) << std::endl;
-    //   std::cout << "debug: " << k << " is a global leaf? " << (data.gleaves_.count(k)) << std::endl;
-    //   std::cout << "debug: " << k << " is a local root? " << (data.lroots_.count(k)) << std::endl;
-    // }
     
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
   }
@@ -292,16 +281,7 @@ struct CPUMapper {
           c.data().local_upw_results_.clear();
           
           if (c.data().mpi_size_ > 1) {
-            if (c.data().mpi_rank_ == 0) std::cout << "M2M: --- local upward map begin" << std::endl;
             LocalUpwardMap(f, c, args...); // Run local upward first
-            if (c.data().mpi_rank_ == 0) std::cout << "M2M: --- local upward map end" << std::endl;
-
-            // KeyType k = 4035225266123964417;
-            // if (c.data().mpi_rank_ == 0) {
-            //   const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
-            //   std::cout << "debug: #1" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
-            //   std::cout << "debug: #1 M=" << cc.attr().M << std::endl;
-            // }
           }
 
           // Global upward
@@ -311,15 +291,6 @@ struct CPUMapper {
             iter++;
           }
 
-          // {
-          //   KeyType k = 4035225266123964417;
-          //   if (c.data().mpi_rank_ == 0) {
-          //     const Cell &cc = *(c.data().ht_gtree_.find(k)->second);
-          //     std::cout << "debug: #2" << __FILE__ << ":"  << __LINE__ << " " << "key=" << k << std::endl;
-          //     std::cout << "debug: #2 M=" << cc.attr().M << std::endl;
-          //   }
-          // }
-          
           c.data().local_upw_results_.clear();
           map1_dir_ = Map1Dir::None; // Upward is done.
           return;
@@ -338,10 +309,6 @@ struct CPUMapper {
           map1_dir_ = Map1Dir::None;
           return;
 
-        case LET::MAP1_NO_MATTER:
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_NO_MATTER" << std::endl;
-          break;
-          
         default:
           assert(0);
           for (index_t i = 0; i < iter.size(); i++) {
@@ -399,53 +366,6 @@ struct CPUMapper {
     }
   }
   
-
-#if 0
-  /**
-   * CPUMapper::DownwardMap (deperecated)
-   */
-  template<class Funct, class...Args>
-  inline void DownwardMap(Funct f, Cell &c, Args...args) {
-    // This function is deprecated.
-    TAPAS_ASSERT(!"Deperecated function");
-    abort();
-    
-    Cell::DownwardMap(f, c, args...);
-  }
-#endif
-
-#if 0
-  /**
-   * CPUMapper::Map (SubcellIterator)
-   * 1-parameter Map for SubCellIterator
-   * This covers parent-to-child or child-to-parent tree traversal
-   * User's algorithm function f takes (at least) 2 arguments: parent cell and child cell.
-   */
-  template <class Funct, class...Args>
-  void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args...args) {
-    using Th = typename Cell::Threading;
-    typename Th::TaskGroup tg;
-
-    TAPAS_ASSERT(iter.index() == 0);
-
-    const auto &data = iter.cell().data();
-    KeyType k = iter.cell().key();
-
-    for (index_t i = 0; i < iter.size(); i++) {
-      // In downward mode, if the subcells are out of the local process
-      // (= the cell is a global leaf but not a local root)
-      // just skip if.
-      if (map1_dir_ == Map1Dir::Downward) {
-        KeyType ck = SFC::Child(iter.cell().key(), i);
-        if (data.ht_.count(ck) == 0) continue;
-      }
-
-      tg.createTask([=]() mutable { this->Map(f, iter.cell(), *iter, args...); });
-      iter++;
-    }
-    tg.wait();
-  }
-#endif
 
   // cell x cell
   template <class Funct, class...Args>
@@ -529,6 +449,12 @@ struct CPUMapper {
   template <class Funct, class...Args>
   inline void Map(Funct f, SubCellIterator<Cell> &c1, SubCellIterator<Cell> &c2, Args...args) {
     Map(f, *c1, *c2, args...);
+  }
+
+  template<class Funct, class...Args>
+  inline void Map(Funct f, Cell& c, Args...args) {
+    std::cout << "Map(F, Cell) is called" << std::endl;
+    f(c, args...);
   }
 
   // bodies

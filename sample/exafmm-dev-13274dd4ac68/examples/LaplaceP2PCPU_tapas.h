@@ -35,7 +35,7 @@ struct P2P {
       tapas::Accumulate(Bi_attr[1], -dX[0]);
       tapas::Accumulate(Bi_attr[2], -dX[1]);
       tapas::Accumulate(Bi_attr[3], -dX[2]);
-      
+
       //printf("R2 %.10f invR2 %.10f dX %.10f %.10f %.10f\n", R2, invR2, dX[0], dX[1], dX[2]);
       
       if (mutual && Bi.X != Bj.X) {

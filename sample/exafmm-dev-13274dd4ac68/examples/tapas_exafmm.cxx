@@ -111,22 +111,6 @@ struct FMM_Upward {
       TapasFMM::Map(*this, child.subcells(), theta);
     }
 
-    // if (child.key() == 2305843009213693953) {
-    //   std::cout << "M2M: " << child.key() << " M=" << child.attr().M << std::endl;
-    // }
-    
-    if (child.key() == 2305843009213693953) {
-      auto &c = child;
-      auto &data = c.data();
-      std::cout << "M2M: ------------------------------" << std::endl;
-      std::cout << "M2M: " << c.key() << " parent=" << c.parent().key() << std::endl;
-      std::cout << "M2M: " << c.key() << " IsLeaf=" << c.IsLeaf() << std::endl;
-      std::cout << "M2M: " << c.key() << " g-tree? " << data.ht_gtree_.count(c.key()) << std::endl;
-      std::cout << "M2M: " << c.key() << " global leaf? " << data.gleaves_.count(c.key()) << std::endl;
-      std::cout << "M2M: " << c.key() << " local root? " << data.lroots_.count(c.key()) << std::endl;
-      std::cout << "M2M: " << c.key() << " M=" << c.attr().M << std::endl;
-    }
-    
     M2M(parent, child);
   }
 };
@@ -216,15 +200,6 @@ struct FMM_DTT {
   template<class Cell>
   inline void operator()(Cell &Ci, Cell &Cj, int mutual, int nspawn, real_t theta) {
 
-// #ifdef COUNT
-//     if (Ci.IsRoot() && Cj.IsRoot()) { // ad-hoc
-//       ResetCount();
-//     }
-// #endif
-
-    // TODO:
-    //if (Ci.nb() == 0 || Cj.nb() == 0) return;
-
     //real_t R2 = (Ci.center() - Cj.center()).norm();
     real_t R2 = Ci.Distance(Cj, tapas::Center);
     vec3 Xperiodic = 0; // dummy; periodic is not ported
@@ -240,13 +215,9 @@ struct FMM_DTT {
     Ri = (Ri / 2 * 1.00001) / theta;
     Rj = (Rj / 2 * 1.00001) / theta;
 
-    //DebugWatchCell(Ci, Cj, Ri, Rj, R2);
-
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
-      // tapas::Apply(M2L, Ci, Cj, Xperiodic, mutual); // \todo
       // if (!Cell::Inspector) M2L(Ci, Cj, Xperiodic, mutual);
       M2L(Ci, Cj, Xperiodic, mutual);                   //  M2L kernel
-      
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
       TapasFMM::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic, mutual);
     } else {                                                    // Else if cells are close but not bodies
@@ -588,17 +559,10 @@ int main(int argc, char ** argv) {
       logger::startTimer("Upward pass");
       double bt = GetTime();
 
-      if (rank == 0) {
-        std::cout << "================================ <Upward> ==================================" << std::endl;
-      }
       if (!root->IsLeaf()) {
         TapasFMM::Map(FMM_Upward(), root->subcells(), args.theta);
       }
-
-      if (rank == 0) {
-        std::cout << "================================ </Upward> ==================================" << std::endl;
-      }
-
+      
       double et = GetTime();
       logger::stopTimer("Upward pass");
 
@@ -638,13 +602,10 @@ int main(int argc, char ** argv) {
       logger::startTimer("Downward pass");
       double bt = GetTime();
 
-      if (rank == 0) {
-        std::cout << "================================ <Downward> ==================================" << std::endl;
-      }
-      TapasFMM::Map(FMM_Downward(), root->subcells());
-      //tapas::DownwardMap(FMM_Downward(), *root);
-      if (rank == 0) {
-        std::cout << "================================ </Downward> ==================================" << std::endl;
+      if (root->IsLeaf()) {
+        TapasFMM::Map(L2P, root->bodies(), root);
+      } else {
+        TapasFMM::Map(FMM_Downward(), root->subcells());
       }
 
       double et = GetTime();

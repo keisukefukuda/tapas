@@ -137,37 +137,6 @@ void evalLocal(real_t rho, real_t alpha, real_t beta, complex_t * Ynm) {
 }
 
 
-#if 0
-vecP dM = {0.0};
-vec3 dX = tovec(C.center() - Cj.center());
-
-real_t rho, alpha, beta;
-cart2sph(rho, alpha, beta, dX);
-evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
-
-for (int j=0; j<P; j++) {
-  for (int k=0; k<=j; k++) {
-    int jks = j * (j + 1) / 2 + k;
-    complex_t M = 0;
-    for (int n=0; n<=j; n++) {
-      for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
-        int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
-        int nm    = n * n + n - m;
-        M += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
-      }
-      for (int m=k; m<=std::min(n,j+k-n); m++) {
-        int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
-        int nm    = n * n + n - m;
-        M += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
-      }
-    }
-    dM[jks] += M;
-    attr.M[jks] += M;
-  }
-}
-
-#endif
-
 template<class Cell>
 void P2M(Cell &C) {
   complex_t Ynm[P*P], YnmTheta[P*P];
@@ -181,8 +150,6 @@ void P2M(Cell &C) {
     cart2sph(rho, alpha, beta, dX);
     evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
     
-    //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << " B[" << i << "].SRC=" << B.SRC << std::endl;
-    
     for (int n=0; n<P; n++) {
       for (int m=0; m<=n; m++) {
         int nm  = n * n + n - m;
@@ -192,10 +159,6 @@ void P2M(Cell &C) {
     }
   }
   C.attr() = attr;
-  if (C.key() == 4) {
-    std::cout << "P2M: key=" << C.key() << " M = " << C.attr().M << std::endl;
-  }
-  //e.out() << std::setw(10) << Tapas::SFC::Simplify(C.key()) << "M=" << C.attr().M << std::endl;
 }
 
 void SumP(vecP &a, const vecP &b) {
@@ -249,10 +212,6 @@ template<class Cell>
 void M2M(Cell &parent, Cell &child) {
   vecP dM = calcM2M(child, parent.center()); // partial contribution from child's M to parent's M
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
-
-  if (parent.key() == 2305843009213693953) {
-    std::cout << "M2M: " << parent.key() << " child=" << child.key() << " " << "dM=" << dM << std::endl;
-  }
 }
 
 template<class Cell>
@@ -265,11 +224,6 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   CellAttr attr_i = Ci.attr();
   CellAttr attr_j = Cj.attr();
 
-  // if (Ci.data().mpi_rank_ == 0) {
-  //   std::cout << "M2L: " << Ci.key() << " " << Cj.key() << " " << "Ci before L= " << Ci.attr().L << std::endl;
-  //   std::cout << "M2L: " << Ci.key() << " " << Cj.key() << " " << "Cj M= " << Cj.attr().M << std::endl;
-  // }
-  
   vec3 dX;
   asn(dX, Ci.center() - Cj.center());
   dX -= Xperiodic;
@@ -302,8 +256,6 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
           int nms  = n * (n + 1) / 2 - m;
           int jnkm = (j + n) * (j + n) + j + n + m - k;
           Li += std::conj(attr_j.M[nms]) * Cnm * Ynmi[jnkm];
-          //std::cerr << "M: " << attr_j.M[nms] << std::conj(attr_j.M[nms]) << std::endl;
-          //std::cerr << "Y: " << Ynmi[jnkm] << std::endl;
           if (mutual) Lj += std::conj(attr_i.M[nms]) * Cnm * Ynmj[jnkm];
         }
         for (int m=0; m<=n; m++) {
@@ -311,7 +263,6 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
           int jnkm = (j + n) * (j + n) + j + n + m - k;
           real_t Cnm2 = Cnm * ODDEVEN((k-m)*(k<m)+m);
           Li += attr_j.M[nms] * Cnm2 * Ynmi[jnkm];
-          //std::cerr << "M: " << attr_j.M[nms] << std::conj(attr_j.M[nms]) << std::endl;
           if (mutual) Lj += attr_i.M[nms] * Cnm2 * Ynmj[jnkm];
         }
       }
@@ -326,10 +277,6 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   
   Ci.attr() = attr_i;
   if (mutual) Cj.attr() = attr_j;
-  
-  if (Ci.data().mpi_rank_ == 0) {
-    std::cout << "M2L: " << Ci.key() << " " << Cj.key() << " " << "Ci after L= " << Ci.attr().L << std::endl;
-  }
 }
 
 void L2P(Body &b, BodyAttr &ba, TapasFMM::Cell *c) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.
@@ -372,27 +319,10 @@ void L2L(Cell &parent, Cell &child) {
   vec3 dX = tovec(child.center() - parent.center());
   real_t rho, alpha, beta;
 
-  // if (parent.key() == 1 && child.key() == 2) {
-  //   std::cout << "L2L: before key=" << child.key() << "  L=" << child.attr().L << std::endl;
-  // }
-  
   CellAttr attr = child.attr();
 
   vecP dL = {0.0};
 
-  if (parent.data().mpi_rank_ == 0) {
-    std::cout << "L2L: ----------------" << std::endl;
-    std::cout << "L2L: " << parent.key() << " "
-              << child.key() << " "
-              << "parent L= " << parent.attr().L << std::endl;
-    std::cout << "L2L: " << parent.key() << " "
-              << child.key() << " "
-              << "child  L= " << child.attr().L << std::endl;
-    std::cout << "L2L: " << parent.key() << " "
-              << child.key() << " "
-              << "child  M= " << child.attr().M << std::endl;
-  }
-  
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
 #if MASS
@@ -420,17 +350,6 @@ void L2L(Cell &parent, Cell &child) {
       attr.L[jks] += L;
     }
   }
-  
-  if (parent.data().mpi_rank_ == 0) {
-    std::cout << "L2L: ----------------" << std::endl;
-    std::cout << "L2L: " << parent.key() << " "
-              << child.key() << " "
-              << "dL= " << parent.attr().L << std::endl;
-    std::cout << "L2L: " << parent.key() << " "
-              << child.key() << " "
-              << "child L= " << child.attr().L << std::endl;
-  }
-  
   child.attr() = attr;
 }
 
