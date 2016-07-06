@@ -124,7 +124,7 @@ struct FMM_Downward {
     
     if (child.IsLeaf()) {
       if (child.nb() > 0) {
-        TapasFMM::Map(L2P, child.bodies(), &child);
+        TapasFMM::Map(L2P, child.bodies());
       }
     } else {
       TapasFMM::Map(*this, child.subcells());
@@ -603,7 +603,7 @@ int main(int argc, char ** argv) {
       double bt = GetTime();
 
       if (root->IsLeaf()) {
-        TapasFMM::Map(L2P, root->bodies(), root);
+        TapasFMM::Map(L2P, root->bodies());
       } else {
         TapasFMM::Map(FMM_Downward(), root->subcells());
       }
