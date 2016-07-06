@@ -41,6 +41,12 @@ vec<DIM, FP> tovec(const tapas::Vec<DIM, FP> &src) {
   return dst;
 }
 
+void SumP(vecP &a, const vecP &b) {
+  for (int i = 0; i < (int)a.size(); i++) {
+    a[i] += b[i];
+  }
+}
+
 //! Get r,theta,phi from x,y,z
 void cart2sph(real_t & r, real_t & theta, real_t & phi, vec3 dX) {
   r = sqrt(norm(dX));                                           // r = sqrt(x^2 + y^2 + z^2)
@@ -136,54 +142,44 @@ void evalLocal(real_t rho, real_t alpha, real_t beta, complex_t * Ynm) {
   }                                                             // End loop over m in Ynm
 }
 
-
-template<class Cell>
-void P2M(Cell &C) {
-  complex_t Ynm[P*P], YnmTheta[P*P];
-
-  CellAttr attr = C.attr();
-  
-  for (size_t i = 0; i < C.nb(); ++i) {
-    const Body &B = C.body(i);
-    vec3 dX = B.X - tovec(C.center());
+// Each paritcle to Multipole
+struct P2M {
+  template<class Cell>
+  void operator()(Cell &C, Body &b, BodyAttr&) {
+    vec3 dX = b.X - tovec(C.center());
+    vecP dM = {0.0};
     real_t rho, alpha, beta;
+    complex_t Ynm[P*P], YnmTheta[P*P];
     cart2sph(rho, alpha, beta, dX);
     evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
-    
+
     for (int n=0; n<P; n++) {
       for (int m=0; m<=n; m++) {
         int nm  = n * n + n - m;
         int nms = n * (n + 1) / 2 + m;
-        tapas::Accumulate(attr.M[nms], B.SRC * Ynm[nm]);
+        dM[nms] += b.SRC * Ynm[nm];
       }
     }
+  
+    TapasFMM::Reduce(C, C.attr().M, dM, SumP);
   }
-  C.attr() = attr;
-}
-
-void SumP(vecP &a, const vecP &b) {
-  for (int i = 0; i < (int)a.size(); i++) {
-    a[i] += b[i];
-  }
-}
-
-const constexpr int CHECK_CELL = 3;
+};
 
 // calculate M2M evaluation.
 // Cj : A child of a cell
 // center : center of the parent
 template<typename Cell>
-vecP calcM2M(const Cell &Cj, const typename Cell::Vec &center) {
+void M2M(Cell &parent, Cell &child) {
   complex_t Ynm[P*P], YnmTheta[P*P];
   
-  vec3 dX = tovec(center - Cj.center());
+  vec3 dX = tovec(parent.center() - child.center());
     
   real_t rho, alpha, beta;
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
 
-  vecP M = {0.0};
-  //vecP M = Cj.attr().M;
+  vecP dM = {0.0};
+  //vecP M = child.attr().M;
 
   for (int j=0; j<P; j++) {
     for (int k=0; k<=j; k++) {
@@ -193,24 +189,18 @@ vecP calcM2M(const Cell &Cj, const typename Cell::Vec &center) {
         for (int m=std::max(-n,-j+k+n); m<=std::min(k-1,n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 + k - m;
           int nm    = n * n + n - m;
-          M_jks += Cj.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
+          M_jks += child.attr().M[jnkms] * Ynm[nm] * real_t(IPOW2N(m) * ODDEVEN(n));
         }
         for (int m=k; m<=std::min(n,j+k-n); m++) {
           int jnkms = (j - n) * (j - n + 1) / 2 - k + m;
           int nm    = n * n + n - m;
-          M_jks += std::conj(Cj.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
+          M_jks += std::conj(child.attr().M[jnkms]) * Ynm[nm] * real_t(ODDEVEN(k+n+m));
         }
       }
-      M[jks] += M_jks;
+      dM[jks] += M_jks;
     }
   }
 
-  return M;
-}
-
-template<class Cell>
-void M2M(Cell &parent, Cell &child) {
-  vecP dM = calcM2M(child, parent.center()); // partial contribution from child's M to parent's M
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
 }
 

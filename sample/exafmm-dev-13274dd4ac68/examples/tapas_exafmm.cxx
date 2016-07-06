@@ -106,11 +106,12 @@ struct FMM_Upward {
     
     // Compute the child cell recursively
     if (child.IsLeaf()) {
-      P2M(child);
+      TapasFMM::Map(P2M(), child.bodies()); // P2M
     } else {
-      TapasFMM::Map(*this, child.subcells(), theta);
+      TapasFMM::Map(*this, child.subcells(), theta); // recursive
     }
 
+    // M2M
     M2M(parent, child);
   }
 };
