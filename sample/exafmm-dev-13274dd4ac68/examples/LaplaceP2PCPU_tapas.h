@@ -18,7 +18,7 @@ extern uint64_t numP2P;
 #endif
 
 struct P2P {
-  template<class _Body, class _BodyAttr>
+  template<typename _Body, typename _BodyAttr>
   TAPAS_KERNEL
   void operator()(_Body &Bi, _BodyAttr &Bi_attr, _Body &Bj, _BodyAttr &Bj_attr, vec3 Xperiodic, int mutual) {
     INC_P2P;
@@ -31,10 +31,10 @@ struct P2P {
       real_t invR2 = 1.0 / R2;
       real_t invR = Bi.SRC * Bj.SRC * sqrt(invR2);
       dX *= invR2 * invR;
-      tapas::Accumulate(Bi_attr[0], invR);
-      tapas::Accumulate(Bi_attr[1], -dX[0]);
-      tapas::Accumulate(Bi_attr[2], -dX[1]);
-      tapas::Accumulate(Bi_attr[3], -dX[2]);
+      TapasFMM::Reduce(Bi, Bi_attr[0], invR);
+      TapasFMM::Reduce(Bi, Bi_attr[1], -dX[0]);
+      TapasFMM::Reduce(Bi, Bi_attr[2], -dX[1]);
+      TapasFMM::Reduce(Bi, Bi_attr[3], -dX[2]);
 
       //printf("R2 %.10f invR2 %.10f dX %.10f %.10f %.10f\n", R2, invR2, dX[0], dX[1], dX[2]);
       

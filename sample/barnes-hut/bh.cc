@@ -134,15 +134,15 @@ static real_t distR2(const tapas::Vec<3, double> &p, const float4 &q) {
 
 struct ComputeForce {
   
-  template<class Body, class BodyAttr>
-  inline void operator()(Body &p1, BodyAttr &p1_attr, float4 approx, real_t eps2) const {
+  template<class Cell, class Body, class BodyAttr>
+  inline void operator()(Cell &, Body &p1, BodyAttr &p1_attr, float4 approx, real_t eps2) const {
     real_t dx = approx.x - p1.x; // const BodyType * BodyIterator::operator->()
     real_t dy = approx.y - p1.y;
     real_t dz = approx.z - p1.z;
     real_t R2 = dx * dx + dy * dy + dz * dz + eps2;
     real_t invR = 1.0 / std::sqrt(R2);
     real_t invR3 = invR * invR * invR;
-
+    
     auto tmp = p1_attr;  // const ProxyBodyAttrType &BodyIterator::attr() const;
     tmp.x += dx * invR3 * approx.w;
     tmp.y += dy * invR3 * approx.w;
