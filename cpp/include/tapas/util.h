@@ -316,6 +316,48 @@ class RankCSV {
 
 #endif // USE_MPI
 
+template<typename T>
+std::string type_name()
+{
+  int status;
+  std::string tname = typeid(T).name();
+  char *demangled_name = abi::__cxa_demangle(tname.c_str(), NULL, NULL, &status);
+  if(status == 0) {
+    tname = demangled_name;
+    std::free(demangled_name);
+  }
+  return tname;
+}
+
+template<typename T>
+std::string type_name(T& ) {
+  return type_name<T>();
+}
+
+/**
+ * \brief Utility class to extract function signature(return value and arity).
+ */
+template<class Signature>
+struct function_traits;
+
+template<typename R, typename...Args>
+struct function_traits<R(Args...)> {
+  using return_type = R;
+  using arity = std::tuple<Args...>;
+};
+
+template<typename R, typename...Args>
+struct function_traits<R(*)(Args...)> {
+  using return_type = R;
+  using arity = std::tuple<Args...>;
+};
+
+template<typename T, typename R, typename...Args>
+struct function_traits<R(T::*)(Args...)> {
+  using return_type = R;
+  using arity = std::tuple<Args...>;
+};
+
 } // namespace util
 } // namespace tapas
 
