@@ -5,6 +5,7 @@
 #include <cxxabi.h>
 #include <chrono>
 
+#include "tapas/util.h"
 #include "tapas/iterator.h"
 
 extern "C" {
@@ -13,6 +14,25 @@ extern "C" {
   void myth_stop_papi_counter(void);
 }
 
+template<class Funct, class Cell>
+struct CheckMutualCell {
+  using ft = tapas::util::function_traits<decltype(&Funct::template operator()<Cell>)>;
+  using param1 = typename std::tuple_element<0, typename ft::arity>::type;
+  using param2 = typename std::tuple_element<1, typename ft::arity>::type;
+
+  // If the second parameter is const reference, it's non-mutual
+  static const constexpr bool value = std::is_same<param1, param2>::value && !std::is_same<param2, const Cell&>::value;
+};
+
+template<class Funct, class Body, class BodyAttr>
+struct CheckMutualBody {
+  using ft = tapas::util::function_traits<decltype(&Funct::template operator()<Body, BodyAttr>)>;
+  using param1 = typename std::tuple_element<0, typename ft::arity>::type;
+  using param3 = typename std::tuple_element<2, typename ft::arity>::type;
+
+  // If the second parameter is const reference, it's non-mutual
+  static const constexpr bool value = std::is_same<param1, param3>::value && !std::is_same<param3, const Body&>::value;
+};
 
 namespace tapas {
 namespace hot {
@@ -40,7 +60,11 @@ static void ProductMapImpl(Mapper &mapper,
   const constexpr int kT1 = T1_Iter::kThreadSpawnThreshold;
   const constexpr int kT2 = T2_Iter::kThreadSpawnThreshold;
 
-  bool am = iter1.AllowMutualInteraction(iter2);
+  bool mutual = CheckMutualCell<Funct, CellType>::value && (iter1.cell() == iter2.cell());
+
+  if (CheckMutualCell<Funct, CellType>::value) {
+    std::cout << "Doing Cell Mutual interaction" << std::endl;
+  }
 
 #if 0
   // Debug code
@@ -77,9 +101,7 @@ static void ProductMapImpl(Mapper &mapper,
         T2_Iter rhs = iter2 + j;
         // if i and j are mutually interactive, f(i,j) is evaluated only once.
 
-        //bool am = lhs.AllowMutualInteraction(rhs);
-
-        if ((am && i <= j) || !am) {
+        if ((mutual && i <= j) || !mutual) {
           if (lhs.IsLocal()) {
 #ifdef TAPAS_COMPILER_INTEL
 # pragma forceinline
@@ -135,7 +157,15 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
   TAPAS_ASSERT(beg1 < end1 && beg2 < end2);
   //using BodyIterator = typename CELL::BodyIterator;
 
-  bool am = iter1.AllowMutualInteraction(iter2);
+  using Body = typename CELL::Body;
+  using BodyAttr = typename CELL::BodyAttr;
+  bool mutual = CheckMutualBody<Funct, Body, BodyAttr>::value && (iter1.cell() == iter2.cell());
+
+  if (CheckMutualBody<Funct, Body, BodyAttr>::value) {
+    std::cout << "Doing body Mutual interaction" << std::endl;
+  } else {
+    std::cout << "Doing body *non* Mutual interaction" << std::endl;
+  }
 
   CELL &c1 = iter1.cell();
   CELL &c2 = iter2.cell();
@@ -147,7 +177,7 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
   //auto &bodies = &data->local_bodies_;
   //auto &attrs = data->local_body_attrs_;
 
-  if (am) {
+  if (mutual) {
     for (int i = beg1; i < end1; i++) {
       for (int j = beg2; j <= i; j++) {
         if (1) {

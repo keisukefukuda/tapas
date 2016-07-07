@@ -116,7 +116,13 @@ class CellIterator {
   CELL &operator*() {
     return c_;
   }
+  CELL &cell() {
+    return c_;
+  }
   const CELL &operator*() const {
+    return c_;
+  }
+  const CELL &cell() const {
     return c_;
   }
   CELL &operator++() {
