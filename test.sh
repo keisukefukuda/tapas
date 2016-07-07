@@ -273,13 +273,16 @@ function accuracyCheck() {
     PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
     AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
 
-    if [[ $(python -c "print($PERR > $MAX_ERR)") == "True" ]]; then
+    echo "PERR='$PERR'"
+    echo "AERR='$AERR'"
+
+    if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
     else
         echoGreen pot check OK
     fi
-    if [[ $(python -c "print($AERR > $MAX_ERR)") == "True" ]]; then
+    if [[ $(python -c "print(float('$AERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
     else
