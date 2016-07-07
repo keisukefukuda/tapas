@@ -78,7 +78,7 @@ struct Distance<_DIM, CenterClass, _FP> {
   using Reg = Region<Dim, FP>;
 
   template<typename Cell>
-  static inline FP Calc(Cell &c1, Cell &c2) {
+  static inline FP Calc(const Cell &c1, const Cell &c2) {
     return (c1.center() - c2.center()).norm();
   }
 

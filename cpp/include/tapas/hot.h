@@ -502,7 +502,7 @@ class Cell {
   }
   const Mapper &mapper() const { return data_->mapper; }
 
-  inline FP Distance(Cell &rhs, tapas::CenterClass) {
+  inline FP Distance(const Cell &rhs, tapas::CenterClass) {
     return tapas::Distance<Dim, tapas::CenterClass, FP>::Calc(*this, rhs);
   }
 

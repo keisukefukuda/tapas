@@ -195,11 +195,15 @@ void DebugWatchCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, real_t R2) {
 
 #endif
 
+#ifdef NO_MUTUAL
+//#define _CONST const
+#define _CONST
+#endif
 
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
   template<class Cell>
-  inline void operator()(Cell &Ci, Cell &Cj, int mutual, int nspawn, real_t theta) {
+  inline void operator()(Cell &Ci, _CONST Cell &Cj, int mutual, int nspawn, real_t theta) {
 
     //real_t R2 = (Ci.center() - Cj.center()).norm();
     real_t R2 = Ci.Distance(Cj, tapas::Center);
@@ -227,7 +231,7 @@ struct FMM_DTT {
   }
 
   template<class Cell>
-  inline void tapas_splitCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, int mutual, int nspawn, real_t theta) {
+  inline void tapas_splitCell(Cell &Ci, _CONST Cell &Cj, real_t Ri, real_t Rj, int mutual, int nspawn, real_t theta) {
     (void) Ri; (void) Rj;
     bool Ci_IsLeaf = Ci.IsLeaf();
     if (Cj.IsLeaf()) {
