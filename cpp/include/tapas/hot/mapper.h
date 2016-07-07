@@ -23,6 +23,7 @@ using clock = std::chrono::system_clock;
 
 template<class Cell, class Body, class LET>struct CPUMapper;
 
+
 /**
  * @brief Helper subroutine called from Mapper::Map
  */
@@ -42,6 +43,7 @@ static void ProductMapImpl(Mapper &mapper,
   bool am = iter1.AllowMutualInteraction(iter2);
 
 #if 0
+  // Debug code
   std::string T1_str, T2_str;
   {
     int status;
@@ -234,8 +236,8 @@ struct CPUMapper {
         }
       } else { // lrc.IsLeaf()
         // Upward algorithm function takes two cells: parent and child.
-        // The problem here is taht if a local root is also a leaf (which means a local tree is just a leaf),
-        // the cell is not yet processed.
+        // The problem here is that if a local root is just a leaf,
+        // the cell is not yet processed. 
         // Thus, such parent/child pairs must be computed before the communication.
         assert(lrc.IsRoot() == false);
         Cell &p = lrc.parent();
@@ -249,6 +251,8 @@ struct CPUMapper {
 
   /**
    * CPUMapper::Map  (1-parameter)
+   * Map-1 with SubCelliterator is for Upward or Downward operation.
+   * First, determine the direction (up/down) and if up start from local upward.
    */
   template<class Funct, class...Args>
   //inline void Map(Funct f, Cell &c, Args...args) {
