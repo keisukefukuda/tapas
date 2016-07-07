@@ -1508,25 +1508,6 @@ struct Tapas {
     c.mapper().Map(f, c, args...);
   }
 
-#if 0
-  template<typename MapFunct, typename ReduceFunct, typename T, typename...Args>
-  static inline T MapReduce(MapFunct mapf, tapas::iterator::SubCellIterator<Cell> iter, const T &init, ReduceFunct reducef, Args...args) {
-    T v = init;
-    for (index_t i = 0; i < iter.size(); i++) {
-      T rhs = mapf(*iter, args...);
-      v = reducef(v, rhs);
-      iter++;
-    }
-    return v;
-  }
-
-  // To be removed
-  template<typename MapFunct, typename ReduceFunct, typename T, typename...Args>
-  static inline T MapReduce(MapFunct mf, tapas::iterator::SubCellIterator<ProxyCell> iter, const T &init, ReduceFunct rf, Args...args) {
-    return init;
-  }
-#endif
-
   template<typename T, typename ReduceFunc>
   static inline void Reduce(Cell &/*parent*/, const T& dst, const T& src, ReduceFunc f) {
     T& d = const_cast<T&>(dst);
