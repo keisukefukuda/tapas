@@ -7,10 +7,10 @@
 
 #include "tapas.h"
 
-#ifdef NO_MUTUAL
-# define _CONST const
-#else
+#ifdef FMM_MUTUAL
 # define _CONST
+#else
+# define _CONST const
 #endif
 
 struct CellAttr {

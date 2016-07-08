@@ -293,7 +293,7 @@ function accuracyCheck() {
 for nb in ${NB[@]}; do
     for ncrit in ${NCRIT[@]}; do
         for dist in ${DIST[@]}; do
-            for mutual in 0 1; do
+            for mutual in "" "_mutual"; do
                 rm -f $TMPFILE; sleep 1s
 
                 # We no longer check serial_tapas
@@ -306,11 +306,13 @@ for nb in ${NB[@]}; do
                 # echo
                 # echo
 
+                BIN=$SRC_DIR/parallel_tapas${mutual}
+
                 for np in ${NP[@]}; do
                     # run Exact LET TapasFMM
                     rm -f $TMPFILE; sleep 1s
-                    echoCyan ${MPIEXEC} -n $np $SRC_DIR/parallel_tapas -n $nb -c $ncrit -d $dist --mutual $mutual
-                    ${MPIEXEC} -n $np $SRC_DIR/parallel_tapas -n $nb -c $ncrit -d $dist --mutual $mutual > $TMPFILE
+                    echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist 
+                    ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist > $TMPFILE
                     cat $TMPFILE
 
                     accuracyCheck $TMPFILE

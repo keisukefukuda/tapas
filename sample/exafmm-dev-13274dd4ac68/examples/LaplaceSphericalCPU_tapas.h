@@ -160,7 +160,7 @@ struct P2M {
         dM[nms] += b.SRC * Ynm[nm];
       }
     }
-  
+
     TapasFMM::Reduce(C, C.attr().M, dM, SumP);
   }
 };
@@ -171,9 +171,9 @@ struct P2M {
 template<typename Cell>
 void M2M(Cell &parent, Cell &child) {
   complex_t Ynm[P*P], YnmTheta[P*P];
-  
+
   vec3 dX = tovec(parent.center() - child.center());
-    
+
   real_t rho, alpha, beta;
   cart2sph(rho, alpha, beta, dX);
   evalMultipole(rho, alpha, beta, Ynm, YnmTheta);
@@ -204,11 +204,26 @@ void M2M(Cell &parent, Cell &child) {
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
 }
 
+#ifdef FMM_MUTUAL
+# define IF_MUTUAL(stmt) stmt
+#else
+# define IF_MUTUAL(stmt)
+#endif
+
 template<class Cell>
-void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic, bool mutual) {
+void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   SCOREP_USER_REGION("M2L", SCOREP_USER_REGION_TYPE_FUNCTION);
   INC_M2L;
-  
+
+  static int cnt = 0;
+  if (++cnt < 10) {
+#ifdef FMM_MUTUAL
+    std::cout << "Mutual M2L" << std::endl;
+#else
+    std::cout << "Non-mutual M2L" << std::endl;
+#endif
+  }
+
   complex_t Ynmi[P*P], Ynmj[P*P];
   //vec3 dX = Ci.attr().X - Cj.attr().X - Xperiodic;
   CellAttr attr_i = Ci.attr();
@@ -221,7 +236,7 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic, bool mutual) {
   real_t rho, alpha, beta;
   cart2sph(rho, alpha, beta, dX);
   evalLocal(rho, alpha, beta, Ynmi);
-  if (mutual) evalLocal(rho, alpha+M_PI, beta, Ynmj);
+  IF_MUTUAL( evalLocal(rho, alpha+M_PI, beta, Ynmj) );
 
   for (int j=0; j<P; j++) {
 #if MASS
@@ -236,7 +251,7 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic, bool mutual) {
 #if MASS
       int jk = j * j + j - k;
       Li += Cnm * Ynmi[jk];
-      if (mutual) Lj += Cnm * Ynmj[jk];
+      IF_MUTUAL( Lj += Cnm * Ynmj[jk] );
       for (int n=1; n<P-j; n++)
 #else
       for (int n=0; n<P-j; n++)
@@ -246,29 +261,25 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic, bool mutual) {
           int nms  = n * (n + 1) / 2 - m;
           int jnkm = (j + n) * (j + n) + j + n + m - k;
           Li += std::conj(attr_j.M[nms]) * Cnm * Ynmi[jnkm];
-          if (mutual) Lj += std::conj(attr_i.M[nms]) * Cnm * Ynmj[jnkm];
+          IF_MUTUAL( Lj += std::conj(attr_i.M[nms]) * Cnm * Ynmj[jnkm] );
         }
         for (int m=0; m<=n; m++) {
           int nms  = n * (n + 1) / 2 + m;
           int jnkm = (j + n) * (j + n) + j + n + m - k;
           real_t Cnm2 = Cnm * ODDEVEN((k-m)*(k<m)+m);
           Li += attr_j.M[nms] * Cnm2 * Ynmi[jnkm];
-          if (mutual) Lj += attr_i.M[nms] * Cnm2 * Ynmj[jnkm];
+          IF_MUTUAL( Lj += attr_i.M[nms] * Cnm2 * Ynmj[jnkm] );
         }
       }
 
       // TODO: attr_j can be put out of the outer `for' loop
       attr_i.L[jks] += Li;
-      if (mutual) {
-        attr_j.L[jks] += Lj;
-      }
+      IF_MUTUAL( attr_j.L[jks] += Lj );
     }
   }
-  
+
   Ci.attr() = attr_i;
-#ifndef NO_MUTUAL
-  if (mutual) Cj.attr() = attr_j;
-#endif
+  IF_MUTUAL( Cj.attr() = attr_j );
 }
 
 void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.
@@ -302,7 +313,7 @@ void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to a
   //b.TRG[2] += cartesian[1];
   ba[2] += cartesian[1];
   //b.TRG[3] += cartesian[2];
-  ba[3] += cartesian[2]; 
+  ba[3] += cartesian[2];
 }
 
 template<class Cell>

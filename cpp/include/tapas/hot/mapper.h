@@ -62,10 +62,6 @@ static void ProductMapImpl(Mapper &mapper,
 
   bool mutual = CheckMutualCell<Funct, CellType>::value && (iter1.cell() == iter2.cell());
 
-  if (CheckMutualCell<Funct, CellType>::value) {
-    std::cout << "Doing Cell Mutual interaction" << std::endl;
-  }
-
 #if 0
   // Debug code
   std::string T1_str, T2_str;
@@ -160,12 +156,6 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
   using Body = typename CELL::Body;
   using BodyAttr = typename CELL::BodyAttr;
   bool mutual = CheckMutualBody<Funct, Body, BodyAttr>::value && (iter1.cell() == iter2.cell());
-
-  if (CheckMutualBody<Funct, Body, BodyAttr>::value) {
-    std::cout << "Doing body Mutual interaction" << std::endl;
-  } else {
-    std::cout << "Doing body *non* Mutual interaction" << std::endl;
-  }
 
   CELL &c1 = iter1.cell();
   CELL &c2 = iter2.cell();
@@ -553,6 +543,12 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   template<class Funct, class...Args>
   inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args...args) {
     std::cout << "MapP2 (body)" << std::endl;
+
+    static_assert(!CheckMutualBody<Funct, Body, BodyAttr>::value,
+                  "GPU version does not support mutual interaction in (Body x Body) interaction");
+        
+    bool mutual =  && (iter1.cell() == iter2.cell());
+
     if (prod.size() > 0) {
       vmap_.map2(f, prod, args...);
     }

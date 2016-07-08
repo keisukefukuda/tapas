@@ -198,8 +198,7 @@ void DebugWatchCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, real_t R2) {
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
   template<class Cell>
-  inline void operator()(Cell &Ci, _CONST Cell &Cj, int mutual, int nspawn, real_t theta) {
-
+  inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
     //real_t R2 = (Ci.center() - Cj.center()).norm();
     real_t R2 = Ci.Distance(Cj, tapas::Center);
     vec3 Xperiodic = 0; // dummy; periodic is not ported
@@ -217,46 +216,52 @@ struct FMM_DTT {
 
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
       // if (!Cell::Inspector) M2L(Ci, Cj, Xperiodic, mutual);
-      M2L(Ci, Cj, Xperiodic, mutual);                   //  M2L kernel
+      M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-      TapasFMM::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic, mutual);
+#ifdef FMM_MUTUAL
+      TapasFMM::Map(P2P_mutual(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
+#else
+      TapasFMM::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
+#endif
     } else {                                                    // Else if cells are close but not bodies
-      tapas_splitCell(Ci, Cj, Ri, Rj, mutual, nspawn, theta);   //  Split cell and call function recursively for child
+      tapas_splitCell(Ci, Cj, Ri, Rj, theta);   //  Split cell and call function recursively for child
     }                                                           // End if for multipole acceptance
   }
 
   template<class Cell>
-  inline void tapas_splitCell(Cell &Ci, _CONST Cell &Cj, real_t Ri, real_t Rj, int mutual, int nspawn, real_t theta) {
+  inline void tapas_splitCell(Cell &Ci, _CONST Cell &Cj, real_t Ri, real_t Rj, real_t theta) {
     (void) Ri; (void) Rj;
     bool Ci_IsLeaf = Ci.IsLeaf();
     if (Cj.IsLeaf()) {
       assert(!Ci.IsLeaf());                                   //  Make sure Ci is not leaf
       //for (C_iter ci=Ci0+Ci->ICHILD; ci!=Ci0+Ci->ICHILD+Ci->NCHILD; ci++) {// Loop over Ci's children
-      //  traverse(ci, Cj, Xperiodic, mutual, remote);            //   Traverse a single pair of cells
-      //}                                                         //
+      //  traverse(ci, Cj, Xperiodic, remote);                //   Traverse a single pair of cells
+      //}                                                     //
       //End loop over Ci's children
-      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj), mutual, nspawn, theta);
-    } else if (Ci_IsLeaf) {                               // Else if Ci is leaf
-      //} else if (Ci.IsLeaf()) {                               // Else if Ci is leaf
+      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj), theta);
+    } else if (Ci_IsLeaf) {                                   // Else if Ci is leaf
+      //} else if (Ci.IsLeaf()) {                             // Else if Ci is leaf
       assert(!Cj.IsLeaf());                                   //  Make sure Cj is not leaf
       //for (C_iter cj=Cj0+Cj->ICHILD; cj!=Cj0+Cj->ICHILD+Cj->NCHILD; cj++) {// Loop over Cj's children
-      //  traverse(Ci, cj, Xperiodic, mutual, remote);            //   Traverse a single pair of cells
-      //}                                                         //
+      //  traverse(Ci, cj, Xperiodic, remote);                //   Traverse a single pair of cells
+      //}                                                     //
       //End loop over Cj's children
-      TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), mutual, nspawn, theta);
-    } else if (mutual && Ci == Cj) {
-      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), mutual, nspawn, theta);
+      TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), theta);
+#ifdef FMM_MUTUAL
+    } else if (Ci == Cj) {
+      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), theta);
+#endif
 #if 1
     } else if (Ri >= Rj) {
       // 1-side split
-      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj), mutual, nspawn, theta);
+      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj), theta);
     } else {                                                    // Else if Cj is larger than Ci
-      TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), mutual, nspawn, theta);
+      TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), theta);
     }
 #else
     } else {
       // 2-side split
-      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), mutual, nspawn, theta);
+      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), theta);
   }
 #endif
   }
@@ -314,7 +319,7 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
 
             for (int i = 0; i < Ci->NBODY; i++) {
               for (int j = 0; j < Cj->NBODY; j++) {
-                P2P()(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic, false);
+                P2P()(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
               }
             }
           }
@@ -581,7 +586,7 @@ int main(int argc, char ** argv) {
       double bt = GetTime();
       ResetCount();
 
-      TapasFMM::Map(FMM_DTT(), tapas::Product(*root, *root), args.mutual, args.nspawn, args.theta);
+      TapasFMM::Map(FMM_DTT(), tapas::Product(*root, *root), args.theta);
 
       double et = GetTime();
       logger::stopTimer("Traverse");
@@ -662,6 +667,7 @@ int main(int argc, char ** argv) {
 #endif
 
     if (args.check) {
+      std::cout << "========== check ==========" << std::endl;
       const int numTargets = 100;
       logger::startTimer("Total Direct");
       CheckResult(bodies, numTargets, cycle, args.images);

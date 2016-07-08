@@ -38,9 +38,6 @@ ifneq (,$(PAPI))
 	MPICXX += -DPAPI -lpapi
 endif
 
-CXX += -DNO_MUTUAL
-MPICXX += -DNO_MUTUAL
-
 #CXX += -DTAPAS_DEBUG_HISTOGRAM
 #MPICXX += -DTAPAS_DEBUG_HISTOGRAM
 
@@ -61,7 +58,7 @@ parallel: parallel.cxx $(OBJECTS)
 	$(MPICXX) $^ $(LFLAGS) -o $@
 #	mpirun -np 9 ./a.out --ncrit 256 --distribution plummer
 
-tapas: parallel_tapas
+tapas: parallel_tapas parallel_tapas_mutual
 
 # NOTE: Single node HOT code is no longer maintained.
 serial_tapas: .ALWAYS $(OBJECTS) #tapas_exafmm.cxx $(OBJECTS)
@@ -69,6 +66,9 @@ serial_tapas: .ALWAYS $(OBJECTS) #tapas_exafmm.cxx $(OBJECTS)
 
 parallel_tapas: tapas_exafmm.cxx
 	$(MPICXX) $(DEBUG) $(LOG) -DUSE_MPI tapas_exafmm.cxx $(LFLAGS) -o $@
+
+parallel_tapas_mutual: tapas_exafmm.cxx
+	$(MPICXX) $(DEBUG) $(LOG) -DUSE_MPI -DFMM_MUTUAL tapas_exafmm.cxx $(LFLAGS) -o $@
 
 # Checking O(N) complexity
 complexity: serial.o $(OBJECTS)
