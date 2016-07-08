@@ -20,7 +20,7 @@ extern uint64_t numP2P;
 struct P2P {
   template<typename _Body, typename _BodyAttr>
   TAPAS_KERNEL
-  void operator()(_Body &Bi, _BodyAttr &Bi_attr, _Body &Bj, _BodyAttr &Bj_attr, vec3 Xperiodic, int mutual) {
+  void operator()(_Body &Bi, _BodyAttr &Bi_attr, _CONST _Body &Bj, _CONST _BodyAttr &Bj_attr, vec3 Xperiodic, int mutual) {
     INC_P2P;
     SCOREP_USER_REGION("P2P", SCOREP_USER_REGION_TYPE_FUNCTION);
     
@@ -37,13 +37,15 @@ struct P2P {
       TapasFMM::Reduce(Bi, Bi_attr[3], -dX[2]);
 
       //printf("R2 %.10f invR2 %.10f dX %.10f %.10f %.10f\n", R2, invR2, dX[0], dX[1], dX[2]);
-      
+
+#ifndef NO_MUTUAL
       if (mutual && Bi.X != Bj.X) {
         Bj_attr[0] += invR;
         Bj_attr[1] += dX[0];
         Bj_attr[2] += dX[1];
         Bj_attr[3] += dX[2];
       }
+#endif
     }
   }
 };

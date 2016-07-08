@@ -7,6 +7,12 @@
 
 #include "tapas.h"
 
+#ifdef NO_MUTUAL
+# define _CONST const
+#else
+# define _CONST
+#endif
+
 struct CellAttr {
     real_t R;
     vecP M;

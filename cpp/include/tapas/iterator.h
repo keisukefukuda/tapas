@@ -190,11 +190,10 @@ class SubCellIterator {
   using KeyType = typename CellType::KeyType;
   using SFC = typename CellType::SFC;
 
-  inline SubCellIterator(CellType &c)
+  explicit inline SubCellIterator(CellType &c)
       : c_(c)
       , idx_(0)
-  {
-  }
+  {}
   inline SubCellIterator(const SubCellIterator& rhs)
       : c_(rhs.c_)
       , idx_(rhs.idx_)
@@ -410,19 +409,27 @@ namespace {
 using namespace iterator;
 }
 
-// <subcell, subcell>
+// (subcell x subcell)
 template <class CELL>
 ProductIterator<SubCellIterator<CELL>>
 Product(SubCellIterator<CELL> c1, SubCellIterator<CELL> c2) {
   return ProductIterator<SubCellIterator<CELL>>(c1, c2);
 }
 
-// <subcell, cell>
+// (subcell x cell)
 template <class CELL>
 ProductIterator<SubCellIterator<CELL>, CellIterator<CELL>>
 Product(SubCellIterator<CELL> c1, CELL &c2) { // cand 1
   return ProductIterator<SubCellIterator<CELL>,
                          CellIterator<CELL>>(c1, c2);
+}
+
+// (subcell x const cell)
+template <class CELL>
+ProductIterator<SubCellIterator<CELL>, CellIterator<CELL>>
+    Product(SubCellIterator<CELL> c1, const CELL &c2) { // cand 1
+  CELL &c2x = const_cast<CELL&>(c2);
+  return ProductIterator<SubCellIterator<CELL>, CellIterator<CELL>>(c1, c2x);
 }
 
 // <cell, subcell>

@@ -195,11 +195,6 @@ void DebugWatchCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, real_t R2) {
 
 #endif
 
-#ifdef NO_MUTUAL
-//#define _CONST const
-#define _CONST
-#endif
-
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
   template<class Cell>

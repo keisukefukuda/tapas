@@ -205,7 +205,7 @@ void M2M(Cell &parent, Cell &child) {
 }
 
 template<class Cell>
-void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
+void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic, bool mutual) {
   SCOREP_USER_REGION("M2L", SCOREP_USER_REGION_TYPE_FUNCTION);
   INC_M2L;
   
@@ -266,7 +266,9 @@ void M2L(Cell &Ci, Cell &Cj, vec3 Xperiodic, bool mutual) {
   }
   
   Ci.attr() = attr_i;
+#ifndef NO_MUTUAL
   if (mutual) Cj.attr() = attr_j;
+#endif
 }
 
 void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.

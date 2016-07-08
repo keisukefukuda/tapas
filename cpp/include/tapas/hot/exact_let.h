@@ -388,7 +388,7 @@ struct ExactLET {
     /**
      * \brief Distance Function
      */
-    inline FP Distance(ProxyCell &rhs, tapas::CenterClass) {
+    inline FP Distance(const ProxyCell &rhs, tapas::CenterClass) const {
       return tapas::Distance<Dim, tapas::CenterClass, FP>::Calc(*this, rhs);
     }
 
@@ -446,6 +446,11 @@ struct ExactLET {
       return SubCellIterator<ProxyCell>(*this);
     }
 
+    inline SubCellIterator<ProxyCell> subcells() const {
+      Split();
+      return SubCellIterator<ProxyCell>(const_cast<ProxyCell&>(*this));
+    }
+
     inline ProxyCell &subcell(int nch) {
       if (IsLeaf_real()) {
         std::cerr << "Tapas ERROR: Cell::subcell(int) is called for a leaf cell (in inspector)" << std::endl;
@@ -493,6 +498,11 @@ struct ExactLET {
     ProxyBodyIterator bodies() {
       Touched();
       return ProxyBodyIterator(this);
+    }
+    
+    ProxyBodyIterator bodies() const {
+      Touched();
+      return ProxyBodyIterator(const_cast<ProxyCell*>(this));
     }
 
     const ProxyBody &body(index_t idx) {

@@ -324,11 +324,6 @@ class Cell {
   bool IsLocal() const;
 
   /**
-   * @brief Returns the number of subcells. This is 0 or 2^DIM in HOT algorithm.
-   */
-  size_t nsubcells() const;
-
-  /**
    * @brief Returns idx-th subcell.
    */
   Cell &subcell(int idx);
@@ -402,6 +397,10 @@ class Cell {
 
   BodyIterator bodies() {
     return BodyIterator(*this);
+  }
+
+  BodyIterator bodies() const {
+    return BodyIterator(const_cast<CellType&>(*this));
   }
 
   BodyAttrType &body_attr(index_t idx);
@@ -479,6 +478,10 @@ class Cell {
   SubCellIterator subcells() {
     return SubCellIterator(*this);
   }
+  
+  SubCellIterator subcells() const {
+    return SubCellIterator(const_cast<CellType&>(*this));
+  }
 
   const Reg &region() const { return region_; }
 
@@ -502,7 +505,7 @@ class Cell {
   }
   const Mapper &mapper() const { return data_->mapper; }
 
-  inline FP Distance(const Cell &rhs, tapas::CenterClass) {
+  inline FP Distance(const Cell &rhs, tapas::CenterClass) const {
     return tapas::Distance<Dim, tapas::CenterClass, FP>::Calc(*this, rhs);
   }
 
@@ -513,6 +516,11 @@ class Cell {
  protected:
   // utility/accessor functions
   inline Cell *Lookup(KeyType k) const;
+
+  /**
+   * @brief Returns the number of subcells. This is 0 or 2^DIM in HOT algorithm.
+   */
+  size_t nsubcells() const;
 
   //========================================================
   // Member variables
