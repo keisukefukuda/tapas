@@ -1014,7 +1014,7 @@ struct Vectormap_CUDA_Packed
     //std::cout << "Yey! new Vectormap_CUDA_Packed::Map1() is called. " << iter.size() << std::endl;
     int sz = iter.size();
     for (int i = 0; i < sz; i++) {
-      f(*iter, iter.attr(), args...);
+      f(iter.cell(), *iter, iter.attr(), args...);
       iter++;
     }
   }
