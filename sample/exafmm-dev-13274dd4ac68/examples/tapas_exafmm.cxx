@@ -667,7 +667,6 @@ int main(int argc, char ** argv) {
 #endif
 
     if (args.check) {
-      std::cout << "========== check ==========" << std::endl;
       const int numTargets = 100;
       logger::startTimer("Total Direct");
       CheckResult(bodies, numTargets, cycle, args.images);

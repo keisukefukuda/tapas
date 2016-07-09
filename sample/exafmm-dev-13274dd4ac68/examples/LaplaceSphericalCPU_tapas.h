@@ -215,15 +215,6 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   SCOREP_USER_REGION("M2L", SCOREP_USER_REGION_TYPE_FUNCTION);
   INC_M2L;
 
-  static int cnt = 0;
-  if (++cnt < 10) {
-#ifdef FMM_MUTUAL
-    std::cout << "Mutual M2L" << std::endl;
-#else
-    std::cout << "Non-mutual M2L" << std::endl;
-#endif
-  }
-
   complex_t Ynmi[P*P], Ynmj[P*P];
   //vec3 dX = Ci.attr().X - Cj.attr().X - Xperiodic;
   CellAttr attr_i = Ci.attr();

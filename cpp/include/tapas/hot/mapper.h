@@ -497,7 +497,7 @@ struct CPUMapper {
 
   template<class Funct, class...Args>
   inline void Map(Funct f, Cell& c, Args...args) {
-    std::cout << "Map(F, Cell) is called" << std::endl;
+    //std::cout << "Map(F, Cell) is called" << std::endl;
     f(c, args...);
   }
 
@@ -595,8 +595,6 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   template <class Funct, class...Args>
   inline void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args...args) {
     // Offload bodies x bodies interaction to GPU
-    // not used?
-    std::cout << "*** Map(body) correct one" << std::endl;
     vmap_.map2(f, prod, args...);
   }
 

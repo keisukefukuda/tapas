@@ -27,13 +27,6 @@ struct P2P {
     INC_P2P;
     SCOREP_USER_REGION("P2P", SCOREP_USER_REGION_TYPE_FUNCTION);
 
-#ifndef __CUDACC__
-    static int cnt = 0;
-    if (cnt++ < 10) {
-      std::cout << "Non-mutual P2P" << std::endl;
-    }
-#endif
-
     vec3 dX = Bi.X - Bj.X - Xperiodic;
     real_t R2 = norm(dX) + EPS2;
 
@@ -63,11 +56,6 @@ struct P2P_mutual {
 
     vec3 dX = Bi.X - Bj.X - Xperiodic;
     real_t R2 = norm(dX) + EPS2;
-
-    static int cnt = 0;
-    if (cnt++ < 10) {
-      std::cout << "Mutual P2P" << std::endl;
-    }
 
     if (R2 != 0) {
       real_t invR2 = 1.0 / R2;
