@@ -14,6 +14,13 @@ extern "C" {
   void myth_stop_papi_counter(void);
 }
 
+
+#if !defined(__CUDACC__)
+/**
+ * Check if user's function f is mutual or non-mutual.
+ * These classes are inactivated in CUDA mode since nvcc's C++11 support is not
+ * sufficient and this code does not compile.
+ */
 template<class Funct, class Cell>
 struct CheckMutualCell {
   using ft = tapas::util::function_traits<decltype(&Funct::template operator()<Cell>)>;
@@ -33,6 +40,19 @@ struct CheckMutualBody {
   // If the second parameter is const reference, it's non-mutual
   static const constexpr bool value = std::is_same<param1, param3>::value && !std::is_same<param3, const Body&>::value;
 };
+
+#else /* defined(__CUDACC__) */
+
+template<class Funct, class Cell>
+struct CheckMutualCell {
+  static const constexpr bool value = false;
+};
+
+template<class Funct, class Body, class BodyAttr>
+struct CheckMutualBody {
+  static const constexpr bool value = false;
+};
+#endif
 
 namespace tapas {
 namespace hot {
@@ -543,11 +563,6 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
   template<class Funct, class...Args>
   inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args...args) {
     std::cout << "MapP2 (body)" << std::endl;
-
-    static_assert(!CheckMutualBody<Funct, Body, BodyAttr>::value,
-                  "GPU version does not support mutual interaction in (Body x Body) interaction");
-        
-    bool mutual =  && (iter1.cell() == iter2.cell());
 
     if (prod.size() > 0) {
       vmap_.map2(f, prod, args...);

@@ -263,7 +263,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
 #pragma unroll 128
       for (unsigned int j = 0; j < jlim; j++) {
         BT &p1 = scratchpad[j];
-        f(p0, a0, p1, q1, args...); // q0 -> biattr
+        f(p0, a0, const_cast<const BT&>(p1), const_cast<const BT_ATTR&>(q1), args...); // q0 -> biattr
       }
     }
     __syncthreads();
