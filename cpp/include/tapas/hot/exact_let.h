@@ -752,12 +752,12 @@ struct ExactLET {
 
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
+    to_spawn = false;
     
-    typename Th::TaskGroup tg;
-
     switch(split) {
       case SplitType::SplitBoth:
         if (to_spawn) {
+          typename Th::TaskGroup tg;
           for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
             if (ht.count(trg_ch) > 0) {
               for (KeyType src_ch : SFC::GetChildren(src_key)) {
@@ -780,6 +780,7 @@ struct ExactLET {
         break;
       case SplitType::SplitLeft:
         if (to_spawn) {
+          typename Th::TaskGroup tg;
           for (KeyType ch : SFC::GetChildren(trg_key)) {
             if (ht.count(ch) > 0) {
               tg.createTask([&]() mutable {
@@ -802,6 +803,7 @@ struct ExactLET {
 
       case SplitType::SplitRight:
         if (to_spawn) {
+          typename Th::TaskGroup tg;
           for (KeyType src_ch : SFC::GetChildren(src_key)) {
             tg.createTask([&]() mutable {
                 Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
