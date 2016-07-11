@@ -416,7 +416,7 @@ void PrintProcInfo() {
   if (rank == 0) {
     for (int i = 0; i < size; i++) {
       std::string hn(rbuf_hn + HOSTNAME_LEN * i);
-      std::cout << "MPI Rank " << i << " " << hn << ":" << rbuf_pid[i] << std::endl;
+      std::cout << "MPI Rank " << i << " " << hn << " " << rbuf_pid[i] << std::endl;
     }
   }
 
@@ -435,12 +435,9 @@ int main(int argc, char ** argv) {
 
   MPI_Comm_rank(MPI_COMM_WORLD, &args.mpi_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &args.mpi_size);
-
 #endif
 
-#if 0
   PrintProcInfo();
-#endif
 
 #ifdef TBB
   if (TBB_INTERFACE_VERSION != TBB_runtime_interface_version()) {
