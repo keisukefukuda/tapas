@@ -53,29 +53,29 @@ matrix:
         - COMPILER=g++-5
         - LLVM_VERSION=
 
-    - os: linux
-      compiler: clang
-      env:
-        - COMPILER=clang++
-        - LLVM_VERSION=3.5.2
+    # - os: linux
+    #   compiler: clang
+    #   env:
+    #     - COMPILER=clang++
+    #     - LLVM_VERSION=3.5.2
 
-    - os: linux
-      compiler: clang
-      env:
-        - COMPILER=clang++
-        - LLVM_VERSION=3.6.2
+    # - os: linux
+    #   compiler: clang
+    #   env:
+    #     - COMPILER=clang++
+    #     - LLVM_VERSION=3.6.2
 
-    - os: linux
-      compiler: clang
-      env:
-        - COMPILER=clang++
-        - LLVM_VERSION=3.7.1
+    # - os: linux
+    #   compiler: clang
+    #   env:
+    #     - COMPILER=clang++
+    #     - LLVM_VERSION=3.7.1
 
-    - os: linux
-      compiler: clang
-      env:
-        - COMPILER=clang++
-        - LLVM_VERSION=3.8.0
+    # - os: linux
+    #   compiler: clang
+    #   env:
+    #     - COMPILER=clang++
+    #     - LLVM_VERSION=3.8.0
 
 branches:
   only:
