@@ -357,7 +357,7 @@ struct CPUMapper {
           assert(0);
           for (index_t i = 0; i < iter.size(); i++) {
             // TODO: parallelization
-            KeyType ck = SFC::Child(c.key(), i);
+            //KeyType ck = SFC::Child(c.key(), i);
             f(c, *iter, args...);
             iter++;
           }
