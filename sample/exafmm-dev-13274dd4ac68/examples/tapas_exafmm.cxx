@@ -395,8 +395,8 @@ std::string Now() {
 }
 
 void PrintProcInfo() {
-  const constexpr int HOSTNAME_LEN = 20;
-  char hostname[HOSTNAME_LEN];
+  const constexpr int HOSTNAME_LEN = 50;
+  char hostname[HOSTNAME_LEN] = {0};
   gethostname(hostname, HOSTNAME_LEN);
 
   int pid = getpid();
@@ -420,7 +420,6 @@ void PrintProcInfo() {
     }
   }
 
-  sleep(10); // for gdb attach
   MPI_Barrier(MPI_COMM_WORLD);
 #else
   std::cout << "MPI Rank 0" << hostname << ":" << pid << std::endl;
