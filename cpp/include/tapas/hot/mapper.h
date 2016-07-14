@@ -127,7 +127,7 @@ static void ProductMapImpl(Mapper &mapper,
         }
       }
     }
-  } else if (!mapper.opt_mutual_ && end2 - beg2 == 1) {
+  } else if (!mutual && end2 - beg2 == 1) {
     // Source side (iter2) can be split and paralleilzed.
     // target side cannot paralleize due to accumulation
     int mid1 = (end1 + beg1) / 2;
@@ -137,7 +137,7 @@ static void ProductMapImpl(Mapper &mapper,
     ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, end2, f, args...);
     tg.wait();
   } else if (end2 - beg2 == 1) {
-    // opt_mutual == 1 && end2 - beg2 == 1
+    // mutual == 1 && end2 - beg2 == 1
     int mid1 = (end1 + beg1) / 2;
     ProductMapImpl(mapper, iter1, beg1, mid1, iter2, beg2, end2, f, args...);
     ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, end2, f, args...);
@@ -314,44 +314,65 @@ struct CPUMapper {
         std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
         abort();
       }
-
+      
+      double find_bt = MPI_Wtime();
       auto dir = LET::FindMap1Direction(c, f, args...);
+      double find_et = MPI_Wtime();
 
       switch(dir) {
         case LET::MAP1_UP:
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
-          // Upward
-          map1_dir_ = Map1Dir::Upward;
-          c.data().local_upw_results_.clear();
+          {
+            c.data().time_map1_upw_finddir = (find_et - find_bt);
+            if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
+            // Upward
+            map1_dir_ = Map1Dir::Upward;
+            c.data().local_upw_results_.clear();
           
-          if (c.data().mpi_size_ > 1) {
-            LocalUpwardMap(f, c, args...); // Run local upward first
-          }
+            if (c.data().mpi_size_ > 1) {
+              double bt = MPI_Wtime();
+            
+              LocalUpwardMap(f, c, args...); // Run local upward first
+            
+              double et = MPI_Wtime();
+              c.data().time_map1_upw_local = et - bt;
+            }
 
-          // Global upward
-          for (index_t i = 0; i < iter.size(); i++) {
-            // TODO: parallelization
-            f(c, *iter, args...);
-            iter++;
-          }
+            // Global upward
+            {
+              double bt = MPI_Wtime();
+              for (index_t i = 0; i < iter.size(); i++) {
+                // TODO: parallelization
+                f(c, *iter, args...);
+                iter++;
+              }
+              double et = MPI_Wtime();
+              c.data().time_map1_upw_global = et - bt;
+            }
 
-          c.data().local_upw_results_.clear();
-          map1_dir_ = Map1Dir::None; // Upward is done.
-          return;
+            c.data().local_upw_results_.clear();
+            map1_dir_ = Map1Dir::None; // Upward is done.
+            return;
+          }
 
         case LET::MAP1_DOWN:
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
-          // Downward
-          map1_dir_ = Map1Dir::Downward;
+          {
+            c.data().time_map1_dwn_finddir = (find_et - find_bt);
+            if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
+            // Downward
+            map1_dir_ = Map1Dir::Downward;
 
-          for (index_t i = 0; i < iter.size(); i++) {
-            // TODO: parallelization
-            f(c, *iter, args...);
-            iter++;
+            double bt = MPI_Wtime();
+            for (index_t i = 0; i < iter.size(); i++) {
+              // TODO: parallelization
+              f(c, *iter, args...);
+              iter++;
+            }
+            double et = MPI_Wtime();
+            c.data().time_map1_dwn_global = et - bt;
+          
+            map1_dir_ = Map1Dir::None;
+            return;
           }
-
-          map1_dir_ = Map1Dir::None;
-          return;
 
         default:
           assert(0);

@@ -882,7 +882,6 @@ struct ExactLET {
     Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
 
     double end = MPI_Wtime();
-    MPI_Barrier(MPI_COMM_WORLD);
     root.data().time_let_trav_main = end - beg;
   }
 
@@ -990,7 +989,6 @@ struct ExactLET {
       });
 #endif
 
-    MPI_Barrier(MPI_COMM_WORLD);
     et_all = MPI_Wtime();
     data.time_let_req_all = et_all - bt_all;
   }
@@ -1051,13 +1049,11 @@ struct ExactLET {
 
     // ===== 2. communication =====
     // Send response keys and attributes
-    MPI_Barrier(MPI_COMM_WORLD);
     bt = MPI_Wtime();
 
     tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks, req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
-    MPI_Barrier(MPI_COMM_WORLD);
     et = MPI_Wtime();
     data.time_let_res_attr_comm = et - bt;
 
@@ -1133,7 +1129,6 @@ struct ExactLET {
     tapas::mpi::Alltoallv(leaf_nb_sendbuf,   leaf_sendcnt, res_nb,        leaf_recvcnt, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
 
-    MPI_Barrier(MPI_COMM_WORLD);
     et = MPI_Wtime();
     data.time_let_res_body_comm = et - bt;
 
@@ -1156,7 +1151,6 @@ struct ExactLET {
 
     TAPAS_ASSERT(data.let_bodies_.size() == res_bodies.size());
 
-    MPI_Barrier(MPI_COMM_WORLD);
     et_all = MPI_Wtime();
     data.time_let_res_all = et_all - bt_all;
   }
@@ -1219,7 +1213,6 @@ struct ExactLET {
       body_offset += nb;
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
     double end = MPI_Wtime();
     data->time_let_register = end - beg;
   }
@@ -1297,7 +1290,7 @@ struct ExactLET {
         }
       }
     }
-
+    
     {
       tapas::debug::DebugStream e("M_let");
 
