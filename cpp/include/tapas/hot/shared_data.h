@@ -79,7 +79,6 @@ struct SharedData {
   std::vector<KeyType> proc_first_keys_; //!< first SFC key of each process
 
   int opt_task_spawn_threshold_;
-  bool opt_mutual_;
 
   // log and time measurements (mainly of the local process)
   double sampling_rate; // sampling rate of tree construction
@@ -132,7 +131,6 @@ struct SharedData {
       , mpi_comm_(MPI_COMM_WORLD)
       , max_depth_(0)
       , opt_task_spawn_threshold_(1000)
-      , opt_mutual_(false)
       , nb_total(0)
       , nb_before(0)
       , nb_after(0)
@@ -166,13 +164,6 @@ struct SharedData {
 
   SharedData(const SharedData<TSP, SFC>& rhs) = delete; // no copy
   SharedData(SharedData<TSP, SFC>&& rhs) = delete; // no move
-
-  bool SetOptMutual(bool b) {
-    bool old = opt_mutual_;
-    mapper_.opt_mutual_ = b;
-    opt_mutual_ = b;
-    return old;
-  }
 
   /**
    * \brief Read some of the parameters from environmental variables

@@ -247,10 +247,8 @@ struct FMM_DTT {
       //}                                                     //
       //End loop over Cj's children
       TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), theta);
-#ifdef FMM_MUTUAL
     } else if (Ci == Cj) {
       TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), theta);
-#endif
 #if 1
     } else if (Ri >= Rj) {
       // 1-side split
@@ -482,16 +480,6 @@ int main(int argc, char ** argv) {
     exit(1);
   }
 
-#ifdef __CUDACC__
-  if (args.mutual) {
-    std::cerr << "TapasFMM: [Error] Mutual is not supported for CUDA implementation in this version." << std::endl;
-#ifdef USE_MPI
-    MPI_Finalize();
-#endif
-    exit(-1);
-  }
-#endif
-
   //UpDownPass upDownPass(args.theta, args.useRmax, args.useRopt);
   Verify verify;
   (void) verify;
@@ -544,8 +532,6 @@ int main(int argc, char ** argv) {
       double et = GetTime();
       time_tree = et - bt;
     }
-
-    root->SetOptMutual(args.mutual);
 
 #ifdef USE_MPI
     int rank = 0;

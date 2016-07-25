@@ -546,8 +546,6 @@ struct ExactLET {
       return cell_;
     }
 
-    bool GetOptMutual() const { return data_.opt_mutual_; }
-
     static int IncIfNotNull(int *p) {
       if (p == nullptr) return 1;
       else {
@@ -612,9 +610,7 @@ struct ExactLET {
    * @brief A dummy class of Mapper
    */
   struct ProxyMapper {
-    const bool opt_mutual_;
-
-    ProxyMapper() : opt_mutual_(false) { }
+    ProxyMapper() { }
 
     // body
     template<class Funct, class...Args>

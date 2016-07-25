@@ -96,7 +96,7 @@ class BodyIterator {
   template <class T>
   inline bool operator==(const T &) const { return false; }
   inline bool AllowMutualInteraction(const BodyIterator &x) const {
-    return c_.GetOptMutual() && c_ == x.c_;
+    return c_ == x.c_;
   }
 };
 
@@ -169,7 +169,7 @@ class CellIterator {
     return false;
   }
   bool AllowMutualInteraction(const CellIterator &x) const {
-    return c_.GetOptMutual() && c_ == x.c_;
+    return c_ == x.c_;
   }
   
   // TODO
@@ -282,7 +282,7 @@ class SubCellIterator {
     return false;
   }
   bool AllowMutualInteraction(const SubCellIterator &x) const {
-    return c_.GetOptMutual() && c_ == x.c_;
+    return c_ == x.c_;
   }
 }; // class SubCellIterator
 

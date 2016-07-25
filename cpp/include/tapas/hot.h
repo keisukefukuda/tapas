@@ -485,11 +485,6 @@ class Cell {
 
   const Reg &region() const { return region_; }
 
-  bool GetOptMutual() const { return data_->opt_mutual_; }
-  bool SetOptMutual(bool b) {
-    return data_->SetOptMutual(b);
-  }
-
   MPI_Comm GetOptMPIComm() const {
     return data_->mpi_comm_;
   }

@@ -80,7 +80,13 @@ static void ProductMapImpl(Mapper &mapper,
   const constexpr int kT1 = T1_Iter::kThreadSpawnThreshold;
   const constexpr int kT2 = T2_Iter::kThreadSpawnThreshold;
 
-  bool mutual = CheckMutualCell<Funct, CellType>::value && (iter1.cell() == iter2.cell());
+  bool mutual = CheckMutualCell<Funct, CellType>::value
+                      && std::is_same<typename T1_Iter::value_type, typename T2_Iter::value_type>::value
+                      && iter1.cell() == iter2.cell(); // && (iter1.cell() == iter2.cell());
+  
+  if ((*iter1).IsRoot()) {
+    std::cout << "Mutual = " << mutual << std::endl;
+  }
 
 #if 0
   // Debug code
@@ -127,7 +133,7 @@ static void ProductMapImpl(Mapper &mapper,
         }
       }
     }
-  } else if (!mapper.opt_mutual_ && end2 - beg2 == 1) {
+  } else if (!mutual && end2 - beg2 == 1) {
     // Source side (iter2) can be split and paralleilzed.
     // target side cannot paralleize due to accumulation
     int mid1 = (end1 + beg1) / 2;
@@ -137,7 +143,7 @@ static void ProductMapImpl(Mapper &mapper,
     ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, end2, f, args...);
     tg.wait();
   } else if (end2 - beg2 == 1) {
-    // opt_mutual == 1 && end2 - beg2 == 1
+    // mutual == 1 && end2 - beg2 == 1
     int mid1 = (end1 + beg1) / 2;
     ProductMapImpl(mapper, iter1, beg1, mid1, iter2, beg2, end2, f, args...);
     ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, end2, f, args...);
@@ -212,8 +218,6 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
 
 template<class Cell, class Body, class LET>
 struct CPUMapper {
-  bool opt_mutual_;
-
   enum class Map1Dir {
     None,
     Upward,
@@ -225,7 +229,7 @@ struct CPUMapper {
   using KeyType = typename Cell::KeyType;
   using SFC = typename Cell::SFC;
 
-  CPUMapper() : opt_mutual_(false), map1_dir_(Map1Dir::None) { }
+  CPUMapper() : map1_dir_(Map1Dir::None) { }
 
   /**
    * @brief Map function f over product of two iterators
@@ -644,14 +648,8 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     std::cout << "Calling Start2()" << std::endl;
 #endif
     Start2();
-
+    
     // -- check
-    if (this->Base::opt_mutual_) {
-      if (data.mpi_rank_ == 0) {
-        std::cerr << "[To Fix] Error: mutual is not supported in CUDA implementation" << std::endl;
-      }
-      exit(-1);
-    }
   }
 
   /**
