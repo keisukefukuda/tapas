@@ -231,7 +231,6 @@ struct FMM_DTT {
   template<class Cell>
   inline void tapas_splitCell(Cell &Ci, _CONST Cell &Cj, real_t Ri, real_t Rj, real_t theta) {
     (void) Ri; (void) Rj;
-    bool Ci_IsLeaf = Ci.IsLeaf();
     if (Cj.IsLeaf()) {
       assert(!Ci.IsLeaf());                                   //  Make sure Ci is not leaf
       //for (C_iter ci=Ci0+Ci->ICHILD; ci!=Ci0+Ci->ICHILD+Ci->NCHILD; ci++) {// Loop over Ci's children
@@ -239,7 +238,7 @@ struct FMM_DTT {
       //}                                                     //
       //End loop over Ci's children
       TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj), theta);
-    } else if (Ci_IsLeaf) {                                   // Else if Ci is leaf
+    } else if (Ci.IsLeaf()) {                                   // Else if Ci is leaf
       //} else if (Ci.IsLeaf()) {                             // Else if Ci is leaf
       assert(!Cj.IsLeaf());                                   //  Make sure Cj is not leaf
       //for (C_iter cj=Cj0+Cj->ICHILD; cj!=Cj0+Cj->ICHILD+Cj->NCHILD; cj++) {// Loop over Cj's children

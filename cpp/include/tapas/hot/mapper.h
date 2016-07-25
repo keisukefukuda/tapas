@@ -81,8 +81,9 @@ static void ProductMapImpl(Mapper &mapper,
   const constexpr int kT2 = T2_Iter::kThreadSpawnThreshold;
 
   bool mutual = CheckMutualCell<Funct, CellType>::value
-                      && std::is_same<typename T1_Iter::value_type, typename T2_Iter::value_type>::value
-                      && iter1.cell() == iter2.cell(); // && (iter1.cell() == iter2.cell());
+                      && std::is_same<typename T1_Iter::value_type,
+                                      typename T2_Iter::value_type>::value
+                      && iter1.cell() == iter2.cell();
   
   if ((*iter1).IsRoot()) {
     std::cout << "Mutual = " << mutual << std::endl;
@@ -134,6 +135,7 @@ static void ProductMapImpl(Mapper &mapper,
       }
     }
   } else if (!mutual && end2 - beg2 == 1) {
+    // NOTE: end1 - beg1 > 1.
     // Source side (iter2) can be split and paralleilzed.
     // target side cannot paralleize due to accumulation
     int mid1 = (end1 + beg1) / 2;
@@ -142,7 +144,7 @@ static void ProductMapImpl(Mapper &mapper,
     tg.createTask([&]() { ProductMapImpl(mapper, iter1, beg1, mid1, iter2, beg2, end2, f, args...); });
     ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, end2, f, args...);
     tg.wait();
-  } else if (end2 - beg2 == 1) {
+  } else if (mutual && end2 - beg2 == 1) {
     // mutual == 1 && end2 - beg2 == 1
     int mid1 = (end1 + beg1) / 2;
     ProductMapImpl(mapper, iter1, beg1, mid1, iter2, beg2, end2, f, args...);
