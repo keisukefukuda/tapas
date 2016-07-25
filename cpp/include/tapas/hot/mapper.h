@@ -351,6 +351,21 @@ struct CPUMapper {
 
             c.data().local_upw_results_.clear();
             map1_dir_ = Map1Dir::None; // Upward is done.
+
+#if 0
+            // debug prints
+            tapas::debug::BarrierExec([&c](int,int) {
+                if (c.data().mpi_rank_ == 0) {
+                  for (auto pair : c.data().ht_) {
+                    Cell &c = *(pair.second);
+                    std::cout << "debug: " << c.key() << " "
+                              << c.depth() << " "
+                              << c.attr().M << std::endl;
+                  }
+                }
+              });
+#endif
+              
             return;
           }
 
