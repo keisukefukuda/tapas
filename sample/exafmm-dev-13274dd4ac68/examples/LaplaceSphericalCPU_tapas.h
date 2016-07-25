@@ -215,7 +215,9 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   SCOREP_USER_REGION("M2L", SCOREP_USER_REGION_TYPE_FUNCTION);
   INC_M2L;
 
-  complex_t Ynmi[P*P], Ynmj[P*P];
+  complex_t Ynmi[P*P];
+  IF_MUTUAL( complex_t Ynmj[P*P]; );
+  
   //vec3 dX = Ci.attr().X - Cj.attr().X - Xperiodic;
   CellAttr attr_i = Ci.attr();
   CellAttr attr_j = Cj.attr();
@@ -238,11 +240,14 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
 
     for (int k=0; k<=j; k++) {
       int jks = j * (j + 1) / 2 + k;
-      complex_t Li = 0, Lj = 0;
+      complex_t Li = 0;
+      IF_MUTUAL( complex_t Lj = 0; );
+      
 #if MASS
       int jk = j * j + j - k;
       Li += Cnm * Ynmi[jk];
       IF_MUTUAL( Lj += Cnm * Ynmj[jk] );
+      
       for (int n=1; n<P-j; n++)
 #else
       for (int n=0; n<P-j; n++)
@@ -259,13 +264,13 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
           int jnkm = (j + n) * (j + n) + j + n + m - k;
           real_t Cnm2 = Cnm * ODDEVEN((k-m)*(k<m)+m);
           Li += attr_j.M[nms] * Cnm2 * Ynmi[jnkm];
-          IF_MUTUAL( Lj += attr_i.M[nms] * Cnm2 * Ynmj[jnkm] );
+          IF_MUTUAL( Lj += attr_i.M[nms] * Cnm2 * Ynmj[jnkm]; );
         }
       }
 
       // TODO: attr_j can be put out of the outer `for' loop
       attr_i.L[jks] += Li;
-      IF_MUTUAL( attr_j.L[jks] += Lj );
+      IF_MUTUAL( attr_j.L[jks] += Lj; );
     }
   }
 
