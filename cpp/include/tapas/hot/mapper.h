@@ -80,11 +80,11 @@ static void ProductMapImpl(Mapper &mapper,
   const constexpr int kT1 = T1_Iter::kThreadSpawnThreshold;
   const constexpr int kT2 = T2_Iter::kThreadSpawnThreshold;
 
-  bool mutual = CheckMutualCell<Funct, CellType>::value
+  constexpr bool kMutual = CheckMutualCell<Funct, CellType>::value
                       && std::is_same<typename T1_Iter::value_type,
-                                      typename T2_Iter::value_type>::value
-                      && iter1.cell() == iter2.cell();
-  
+                                      typename T2_Iter::value_type>::value;
+  //&& iter1.cell() == iter2.cell();
+
 #if 0
   // Debug code
   std::string T1_str, T2_str;
@@ -120,7 +120,9 @@ static void ProductMapImpl(Mapper &mapper,
         T2_Iter rhs = iter2 + j;
         // if i and j are mutually interactive, f(i,j) is evaluated only once.
 
-        if ((mutual && i <= j) || !mutual) {
+        bool mtl = (kMutual && iter1.cell() == iter2.cell());
+                  
+        if ((mtl && i <= j) || !mtl) {
           if (lhs.IsLocal()) {
 #ifdef TAPAS_COMPILER_INTEL
 # pragma forceinline
@@ -130,7 +132,7 @@ static void ProductMapImpl(Mapper &mapper,
         }
       }
     }
-  } else if (!mutual && end2 - beg2 == 1) {
+  } else if (!kMutual && end2 - beg2 == 1) {
     // NOTE: end1 - beg1 > 1.
     // Source side (iter2) can be split and paralleilzed.
     // target side cannot paralleize due to accumulation
@@ -140,7 +142,7 @@ static void ProductMapImpl(Mapper &mapper,
     tg.createTask([&]() { ProductMapImpl(mapper, iter1, beg1, mid1, iter2, beg2, end2, f, args...); });
     ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, end2, f, args...);
     tg.wait();
-  } else if (mutual && end2 - beg2 == 1) {
+  } else if (kMutual && end2 - beg2 == 1) {
     // mutual == 1 && end2 - beg2 == 1
     int mid1 = (end1 + beg1) / 2;
     ProductMapImpl(mapper, iter1, beg1, mid1, iter2, beg2, end2, f, args...);
@@ -157,7 +159,7 @@ static void ProductMapImpl(Mapper &mapper,
     }
     {
       typename Th::TaskGroup tg;
-      tg.createTask([&]() {ProductMapImpl(mapper, iter1, beg1, mid1, iter2, mid2, end2, f, args...);});
+      tg.createTask([&]() { ProductMapImpl(mapper, iter1, beg1, mid1, iter2, mid2, end2, f, args...); });
       ProductMapImpl(mapper, iter1, mid1, end1, iter2, beg2, mid2, f, args...);
       tg.wait();
     }
