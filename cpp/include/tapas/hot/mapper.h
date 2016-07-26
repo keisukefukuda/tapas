@@ -85,10 +85,6 @@ static void ProductMapImpl(Mapper &mapper,
                                       typename T2_Iter::value_type>::value
                       && iter1.cell() == iter2.cell();
   
-  if ((*iter1).IsRoot()) {
-    std::cout << "Mutual = " << mutual << std::endl;
-  }
-
 #if 0
   // Debug code
   std::string T1_str, T2_str;
