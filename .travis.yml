@@ -6,6 +6,7 @@ before_script:
 cache:
   directories:
     - $HOME/mpich
+    - $HOME/massivethreads
     - $HOME/llvm-3.8.0
     - $HOME/llvm-3.7.1
     - $HOME/llvm-3.6.2
@@ -26,6 +27,17 @@ before_install:
         export LD_LIBRARY_PATH=${HOME}/llvm-${LLVM_VERSION}/lib:${HOME}/llvm-${LLVM_VERSION}:$LD_LIBRARY_PATH;
       fi;
     fi;
+  -
+    if [[ ! -f "${MYTH_DIR}/lib/libmyth.a" ]]; then
+      mkdir -p "${MYTH_DIR}"
+      wget -O ${MYTH_DIR}/masivethreads.zip https://github.com/massivethreads/massivethreads/archive/2664bcbaf30aaf52f4b60b72dd76ffb262a8838e.zip
+      cd "${MYTH_DIR}"
+      unzip massivethreads.zip
+      cd massivethreads-*
+      ./configure --prefix="${MYTH_DIR}"
+      make
+      make install
+    fi
       
 matrix:
   include:
@@ -38,8 +50,9 @@ matrix:
             - gcc-4.9
             - g++-4.9
       env:
-        COMPILER=g++-4.9
-        LLVM_VERSION=
+        - COMPILER=g++-4.9
+        - LLVM_VERSION=
+        - MYTH_DIR=$HOME/massivethreads
       
     - os: linux
       compiler: gcc
@@ -52,6 +65,7 @@ matrix:
       env:
         - COMPILER=g++-5
         - LLVM_VERSION=
+        - MYTH_DIR=$HOME/massivethreads
 
     - os: linux
       compiler: gcc
@@ -64,6 +78,7 @@ matrix:
       env:
         - COMPILER=g++-6
         - LLVM_VERSION=
+        - MYTH_DIR=$HOME/massivethreads
 
     # - os: linux
     #   compiler: clang

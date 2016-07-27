@@ -151,7 +151,14 @@ echo MPICC=${MPICC}
 echo mpicxx -show
 mpicxx -show
 
+echo $CXX --version
 $CXX --version
+
+if [[ -d "${MYTH_DIR:-}" ]]; then
+    echo MassiveThreads is activated. MYTH_DIR=${MYTH_DIR}
+else
+    echo MassiveThreads is NOT activated.
+fi    
 
 echo --------------------------------------------------------------------
 echo C++ Unit Tests
@@ -237,22 +244,22 @@ if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
     NP=(1)
     NB=(100)
     DIST=(c)
-    NCRIT=(16)
+    NCRIT=(1 2 16)
 elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
     NP=(1 2)
     NB=(1000)
     DIST=(c)
-    NCRIT=(16)
+    NCRIT=(1 2 16)
 elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
     NP=(1 2 3 4 5 6)
     NB=(10000 20000)
     DIST=(s c)
-    NCRIT=(16 64)
+    NCRIT=(1 2 16 64)
 elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
     NP=(1 2 4 8 16 32)
     NB=(10000 20000 40000 80000 160000)
     DIST=(l s p c)
-    NCRIT=(16 64)
+    NCRIT=(1 2 16 64)
 else
     echo "Unknown SCALE : '$SCALE'" >&2
     exit 1
@@ -260,13 +267,21 @@ fi
 
 SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
 
-# Build one-side LET version
-#echoCyan env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" TAPAS_ONESIDE_LET=1 make VERBOSE=1 MODE=debug -C $SRC_DIR clean tapas
-#env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" TAPAS_ONESIDE_LET=1 make VERBOSE=1 MODE=debug -C $SRC_DIR clean tapas
-#mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_oneside
+make VERBOSE=1 -C $SRC_DIR clean 
 
-echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR clean tapas
-env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR clean tapas
+# Build multi-threaded version
+if [[ -d "${MYTH_DIR:-}" ]]; then
+    export MYTH_DIR
+    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
+
+    mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_mt
+    mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_mt
+fi
+
+# Build single-threaded version
+echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
 
 function accuracyCheck() {
     local fname=$1
@@ -290,59 +305,57 @@ function accuracyCheck() {
     fi
 }
 
-for nb in ${NB[@]}; do
+function tapasCheck() {
+    for nb in ${NB[@]}; do
     for ncrit in ${NCRIT[@]}; do
-        for dist in ${DIST[@]}; do
-            for mutual in "" "_mutual"; do
-                rm -f $TMPFILE; sleep 1s
+    for dist in ${DIST[@]}; do
+    for mutual in "" "_mutual"; do
+    for mt in "" "_mt"; do
+    for np in ${NP[@]}; do
+        rm -f $TMPFILE; sleep 0.5s
 
-                # We no longer check serial_tapas
-                # echoCyan $SRC_DIR/serial_tapas -n $nb -c $ncrit -d $dist --mutual $mutual
-                # $SRC_DIR/serial_tapas -n $nb -c $ncrit -d $dist --mutual $mutual > $TMPFILE
-                # cat $TMPFILE
+        BIN=$SRC_DIR/parallel_tapas${mutual}${mt}
 
-                # accuracyCheck $TMPFILE
+        if [[ -x ${BIN} ]]; then
+            # run Exact LET TapasFMM
+            rm -f $TMPFILE; sleep 1s
+            echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist 
+            ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist > $TMPFILE
+            cat $TMPFILE
 
-                # echo
-                # echo
+            accuracyCheck $TMPFILE
 
-                BIN=$SRC_DIR/parallel_tapas${mutual}
-
-                for np in ${NP[@]}; do
-                    # run Exact LET TapasFMM
-                    rm -f $TMPFILE; sleep 1s
-                    echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist 
-                    ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist > $TMPFILE
-                    cat $TMPFILE
-
-                    accuracyCheck $TMPFILE
-
-                    # run One-side LET TapasFMM
-                    #rm -f $TMPFILE; sleep 1s
-                    #echoCyan ${MPIEXEC} -n $np $SRC_DIR/parallel_tapas_oneside -n $nb -c $ncrit -d $dist --mutual $mutual
-                    #${MPIEXEC} -n $np $SRC_DIR/parallel_tapas_oneside -n $nb -c $ncrit -d $dist --mutual $mutual > $TMPFILE
-                    #cat $TMPFILE
-
-                    #accuracyCheck $TMPFILE
-                done
-
-                echo
-                echo
-            done
-        done
+        else
+            echo "*** Skipping ${BIN}"
+        fi
+        echo
+        echo
     done
-done
+    done
+    done
+    done
+    done
+    done
+}
+
+tapasCheck
 
 # Check some special cases
-for MUTUAL in 1 0; do
-    rm -f $TMPFILE; sleep 1s
-    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas -n 1000 -c 1024 -d c --mutual $MUTUAL
-    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas -n 1000 -c 1024 -d c --mutual $MUTUAL > $TMPFILE
+
+echo
+echo --------------------------------------------------------------------
+echo "ExaFMM (with Ncrit > Nbodies)"
+echo --------------------------------------------------------------------
+echo
+
+for MUTUAL in "" "_mutual" ; do
+    rm -f $TMPFILE; sleep 0.5s
+    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c
+    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c  > $TMPFILE
     cat $TMPFILE
     
     accuracyCheck $TMPFILE
 done
-
 
 if [[ $STATUS -eq 0 ]]; then
     echo OK.
