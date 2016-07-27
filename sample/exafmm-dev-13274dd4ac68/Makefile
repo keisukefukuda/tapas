@@ -2,6 +2,7 @@ help:
 	@echo "Please read the README file in the root directory."
 clean:
 	find . -name "*.o" -o -name "*.out*" -o -name "*.mod" | xargs rm -rf
+	find . -type f | while read F; do if file "$$F" | grep -q "ELF .* executable"; then echo rm -f "$$F"; rm -f "$$F"; fi; done
 cleandat:
 	find . -name "*.dat" -o -name "*.pdb" | xargs rm -f
 cleanlib:
