@@ -114,6 +114,12 @@ struct SharedData {
   double time_map2_dev;  // CUDA kernel runtime
 #endif
 
+  double time_map1_upw_finddir;
+  double time_map1_upw_local;
+  double time_map1_upw_global;
+  
+  double time_map1_dwn_finddir;
+  double time_map1_dwn_global;
 #ifdef TAPAS_DEBUG
 #endif
   

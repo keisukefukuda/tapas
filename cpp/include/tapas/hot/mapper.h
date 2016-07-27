@@ -318,44 +318,80 @@ struct CPUMapper {
         std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
         abort();
       }
-
+      
+      double find_bt = MPI_Wtime();
       auto dir = LET::FindMap1Direction(c, f, args...);
+      double find_et = MPI_Wtime();
 
       switch(dir) {
         case LET::MAP1_UP:
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
-          // Upward
-          map1_dir_ = Map1Dir::Upward;
-          c.data().local_upw_results_.clear();
+          {
+            c.data().time_map1_upw_finddir = (find_et - find_bt);
+            if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
+            // Upward
+            map1_dir_ = Map1Dir::Upward;
+            c.data().local_upw_results_.clear();
           
-          if (c.data().mpi_size_ > 1) {
-            LocalUpwardMap(f, c, args...); // Run local upward first
-          }
+            if (c.data().mpi_size_ > 1) {
+              double bt = MPI_Wtime();
+            
+              LocalUpwardMap(f, c, args...); // Run local upward first
+            
+              double et = MPI_Wtime();
+              c.data().time_map1_upw_local = et - bt;
+            }
 
-          // Global upward
-          for (index_t i = 0; i < iter.size(); i++) {
-            // TODO: parallelization
-            f(c, *iter, args...);
-            iter++;
-          }
+            // Global upward
+            {
+              double bt = MPI_Wtime();
+              for (index_t i = 0; i < iter.size(); i++) {
+                // TODO: parallelization
+                f(c, *iter, args...);
+                iter++;
+              }
+              double et = MPI_Wtime();
+              c.data().time_map1_upw_global = et - bt;
+            }
 
-          c.data().local_upw_results_.clear();
-          map1_dir_ = Map1Dir::None; // Upward is done.
-          return;
+            c.data().local_upw_results_.clear();
+            map1_dir_ = Map1Dir::None; // Upward is done.
+
+#if 0
+            // debug prints
+            tapas::debug::BarrierExec([&c](int,int) {
+                if (c.data().mpi_rank_ == 0) {
+                  for (auto pair : c.data().ht_) {
+                    Cell &c = *(pair.second);
+                    std::cout << "debug: " << c.key() << " "
+                              << c.depth() << " "
+                              << c.attr().M << std::endl;
+                  }
+                }
+              });
+#endif
+              
+            return;
+          }
 
         case LET::MAP1_DOWN:
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
-          // Downward
-          map1_dir_ = Map1Dir::Downward;
+          {
+            c.data().time_map1_dwn_finddir = (find_et - find_bt);
+            if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
+            // Downward
+            map1_dir_ = Map1Dir::Downward;
 
-          for (index_t i = 0; i < iter.size(); i++) {
-            // TODO: parallelization
-            f(c, *iter, args...);
-            iter++;
+            double bt = MPI_Wtime();
+            for (index_t i = 0; i < iter.size(); i++) {
+              // TODO: parallelization
+              f(c, *iter, args...);
+              iter++;
+            }
+            double et = MPI_Wtime();
+            c.data().time_map1_dwn_global = et - bt;
+          
+            map1_dir_ = Map1Dir::None;
+            return;
           }
-
-          map1_dir_ = Map1Dir::None;
-          return;
 
         default:
           assert(0);

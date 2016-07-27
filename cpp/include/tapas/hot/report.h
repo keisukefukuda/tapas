@@ -134,6 +134,23 @@ void Report(const Data &data) {
   }
 #endif
 
+  // Map1 breakdown (upward)
+  {
+    RankCSV csv {"finddir", "local", "global"};
+    csv.At("finddir") = data.time_map1_upw_finddir;
+    csv.At("local")   = data.time_map1_upw_local;
+    csv.At("global")  = data.time_map1_upw_global;
+    csv.Dump(report_prefix + "map1upw" + report_suffix + ".csv");
+  }
+
+  // Map1 breakdown (downward)
+  {
+    RankCSV csv {"finddir", "global"};
+    csv.At("finddir") = data.time_map1_dwn_finddir;
+    csv.At("global")  = data.time_map1_dwn_global;
+    csv.Dump(report_prefix + "map1dwn" + report_suffix + ".csv");
+  }
+  
   // Map2 breakdown
   {
     RankCSV csv {"all", "insp", "exec"
