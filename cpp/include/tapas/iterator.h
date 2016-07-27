@@ -36,7 +36,7 @@ class BodyIterator {
     return c_.body(idx_);
   }
   inline Body& operator*() {
-    TAPAS_ASSERT(idx_ < (int)c_.nb());
+    TAPAS_ASSERT(idx_ < c_.nb());
     return c_.body(idx_);
   }
   inline BodyIterator<CellType>& operator+=(int n) {

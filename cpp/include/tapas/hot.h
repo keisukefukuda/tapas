@@ -1054,9 +1054,9 @@ inline void Cell<TSP>::CheckBodyIndex(index_t idx) const {
   TAPAS_ASSERT(this->IsLeaf() && "body or body attribute access is not allowed for non-leaf cells.");
 
   if (is_local_) {
-    TAPAS_ASSERT(bid_ + idx < (int)data_->local_bodies_.size());
+    TAPAS_ASSERT(bid_ + idx < data_->local_bodies_.size());
   } else {
-    TAPAS_ASSERT(bid_ + idx < (int)data_->let_bodies_.size());
+    TAPAS_ASSERT(bid_ + idx < data_->let_bodies_.size());
   }
 }
 

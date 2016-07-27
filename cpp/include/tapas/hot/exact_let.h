@@ -457,7 +457,7 @@ struct ExactLET {
         abort();
       }
       
-      TAPAS_ASSERT(nch < nsubcells());
+      TAPAS_ASSERT((index_t)nch < nsubcells());
       Split();
 
       if (children_.size() == 0) {
