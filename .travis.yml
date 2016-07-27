@@ -55,6 +55,7 @@ matrix:
         - COMPILER=g++-4.9
         - LLVM_VERSION=
         - MYTH_DIR=$HOME/massivethreads
+        - LD_LIBRARY_PATH=$MYTH_DIR/lib:$LD_LIBRARY_PATH
       
     - os: linux
       compiler: gcc
@@ -68,6 +69,7 @@ matrix:
         - COMPILER=g++-5
         - LLVM_VERSION=
         - MYTH_DIR=$HOME/massivethreads
+        - LD_LIBRARY_PATH=$MYTH_DIR/lib:$LD_LIBRARY_PATH
 
     - os: linux
       compiler: gcc
@@ -81,6 +83,7 @@ matrix:
         - COMPILER=g++-6
         - LLVM_VERSION=
         - MYTH_DIR=$HOME/massivethreads
+        - LD_LIBRARY_PATH=$MYTH_DIR/lib:$LD_LIBRARY_PATH
 
     # - os: linux
     #   compiler: clang
