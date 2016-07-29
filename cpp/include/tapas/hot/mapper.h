@@ -303,6 +303,7 @@ struct CPUMapper {
   inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args...args) {
 
     Cell &c = iter.cell();
+    auto &data = c.data();
 
     if (c.IsRoot()) {
       if (c.IsRoot() && c.IsLeaf()) {
@@ -326,19 +327,19 @@ struct CPUMapper {
       switch(dir) {
         case LET::MAP1_UP:
           {
-            c.data().time_rec_.Record(0, "Map1-upw-finddir", find_et - find_bt);
-            if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
+            data.time_rec_.Record(data.timestep_, "Map1-upw-finddir", find_et - find_bt);
+            if (data.mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
             // Upward
             map1_dir_ = Map1Dir::Upward;
-            c.data().local_upw_results_.clear();
+            data.local_upw_results_.clear();
           
-            if (c.data().mpi_size_ > 1) {
+            if (data.mpi_size_ > 1) {
               double bt = MPI_Wtime();
             
               LocalUpwardMap(f, c, args...); // Run local upward first
             
               double et = MPI_Wtime();
-              c.data().time_rec_.Record(0, "Map1-upw-local", et - bt);
+              data.time_rec_.Record(data.timestep_, "Map1-upw-local", et - bt);
             }
 
             // Global upward
@@ -350,17 +351,17 @@ struct CPUMapper {
                 iter++;
               }
               double et = MPI_Wtime();
-              c.data().time_rec_.Record(0, "Map1-upw-global", et - bt);
+              data.time_rec_.Record(data.timestep_, "Map1-upw-global", et - bt);
             }
 
-            c.data().local_upw_results_.clear();
+            data.local_upw_results_.clear();
             map1_dir_ = Map1Dir::None; // Upward is done.
 
 #if 0
             // debug prints
             tapas::debug::BarrierExec([&c](int,int) {
-                if (c.data().mpi_rank_ == 0) {
-                  for (auto pair : c.data().ht_) {
+                if (data.mpi_rank_ == 0) {
+                  for (auto pair : data.ht_) {
                     Cell &c = *(pair.second);
                     std::cout << "debug: " << c.key() << " "
                               << c.depth() << " "
@@ -375,8 +376,8 @@ struct CPUMapper {
 
         case LET::MAP1_DOWN:
           {
-            c.data().time_rec_.Record(0, "Map1-dwn-finddir", find_et - find_bt);
-            if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
+            data.time_rec_.Record(data.timestep_, "Map1-dwn-finddir", find_et - find_bt);
+            if (data.mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
             // Downward
             map1_dir_ = Map1Dir::Downward;
 
@@ -387,7 +388,7 @@ struct CPUMapper {
               iter++;
             }
             double et = MPI_Wtime();
-            c.data().time_rec_.Record(0, "Map1-dwn-global", et - bt);
+            data.time_rec_.Record(data.timestep_, "Map1-dwn-global", et - bt);
           
             map1_dir_ = Map1Dir::None;
             return;
@@ -401,12 +402,10 @@ struct CPUMapper {
             f(c, *iter, args...);
             iter++;
           }
-          if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction : default" << std::endl;
+          if (data.mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction : default" << std::endl;
           break;
       }
     } else { // for non-root cells
-      auto &data = c.data();
-
       // Non-root cells
       if (map1_dir_ == Map1Dir::None) {
         std::cerr << "Tapas ERROR: Tapas' internal state seems to be corrupted. Map function is not thread-safe." << std::endl;
@@ -457,6 +456,8 @@ struct CPUMapper {
     SCOREP_USER_REGION_DEFINE(trav_handle)
         double exec_bt = 0, exec_et = 0; // executor's begin time, end time
 
+    auto &data = c1.data();
+
     //c2.data().trav_used_src_key_.insert(c2.key());
 
     if (c1.IsRoot() && c2.IsRoot()) {
@@ -466,7 +467,7 @@ struct CPUMapper {
 
       double insp_bt = MPI_Wtime();
       
-      if (c1.data().mpi_size_ > 1) {
+      if (data.mpi_size_ > 1) {
 #ifdef TAPAS_DEBUG
         char t[] = "TAPAS_IN_LET=1"; // to avoid warning "convertion from const char* to char*"
         putenv(t); 
@@ -483,7 +484,7 @@ struct CPUMapper {
       SCOREP_USER_REGION_BEGIN(trav_handle, "NetTraverse", SCOREP_USER_REGION_TYPE_COMMON);
 
       double insp_et = MPI_Wtime();
-      c1.data().time_rec_.Record(0, "Map2-insp", insp_et - insp_bt);
+      data.time_rec_.Record(data.timestep_, "Map2-insp", insp_et - insp_bt);
 
       exec_bt = MPI_Wtime();
     }
@@ -496,7 +497,7 @@ struct CPUMapper {
     if (c1.IsRoot() && c2.IsRoot()) {
       // Post-traverse procedure
       exec_et = MPI_Wtime();
-      c1.data().time_rec_.Record(0, "Map2-exec", exec_et - exec_bt);
+      c1.data().time_rec_.Record(data.timestep_, "Map2-exec", exec_et - exec_bt);
       SCOREP_USER_REGION_END(trav_handle);
     }
   }
@@ -701,12 +702,12 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     auto &data = c1.data();
     Finish(); // Execute CUDA kernel
 
-    data.time_rec_.Record(0, "Map2-device", vmap_.time_device_call_);
+    data.time_rec_.Record(data.timestep_, "Map2-device", vmap_.time_device_call_);
 
     // collect runtime information
     map2_all_end_  = std::chrono::high_resolution_clock::now();
     auto dt = map2_all_end_ - map2_all_beg_;
-    data.time_rec_.Record(0, "Map2-all", std::chrono::duration_cast<std::chrono::microseconds>(dt).count() * 1e-6);
+    data.time_rec_.Record(data.timestep_, "Map2-all", std::chrono::duration_cast<std::chrono::microseconds>(dt).count() * 1e-6);
   }
 
   /*

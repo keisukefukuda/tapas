@@ -120,8 +120,6 @@ class TimeRec {
   void Record(int time_step, std::string col, double val) {
     assert(time_step >= 0);
 
-    std::cout << "**** Record: " << col << " : " << val << std::endl;
-
     if (std::find(cols_.begin(), cols_.end(), col) == cols_.end()) {
       cols_.push_back(col);
     }

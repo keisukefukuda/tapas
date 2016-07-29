@@ -961,7 +961,7 @@ struct ExactLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     et_comm = MPI_Wtime();
-    data.time_rec_.Record(0, "Map2-LET-req-comm", et_comm - bt_comm);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-req-comm", et_comm - bt_comm);
 
 #ifdef TAPAS_DEBUG_DUMP
     {
@@ -982,7 +982,7 @@ struct ExactLET {
 #endif
 
     et_all = MPI_Wtime();
-    data.time_rec_.Record(0, "Map2-LET-req", et_all - bt_all);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-req", et_all - bt_all);
   }
 
 
@@ -1037,7 +1037,7 @@ struct ExactLET {
     std::vector<CellAttrType> attr_sendbuf;
     Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
 
-    data.time_rec_.Record(0, "Map2-LET-res-comp1", et - bt);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et - bt);
 
     // ===== 2. communication =====
     // Send response keys and attributes
@@ -1047,7 +1047,7 @@ struct ExactLET {
     tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
-    data.time_rec_.Record(0, "Map2-LET-attr-comm", et - bt);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-attr-comm", et - bt);
 
 #if 0
     // Dump request keys
@@ -1122,7 +1122,7 @@ struct ExactLET {
     tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
-    data.time_rec_.Record(0, "Map2-LET-res-body-comm", et - bt);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
 
 #ifdef TAPAS_DEBUG_DUMP
     tapas::debug::BarrierExec([&](int, int) {
@@ -1144,7 +1144,7 @@ struct ExactLET {
     TAPAS_ASSERT(data.let_bodies_.size() == res_bodies.size());
 
     et_all = MPI_Wtime();
-    data.time_rec_.Record(0, "Map2-LET-res-all", et_all - bt_all);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
   }
 
   /**
@@ -1206,7 +1206,7 @@ struct ExactLET {
     }
 
     double end = MPI_Wtime();
-    data->time_rec_.Record(0, "Map2-LET-register", end - beg);
+    data->time_rec_.Record(data->timestep_, "Map2-LET-register", end - beg);
   }
 
   /**
@@ -1254,7 +1254,7 @@ struct ExactLET {
 #endif
 
     double end = MPI_Wtime();
-    root.data().time_rec_.Record(0, "Map2-LET-all", end - beg);
+    root.data().time_rec_.Record(root.data().timestep_, "Map2-LET-all", end - beg);
   }
 
   static void DebugDumpCells(Data &data) {

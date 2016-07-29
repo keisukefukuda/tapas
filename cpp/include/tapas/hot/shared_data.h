@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <tapas/util.h>
+
 namespace tapas {
 namespace hot {
 
@@ -94,9 +96,11 @@ struct SharedData {
 
   int count_map1_; // How many times 2-parameter Map() is called so far within the current timestep
   int count_map2_; // How many times 2-parameter Map() is called so far within the current timestep
+  int timestep_;
+  std::string cur_kernel_label_; // label of the currently-running kernel (used in the profile report)
   tapas::util::TimeRec time_rec_;
 
-  std::unordered_map<int, int> let_func_count;
+  std::unordered_map<int, int> let_func_count_;
 
   MPI_Datatype mpi_type_key_;
   MPI_Datatype mpi_type_attr_;
@@ -116,8 +120,10 @@ struct SharedData {
       , ncells(0)
       , count_map1_(0)
       , count_map2_(0)
+      , timestep_(0)
+      , cur_kernel_label_()
       , time_rec_()
-      , let_func_count()
+      , let_func_count_()
   {
     ReadEnv();
     SetupMPITypes();
