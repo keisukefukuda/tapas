@@ -1,6 +1,10 @@
 #ifndef TAPAS_HOT_DATA_H_
 #define TAPAS_HOT_DATA_H_
 
+#include <unordered_map>
+#include <string>
+#include <vector>
+
 namespace tapas {
 namespace hot {
 
@@ -88,41 +92,9 @@ struct SharedData {
   index_t nleaves;   // number of leaves assigned to the local process
   index_t ncells;    // number of cells (note: some non-leaf cells are shared between processes)
 
-  double time_tree_all;
-  double time_tree_sample;     // Tree construction / sampling phase
-  double time_tree_exchange;   // Tree construction / body exchange
-  double time_tree_growlocal;  // Tree construction / grow local tree
-  double time_tree_growglobal; // Tree construction / grow global tree
-
-  double time_let_all;      // ExchangeLET/All
-  double time_let_trav_main; // ExchangeLET/Traverse
-  double time_let_trav_sub; // ExchangeLET/Traverse
-  double time_let_req_all;      // ExchangeLET/Request
-  double time_let_req_comm;     // ExchangeLET/Request
-  double time_let_res_all;
-  double time_let_res_attr_comm;
-  double time_let_res_body_comm;
-  double time_let_res_comp1; // ExchangeLET/Response
-  double time_let_res_comm; // ExchangeLET/Response
-  double time_let_res_comp2; // ExchangeLET/Response
-  double time_let_register; // ExchangeLET/register
-
-  double time_map2_all;
-  double time_map2_insp;     // 2-param map inspector (should be equivalent to time_let_all)
-  double time_map2_exec;     // 2-param map executor
-#ifdef __CUDACC__
-  double time_map2_dev;  // CUDA kernel runtime
-#endif
-
-  double time_map1_upw_finddir;
-  double time_map1_upw_local;
-  double time_map1_upw_global;
-  
-  double time_map1_dwn_finddir;
-  double time_map1_dwn_global;
-#ifdef TAPAS_DEBUG
-#endif
-  
+  int count_map1_; // How many times 2-parameter Map() is called so far within the current timestep
+  int count_map2_; // How many times 2-parameter Map() is called so far within the current timestep
+  tapas::util::TimeRec time_rec_;
 
   std::unordered_map<int, int> let_func_count;
 
@@ -142,26 +114,9 @@ struct SharedData {
       , nb_after(0)
       , nleaves(0)
       , ncells(0)
-      , time_tree_all(0)
-      , time_tree_sample(0)
-      , time_tree_exchange(0)
-      , time_tree_growlocal(0)
-      , time_tree_growglobal(0)
-      , time_let_all      (0)
-      , time_let_trav_main (0)
-      , time_let_trav_sub (0)
-      , time_let_req_all  (0)
-      , time_let_req_comm (0)
-      , time_let_res_all  (0)
-      , time_let_res_attr_comm (0)
-      , time_let_res_body_comm (0)
-      , time_let_register (0)
-      , time_map2_all(0)
-      , time_map2_insp(0)
-      , time_map2_exec(0)
-#ifdef __CUDACC__
-      , time_map2_dev(0)
-#endif
+      , count_map1_(0)
+      , count_map2_(0)
+      , time_rec_()
       , let_func_count()
   {
     ReadEnv();

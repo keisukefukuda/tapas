@@ -506,30 +506,24 @@ int main(int argc, char ** argv) {
     args.print(logger::stringLength, P);
   }
 
-  double time_upw = 0, time_dtt = 0, time_dwn = 0, time_tree = 0;
-
   if (args.mpi_rank == 0) {
     std::cout << "Starting FMM timesteps" << std::endl;
   }
 
+  TapasFMM::Cell *root = nullptr;
+
+  // Start timesteps
   for (int t=0; t<args.repeat; t++) {
-    double total_bt = GetTime();
     logger::printTitle("FMM Profiling");
     logger::startTimer("Total FMM");
     logger::startPAPI();
     logger::startDAG();
-
-    TapasFMM::Cell *root = nullptr;
+    
     {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
-      double bt = GetTime();
-
       root = TapasFMM::Partition(bodies.data(), bodies.size(), args.ncrit);
-
-      double et = GetTime();
-      time_tree = et - bt;
     }
 
 #ifdef USE_MPI
@@ -543,16 +537,12 @@ int main(int argc, char ** argv) {
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
       logger::startTimer("Upward pass");
-      double bt = GetTime();
 
       if (!root->IsLeaf()) {
         TapasFMM::Map(FMM_Upward(), root->subcells(), args.theta);
       }
       
-      double et = GetTime();
       logger::stopTimer("Upward pass");
-
-      time_upw = et - bt;
     }
 
 #ifdef TAPAS_DEBUG_DUMP
@@ -564,14 +554,11 @@ int main(int argc, char ** argv) {
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
       logger::startTimer("Traverse");
-      double bt = GetTime();
       ResetCount();
 
       TapasFMM::Map(FMM_DTT(), tapas::Product(*root, *root), args.theta);
 
-      double et = GetTime();
       logger::stopTimer("Traverse");
-      time_dtt = et - bt;
     }
 
     TAPAS_LOG_DEBUG() << "Dual Tree Traversal done\n";
@@ -586,7 +573,6 @@ int main(int argc, char ** argv) {
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
       logger::startTimer("Downward pass");
-      double bt = GetTime();
 
       if (root->IsLeaf()) {
         TapasFMM::Map(L2P, root->bodies());
@@ -594,9 +580,7 @@ int main(int argc, char ** argv) {
         TapasFMM::Map(FMM_Downward(), root->subcells());
       }
 
-      double et = GetTime();
       logger::stopTimer("Downward pass");
-      time_dwn = et - bt;
     }
 
     TAPAS_LOG_DEBUG() << "L2P done\n";
@@ -608,40 +592,10 @@ int main(int argc, char ** argv) {
     CopyBackResult(bodies, root);
     //CopyBackResult(bodies, root->body_attrs(), args.numBodies);
 
-    double total_et = GetTime();
     logger::printTitle("Total runtime");
     logger::stopPAPI();
     logger::stopTimer("Total FMM");
     logger::resetTimer("Total FMM");
-
-    double time_total = total_et - total_bt;
-    tapas::util::RankCSV csv {"total", "upward", "traverse", "downward", "tree"
-#ifdef COUNT
-          , "numP2P", "numM2L"
-#endif
-          };
-    csv.At("total") = time_total;
-    csv.At("upward") = time_upw;
-    csv.At("traverse") = time_dtt;
-    csv.At("downward") = time_dwn;
-    csv.At("tree") = time_tree;
-#ifdef COUNT
-    csv.At("numP2P") = numP2P;
-    csv.At("numM2L") = numM2L;
-#endif
-
-    std::string report_prefix;
-    std::string report_suffix;
-
-    if (getenv("TAPAS_REPORT_PREFIX")) {
-      report_prefix = getenv("TAPAS_REPORT_PREFIX");
-    }
-
-    if (getenv("TAPAS_REPORT_SUFFIX")) {
-      report_suffix = getenv("TAPAS_REPORT_SUFFIX");
-    }
-
-    csv.Dump(report_prefix + "main" + report_suffix + ".csv");
 
 #if WRITE_TIME
     logger::writeTime();
@@ -668,9 +622,9 @@ int main(int argc, char ** argv) {
     bodies = bodies3;
     data.initTarget(bodies);
 
-    root->Report();
   } /* end for */
-
+  
+  root->Report();
 #ifdef USE_MPI
   MPI_Finalize();
 #endif

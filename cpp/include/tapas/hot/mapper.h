@@ -326,7 +326,7 @@ struct CPUMapper {
       switch(dir) {
         case LET::MAP1_UP:
           {
-            c.data().time_map1_upw_finddir = (find_et - find_bt);
+            c.data().time_rec_.Record(0, "Map1-upw-finddir", find_et - find_bt);
             if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_UP" << std::endl;
             // Upward
             map1_dir_ = Map1Dir::Upward;
@@ -338,7 +338,7 @@ struct CPUMapper {
               LocalUpwardMap(f, c, args...); // Run local upward first
             
               double et = MPI_Wtime();
-              c.data().time_map1_upw_local = et - bt;
+              c.data().time_rec_.Record(0, "Map1-upw-local", et - bt);
             }
 
             // Global upward
@@ -350,7 +350,7 @@ struct CPUMapper {
                 iter++;
               }
               double et = MPI_Wtime();
-              c.data().time_map1_upw_global = et - bt;
+              c.data().time_rec_.Record(0, "Map1-upw-global", et - bt);
             }
 
             c.data().local_upw_results_.clear();
@@ -375,7 +375,7 @@ struct CPUMapper {
 
         case LET::MAP1_DOWN:
           {
-            c.data().time_map1_dwn_finddir = (find_et - find_bt);
+            c.data().time_rec_.Record(0, "Map1-dwn-finddir", find_et - find_bt);
             if (c.data().mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction MAP1_DONW" << std::endl;
             // Downward
             map1_dir_ = Map1Dir::Downward;
@@ -387,7 +387,7 @@ struct CPUMapper {
               iter++;
             }
             double et = MPI_Wtime();
-            c.data().time_map1_dwn_global = et - bt;
+            c.data().time_rec_.Record(0, "Map1-dwn-global", et - bt);
           
             map1_dir_ = Map1Dir::None;
             return;
@@ -455,8 +455,7 @@ struct CPUMapper {
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, Cell &c2, Args... args) {
     SCOREP_USER_REGION_DEFINE(trav_handle)
-    using Time = decltype(clock::now());
-    Time net_bt, net_et;
+    double exec_bt, exec_et; // executor's begin time, end time
 
     //c2.data().trav_used_src_key_.insert(c2.key());
 
@@ -465,14 +464,17 @@ struct CPUMapper {
       // All Map() function traverse starts from (root, root)
       // for LET construction and GPU init/finalize
 
-      auto bt = clock::now();
-
+      double insp_bt = MPI_Wtime();
+      
       if (c1.data().mpi_size_ > 1) {
 #ifdef TAPAS_DEBUG
-        char t[] = "TAPAS_IN_LET=1";
-        putenv(t); // to avoid warning "convertion from const char* to char*"
+        char t[] = "TAPAS_IN_LET=1"; // to avoid warning "convertion from const char* to char*"
+        putenv(t); 
 #endif
+
+        // LET Inspector routine
         LET::Exchange(c1, f, args...);
+        
 #ifdef TAPAS_DEBUG
         unsetenv("TAPAS_IN_LET");
 #endif
@@ -480,10 +482,10 @@ struct CPUMapper {
 
       SCOREP_USER_REGION_BEGIN(trav_handle, "NetTraverse", SCOREP_USER_REGION_TYPE_COMMON);
 
-      auto et = clock::now();
-      c1.data().time_map2_insp = duration_cast<milliseconds>(et - bt).count() * 1e-3;
+      double insp_et = MPI_Wtime();
+      c1.data().time_rec_.Record(0, "Map2-insp", insp_et - insp_bt);
 
-      net_bt = clock::now();
+      exec_bt = MPI_Wtime();
     }
 
     // myth_start_papi_counter("PAPI_FP_OPS");
@@ -493,8 +495,8 @@ struct CPUMapper {
 
     if (c1.IsRoot() && c2.IsRoot()) {
       // Post-traverse procedure
-      net_et = clock::now();
-      c1.data().time_map2_exec = duration_cast<milliseconds>(net_et - net_bt).count() * 1e-3;
+      exec_et = MPI_Wtime();
+      c1.data().time_rec_.Record(0, "Map2-exec", exec_et - exec_bt);
       SCOREP_USER_REGION_END(trav_handle);
     }
   }
@@ -699,13 +701,12 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     auto &data = c1.data();
     Finish(); // Execute CUDA kernel
 
-    data.time_map2_dev = vmap_.time_device_call_;
+    data.time_rec_.Record(0, "Map2-device", vmap_.time_device_call_);
 
     // collect runtime information
     map2_all_end_  = std::chrono::high_resolution_clock::now();
     auto dt = map2_all_end_ - map2_all_beg_;
-    data.time_map2_all = std::chrono::duration_cast<std::chrono::microseconds>(dt).count() * 1e-6;
-    std::cout << "data.time_map2_all = " << data.time_map2_all << std::endl;
+    data.time_rec_.Record(0, "Map2-all", std::chrono::duration_cast<std::chrono::microseconds>(dt).count() * 1e-6);
   }
 
   /*

@@ -47,292 +47,163 @@ void OpenFileStream(std::ofstream &ofs, const char *fname, decltype(std::ios::ou
   }
 }
 
-namespace {
+class TimeRec {
+  std::vector<std::string> cols_;
+  std::vector<std::unordered_map<std::string, double>> table_;
 
-template<class T>
-std::string Format(T v) {
-  std::stringstream ss;
-  ss << v;
-  return ss.str();
-}
+  int GetMaxColWidth() const {
+    int m = 0;
+    for (auto &&c : cols_) {
+      m = std::max(m, (int)c.size());
+    }
 
-std::string Format(double v) {
-  std::stringstream ss;
-  ss << std::scientific << v;
-  return ss.str();
-}
-
-std::string Format(float v) {
-  std::stringstream ss;
-  ss << std::scientific << v;
-  return ss.str();
-}
-
-} // anon namespace
-
-struct ValueBase {
-  virtual std::string get() const = 0;
-  virtual ~ValueBase() { }
-};
-
-template <class T>
-struct ValueImpl : public ValueBase {
-  T value_;
-  ValueImpl(T value) : value_(value) { }
-
-  virtual std::string get() const override {
-    return Format(value_);
+    return std::max(12, m) + 2; // 15 is the width of scientific notations.
   }
-  virtual ~ValueImpl() {}
-};
 
-struct Value {
-  ValueBase *value_;
+  static std::string EscapeChars(const std::string &s_) {
+    const std::vector<char> invalid_chars = {' ', '\t', '\r', '\n'};
+    std::string s = s_;
 
-  Value() : value_(nullptr) {}
-  ~Value() { if (value_) delete value_; }
+    for (auto &&c: invalid_chars) {
+      if (s.find(c) != std::string::npos) {
+        std::cout << s.find(c) << std::endl;
+        std::cerr << "Warning: TimeRec: column names cannot contain '"
+                  << (c == ' ' ? "space" :
+                      c == '\t' ? "\\t" :
+                      c == '\r' ? "\\r" :
+                      c == '\n' ? "\\n" : "")
+                  << "'. They are replaced by '-'." << std::endl;
+        
+        while(s.find(c) != std::string::npos) {
+          s = s.replace(s.find(c), 1, "-");
+        }
+      }
+    }
+
+    return s;
+  }
+  
 
   template<class T>
-  Value& operator=(T v) {
-    //std::cout << "Value::operator=(" << v << ") is called." << std::endl;
-    if (value_) {
-      delete value_;
-      value_ = nullptr;
-    }
-    value_ = new ValueImpl<T>(v);
-    return *this;
-  }
-
-  std::string get() const {
-    if (value_) return value_->get();
-    else return std::string("N/A");
-  }
-};
-
-
-
-class CSV {
-
-  static const constexpr int kDefaultWidth = 14;
-  
-  const size_t ncols_;
-  const size_t nrows_;
-  size_t col_width_;
-
-  const std::vector<std::string> cols_;
-
-  std::unique_ptr<Value[]> data_;
-  std::unordered_map<std::string, size_t> col2idx_;
-
- public:
-  CSV(std::initializer_list<std::string> cols, size_t nrows)
-      : ncols_(cols.size())
-      , nrows_(nrows)
-      , col_width_(kDefaultWidth)
-      , cols_(cols)
-      , data_(new Value[ncols_ * nrows_], std::default_delete<Value[]>())
-      , col2idx_()
-  {
-    int i = 0;
-    for (auto &&col_name : cols) {
-      col2idx_[col_name] = i++;
-    }
-  }
-  CSV(std::vector<std::string> cols, size_t nrows)
-      : ncols_(cols.size())
-      , nrows_(nrows)
-      , col_width_(kDefaultWidth)
-      , cols_(cols)
-      , data_(new Value[ncols_ * nrows_], std::default_delete<Value[]>())
-      , col2idx_()
-  {
-    int i = 0;
-    for (auto &&col_name : cols) {
-      col2idx_[col_name] = i++;
-    }
-  }
-
-  void SetColumnWidth(size_t w) {
-    assert(w > 0);
-    col_width_ = w;
-  }
-  
-  Value &At(const std::string &col, size_t irow) {
-    if (col2idx_.count(col) == 0) {
-      std::cerr << "ERROR: Unknown column name: " << col << std::endl;
-      exit(-1);
-    }
-    size_t icol = col2idx_[col];
-    return data_.get()[icol * nrows_ + irow];
-  }
-
-  void DumpHeader(std::ostream &os) const {
-    for (auto &&col : cols_) {
-      int npad = col_width_ - col.size();
-      if (npad > 0) {
-        for (int i = 0; i < npad; i++) {
-          os << " ";
-        }
-      }
-      os << col;
-    }
-    os << std::endl;
-  }
-
-  void Dump(std::ostream &os, bool header = true) const {
-    if (header) {
-      DumpHeader(os);
-    }
-    
-    for (size_t row = 0; row < nrows_; row++) {
-      for (size_t col = 0; col < ncols_; col++) {
-        std::string v = data_.get()[col * nrows_ + row].get();
-
-        int npad = col_width_ - v.size();
-
-        // padding before the value
-        for (int i = 0; i < npad; i++) {
-          os << " ";
-        }
-        os << v;
-
-        // padding after the value (if npad <= 0, which means the value is equal or longer than column width.
-        // we need at least one padding.
-        if (col < ncols_- 1 && npad <= 0) {
-          os << " ";
-        }
-      }
-      os << std::endl;
-    }
-  }
-
-  void Dump(const char *fname) const {
-    std::ofstream ofs;
-    OpenFileStream(ofs, fname, std::ios::out);
-    Dump(ofs);
-    ofs.close();
-  }
-
-  void Dump(const std::string &fname) const {
-    Dump(fname.c_str());
-  }
-};
-
-#ifdef USE_MPI
-
-class RankCSV {
-  std::unique_ptr<CSV> csv_;
-  int mpi_rank_;
-  MPI_Comm comm_;
-  
- public:
-  RankCSV(std::initializer_list<std::string> cols)
-  {
-    std::vector<std::string> cols2 = cols;
-    cols2.insert(cols2.begin(), "Rank");
-    csv_.reset(new CSV(cols2, 1));
-    comm_ = MPI_COMM_WORLD;
-    MPI_Comm_rank(comm_, &mpi_rank_);
-
-    this->At("Rank") = mpi_rank_;
-  }
-  
-  Value &At(const std::string &col) {
-    return csv_->At(col, 0);
-  }
-
-  void Dump(const std::string &fname) const {
-    Dump(fname.c_str());
-  }
-  
-  void Dump(const char *fname) const {
-    int mpi_size;
-    MPI_Comm_size(comm_, &mpi_size);
-    
+  static std::string Format(T &val) {
     std::stringstream ss;
-    csv_->Dump(ss, false);
-    std::string my_row = ss.str();
-
-    int len = my_row.size() + 1;
-    int max_len = 0;
-
-    MPI_Allreduce(&len, &max_len, 1, MPI_INT, MPI_MAX, comm_);
-
-    char *recv_buf = nullptr;
-
-    if (mpi_rank_ == 0) {
-      recv_buf = new char[max_len * mpi_size];
-    }
-    
-    MPI_Gather(my_row.c_str(), max_len, MPI_BYTE, recv_buf, max_len, MPI_BYTE, 0, comm_);
-
-    if (mpi_rank_ == 0) {
-      std::ofstream ofs;
-      OpenFileStream(ofs, fname, std::ios::out);
-      csv_->DumpHeader(ofs);
-      for (int r = 0; r < mpi_size; r++) {
-        ofs << &recv_buf[r * len];
-      }
-      ofs.close();
-    }
+    ss << val;
+    return ss.str();
   }
-};
 
-#else
+  static std::string Format(double val) {
+    std::stringstream ss;
+    ss << std::scientific << val;
+    return ss.str();
+  }
+  
+  static std::string Format(float val) {
+    std::stringstream ss;
+    ss << std::scientific << val;
+    return ss.str();
+  }
 
-class RankCSV {
-  std::unique_ptr<CSV> csv_;
-  int mpi_rank_;
+
+  template<class T>
+  static void WriteValue(std::ostream &os, T val, int width) {
+    std::string s = Format(val);
+    int nsp = width - s.size();
+    if (nsp >= 0) {
+      for (int i = 0; i < nsp; i++) { os << " "; }
+    }
+    os << s;
+  }
   
  public:
-  RankCSV(std::initializer_list<std::string> cols)
-  {
-    std::vector<std::string> cols2 = cols;
-    cols2.insert(cols2.begin(), "Rank");
-    csv_.reset(new CSV(cols2, 1));
-
-    this->At("Rank") = mpi_rank_;
-  }
+  TimeRec() : cols_(), table_() {}
   
-  Value &At(const std::string &col) {
-    return csv_->At(col, 0);
+  void Record(int time_step, std::string col, double val) {
+    assert(time_step >= 0);
+
+    if (std::find(cols_.begin(), cols_.end(), col) == cols_.end()) {
+      cols_.push_back(col);
+    }
+
+    col = EscapeChars(col);
+
+    if (table_.size() < (size_t)time_step + 1) { // assumes timestep starts from 0.
+      table_.resize(time_step + 1);
+    }
+
+    table_[time_step][col] = val;
   }
 
-  void Dump(const std::string &fname) const {
-    Dump(fname.c_str());
-  }
-  
-  void Dump(std::ostream &os) const {
-    csv_->Dump(os);
-  }
-
-  void Dump(const char *fname) const {
+  void Dump(std::string fname) const {
     std::ofstream ofs;
-    OpenFileStream(ofs, fname, std::ios::out);
+    OpenFileStream(ofs, fname.c_str(), std::ios::out);
     Dump(ofs);
     ofs.close();
   }
-};
 
-#endif // USE_MPI
-
-template<typename T>
-std::string type_name()
-{
-  int status;
-  std::string tname = typeid(T).name();
-  char *demangled_name = abi::__cxa_demangle(tname.c_str(), NULL, NULL, &status);
-  if(status == 0) {
-    tname = demangled_name;
-    std::free(demangled_name);
+  void Dump() const {
+    Dump(std::cout);
   }
-  return tname;
-}
 
-template<typename T>
-std::string type_name(T& ) {
-  return type_name<T>();
-}
+  void Dump(std::ostream &os) const {
+    if (cols_.size() == 0) return;
+    
+    int col_width = GetMaxColWidth();
+
+    int rank = 0, size = 1;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int max_ts = table_.size();
+
+    std::stringstream ss;
+
+    if (rank == 0) {
+      WriteValue(ss, "TimeStep", col_width);
+      WriteValue(ss, "Rank", col_width);
+    
+      for (const std::string &col : cols_) {
+        WriteValue(ss, col, col_width);
+      }
+      ss << std::endl;
+    }
+
+    for (int ts = 0; ts < max_ts; ts++) {
+      const auto &row_map = table_[ts];
+
+      WriteValue(ss, ts, col_width);
+      WriteValue(ss, rank, col_width);
+
+      for (const std::string &col : cols_) {
+        double val = (row_map.find(col) == row_map.end())
+                     ? 0
+                     : row_map.at(col);
+        
+        WriteValue(ss, val, col_width);
+      }
+      ss << std::endl;
+    }
+
+    std::vector<int> recvcounts(size);
+    std::vector<int> disps(size);
+
+    int len = ss.str().size();
+    MPI_Gather(&len, 1, MPI_INT, &(recvcounts[0]), 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    for (int i = 0; i < size; i++) {
+      disps[i] = i == 0 ? 0 : recvcounts[i-1] + disps[i-1];
+    }
+
+    int total_length = std::accumulate(recvcounts.begin(), recvcounts.end(), 0);
+    char *recv_buf = new char[total_length + 1];
+
+    MPI_Gatherv(ss.str().c_str(), ss.str().size(), MPI_BYTE,
+                &(recv_buf[0]),  &(recvcounts[0]), &(disps[0]), MPI_BYTE, 0, MPI_COMM_WORLD);
+
+    recv_buf[total_length] = '\0';
+    os << recv_buf;
+    delete[] recv_buf;
+  }
+};
 
 /**
  * \brief Utility class to extract function signature(return value and arity).

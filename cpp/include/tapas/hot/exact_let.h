@@ -77,7 +77,7 @@ struct ExactLET {
       cell_ = rhs.cell_;
       return *this;
     }
-
+    
    public:
     ProxyAttr(ProxyCell *cell) : CellAttrType(), cell_(cell) { }
     ProxyAttr(ProxyCell *cell, CellAttrType &rhs) : CellAttrType(rhs), cell_(cell) { }
@@ -865,7 +865,6 @@ struct ExactLET {
                          UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
     MPI_Barrier(MPI_COMM_WORLD);
-    double beg = MPI_Wtime();
 
     req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
     req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
@@ -876,9 +875,6 @@ struct ExactLET {
     req_keys_attr.insert(root.key());
 
     Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
-
-    double end = MPI_Wtime();
-    root.data().time_let_trav_main = end - beg;
   }
 
   /**
@@ -965,7 +961,7 @@ struct ExactLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     et_comm = MPI_Wtime();
-    data.time_let_req_comm = et_comm - bt_comm;
+    data.time_rec_.Record(0, "Map2-LET-req-comm", et_comm - bt_comm);
 
 #ifdef TAPAS_DEBUG_DUMP
     {
@@ -986,7 +982,7 @@ struct ExactLET {
 #endif
 
     et_all = MPI_Wtime();
-    data.time_let_req_all = et_all - bt_all;
+    data.time_rec_.Record(0, "Map2-LET-all", et_all - bt_all);
   }
 
 
@@ -1041,7 +1037,7 @@ struct ExactLET {
     std::vector<CellAttrType> attr_sendbuf;
     Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
 
-    data.time_let_res_comp1 = et - bt;
+    data.time_rec_.Record(0, "Map2-LET-res-comp1", et - bt);
 
     // ===== 2. communication =====
     // Send response keys and attributes
@@ -1051,7 +1047,7 @@ struct ExactLET {
     tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
-    data.time_let_res_attr_comm = et - bt;
+    data.time_rec_.Record(0, "Map2-LET-attr-comm", et - bt);
 
 #if 0
     // Dump request keys
@@ -1126,7 +1122,7 @@ struct ExactLET {
     tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
-    data.time_let_res_body_comm = et - bt;
+    data.time_rec_.Record(0, "Map2-LET-res-body-comm", et - bt);
 
 #ifdef TAPAS_DEBUG_DUMP
     tapas::debug::BarrierExec([&](int, int) {
@@ -1148,7 +1144,7 @@ struct ExactLET {
     TAPAS_ASSERT(data.let_bodies_.size() == res_bodies.size());
 
     et_all = MPI_Wtime();
-    data.time_let_res_all = et_all - bt_all;
+    data.time_rec_.Record(0, "Map2-LET-res-all", et_all - bt_all);
   }
 
   /**
@@ -1210,7 +1206,7 @@ struct ExactLET {
     }
 
     double end = MPI_Wtime();
-    data->time_let_register = end - beg;
+    data->time_rec_.Record(0, "Map2-LET-register", end - beg);
   }
 
   /**
@@ -1258,7 +1254,7 @@ struct ExactLET {
 #endif
 
     double end = MPI_Wtime();
-    root.data().time_let_all = end - beg;
+    root.data().time_rec_.Record(0, "Map2-LET-all", end - beg);
   }
 
   static void DebugDumpCells(Data &data) {

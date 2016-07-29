@@ -291,7 +291,7 @@ class SamplingOctree {
     TAPAS_ASSERT((int)proc_first_keys_.size() == data_->mpi_size_);
 
     double end = MPI_Wtime();
-    data_->time_tree_sample = end - beg;
+    data_->time_rec_.Record(0, "Tree-sample", end - beg);
   }
 
   /**
@@ -321,7 +321,7 @@ class SamplingOctree {
     data_->nb_after = data_->local_bodies_.size();
 
     double end = MPI_Wtime();
-    data_->time_tree_exchange = end - beg;
+    data_->time_rec_.Record(0, "Tree-exchange", end - beg);
   }
 
   /**
@@ -360,7 +360,7 @@ class SamplingOctree {
     data_->ncells = data_->ht_.size();
 
     double end = MPI_Wtime();
-    data_->time_tree_all = end - beg;
+    data_->time_rec_.Record(0, "Tree-all", end - beg);
 
 #ifdef TAPAS_DEBUG_HISTOGRAM
     ShowHistogram(*data_);
@@ -380,7 +380,7 @@ class SamplingOctree {
     proc_first_keys_.pop_back();
 
     double end = MPI_Wtime();
-    data_->time_tree_growlocal = end - beg;
+    data_->time_rec_.Record(0, "Tree-growlocal", end - beg);
   }
 
   /**

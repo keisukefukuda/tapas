@@ -64,7 +64,7 @@ class GlobalTree {
     GetLocalBB(data);
 
     double end = MPI_Wtime();
-    data.time_tree_growglobal = end - beg;
+    data.time_rec_.Record(0, "Tree-growglobal", end - beg);
   }
 
   /**
