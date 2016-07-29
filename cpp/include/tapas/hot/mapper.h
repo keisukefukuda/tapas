@@ -455,7 +455,7 @@ struct CPUMapper {
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, Cell &c2, Args... args) {
     SCOREP_USER_REGION_DEFINE(trav_handle)
-    double exec_bt, exec_et; // executor's begin time, end time
+        double exec_bt = 0, exec_et = 0; // executor's begin time, end time
 
     //c2.data().trav_used_src_key_.insert(c2.key());
 

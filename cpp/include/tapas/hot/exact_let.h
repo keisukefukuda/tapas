@@ -982,7 +982,7 @@ struct ExactLET {
 #endif
 
     et_all = MPI_Wtime();
-    data.time_rec_.Record(0, "Map2-LET-all", et_all - bt_all);
+    data.time_rec_.Record(0, "Map2-LET-req", et_all - bt_all);
   }
 
 
