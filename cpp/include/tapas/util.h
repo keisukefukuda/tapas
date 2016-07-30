@@ -11,7 +11,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
-#include <algorithm>
+#include <numeric>
 
 #ifdef USE_MPI
 # include <mpi.h>
