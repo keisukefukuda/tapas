@@ -15,7 +15,7 @@ extern "C" {
 }
 
 
-#if !defined(__CUDACC__)
+#if !defined(__CUDACC__) // not CUDA
 /**
  * Check if user's function f is mutual or non-mutual.
  * These classes are inactivated in CUDA mode since nvcc's C++11 support is not
@@ -226,10 +226,12 @@ struct CPUMapper {
 
   Map1Dir map1_dir_;
 
+  std::string label_;
+  
   using KeyType = typename Cell::KeyType;
   using SFC = typename Cell::SFC;
 
-  CPUMapper() : map1_dir_(Map1Dir::None) { }
+  CPUMapper() : map1_dir_(Map1Dir::None), label_() { }
 
   /**
    * @brief Map function f over product of two iterators
@@ -293,13 +295,25 @@ struct CPUMapper {
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
   }
 
+  template<class Funct, typename Data>
+  void GetFuncLabel(Funct &f, Data &data) {
+    using G = tapas::util::GetLabel<Funct>;
+    
+    if (G::HasLabel()) {
+      label_ = G::Value(f);
+    } else {
+      std::stringstream ss;
+      ss << "Map1-" << data.count_map1_;
+      label_ = ss.str();
+    }
+  }
+
   /**
    * CPUMapper::Map  (1-parameter)
    * Map-1 with SubCelliterator is for Upward or Downward operation.
    * First, determine the direction (up/down) and if up start from local upward.
    */
   template<class Funct, class...Args>
-  //inline void Map(Funct f, Cell &c, Args...args) {
   inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args...args) {
 
     Cell &c = iter.cell();
@@ -312,7 +326,7 @@ struct CPUMapper {
         // However, this should not happen because 
         return;
       }
-      
+
       // Map() has just started.
       // Find the direction of the function f (upward or downward)
       if (map1_dir_ != Map1Dir::None) {
@@ -324,6 +338,11 @@ struct CPUMapper {
       auto dir = LET::FindMap1Direction(c, f, args...);
       double find_et = MPI_Wtime();
 
+      // Find the label of f.
+      // (for example, "DTT", "Upward", etc.
+      GetFuncLabel<Funct>(f, data);
+      std::cout << "Label = " << label_ << std::endl;
+      
       switch(dir) {
         case LET::MAP1_UP:
           {
@@ -370,8 +389,8 @@ struct CPUMapper {
                 }
               });
 #endif
-              
-            return;
+
+            break;
           }
 
         case LET::MAP1_DOWN:
@@ -391,7 +410,7 @@ struct CPUMapper {
             data.time_rec_.Record(data.timestep_, "Map1-dwn-global", et - bt);
           
             map1_dir_ = Map1Dir::None;
-            return;
+            break;
           }
 
         default:
@@ -405,6 +424,10 @@ struct CPUMapper {
           if (data.mpi_rank_ == 0) std::cout << "In Map-1: Determining 1-map direction : default" << std::endl;
           break;
       }
+
+      // Count how many times Map-1 is called
+      data.count_map1_++;
+      
     } else { // for non-root cells
       // Non-root cells
       if (map1_dir_ == Map1Dir::None) {
@@ -567,6 +590,7 @@ struct CPUMapper {
   inline void Start2() { }
 
   inline void Finish() {  }
+
 }; // class CPUMapper
 
 

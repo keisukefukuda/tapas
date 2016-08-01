@@ -20,6 +20,61 @@
 namespace tapas {
 namespace util {
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Check if a class has a certain member function
+// 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+template<typename T, bool B> struct Caller;
+
+template<typename T> struct Caller<T, true> {
+  static std::string Call(const T& t) { return t.label(); }
+};
+
+template<typename T> struct Caller<T, false> {
+  static std::string Call(const T&) { return ""; }
+};
+
+} // namespace 
+
+template<class T>
+struct GetLabel {
+  template<typename U, std::string (U::*)() const> struct SFINAE {};
+  template<typename U> static char Test(SFINAE<U, &U::label>*);
+  template<typename U> static int Test(...);
+
+  static constexpr bool HasFunc = sizeof(Test<T>(nullptr)) == sizeof(char);
+  
+  static std::string Value(const T& obj) {
+    return Caller<T, HasFunc>::Call(obj);
+  }
+  static bool HasLabel() {
+    return HasFunc;
+  }
+};
+
+struct Test1 {
+  // This class HAS a member function label().
+  std::string Label() const {
+    return "This is the label !!";
+  }
+};
+
+struct Test2 {
+  // This class does NOT have a member function label().
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Performance reporting classes
+// 
+////////////////////////////////////////////////////////////////////////////////
+
 void OpenFileStream(std::ofstream &ofs, const char *fname, decltype(std::ios::out) mode) {
   ofs.clear();
 
