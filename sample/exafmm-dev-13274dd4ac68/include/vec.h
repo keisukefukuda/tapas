@@ -1264,7 +1264,7 @@ public:
 };
 #endif
 
-#if __sparc_v9__
+#if __sparc_v9__ && 0
 #include <emmintrin.h>
 
 template<>
