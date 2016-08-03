@@ -114,6 +114,7 @@ struct FMM_Upward {
     // M2M
     M2M(parent, child);
   }
+  std::string label() const { return "FMM-upward"; }
 };
 
 struct FMM_Downward {
@@ -131,6 +132,8 @@ struct FMM_Downward {
       TapasFMM::Map(*this, child.subcells());
     }
   }
+
+  std::string label() const { return "FMM-downward"; }
 };
 
 template<class Cell, class L>
@@ -197,6 +200,8 @@ void DebugWatchCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, real_t R2) {
 
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
+  std::string label() const { return "FMM-DTT"; }
+  
   template<class Cell>
   inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
     //real_t R2 = (Ci.center() - Cj.center()).norm();

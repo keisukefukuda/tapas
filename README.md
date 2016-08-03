@@ -70,8 +70,6 @@ A. Check the version of g++. `mpicxx` uses g++ as a backend. If it's old, instal
 |:----------------------|:-----------------|:--------------|:----------------------------------------------------------|
 |TAPAS_DEBUG            | unset, 0, or 1   | unset         | Enable verbose debug output. Minor performance slowdown   |
 |TAPAS_DEBUG_DUMP       | unset, 0, or 1   | unset         | Enable verbose debug output. Serious performance slowdown |
-|TAPAS_REPORT_PREFIX    | filename prefix  | unset         | Prefix of performance report file names (*.csv)           |
-|TAPAS_REPORT_SUFFIX    | part of filename | unset         | Suffix of performance report file names                   |
+|TAPAS_REPORT_FILENAME  | filename         | unset         | Performance report file name (*.csv)                      |
 |TAPAS_DEBUG_COMM_MATRIX| unset/any        | unset         | Print Communication Matrix in MPI_Alltoallv()             |
 |TAPAS_DEBUG_HISTOGRAM  | unset/any        | unset         | Print depth histogram of the tree                         |
-

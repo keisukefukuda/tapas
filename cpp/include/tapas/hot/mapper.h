@@ -83,8 +83,6 @@ static void ProductMapImpl(Mapper &mapper,
   constexpr bool kMutual = CheckMutualCell<Funct, CellType>::value
                       && std::is_same<typename T1_Iter::value_type,
                                       typename T2_Iter::value_type>::value;
-  //&& iter1.cell() == iter2.cell();
-
 #if 0
   // Debug code
   std::string T1_str, T2_str;
@@ -295,19 +293,40 @@ struct CPUMapper {
     Cell::ExchangeGlobalLeafAttrs(data.ht_gtree_, data.lroots_);
   }
 
-  template<class Funct, typename Data>
-  void GetFuncLabel(Funct &f, Data &data) {
+  template<class...Args>
+  std::string Concat(Args...args) {
+    std::stringstream ss;
+    return Concat(ss, args...);
+  }
+  
+  template<class T, class...Args>
+  std::string Concat(std::stringstream &ss, T v, Args... args) {
+    ss << v;
+    return Concat(ss, args...);
+  }
+
+  std::string Concat(std::stringstream &ss) {
+    return ss.str();
+  }
+
+  std::string Concat() {
+    return "";
+  }
+  
+  template<class Funct, class...Args>
+  void GetFuncLabel(Funct &f, Args...args) {
     using G = tapas::util::GetLabel<Funct>;
     
     if (G::HasLabel()) {
       label_ = G::Value(f);
     } else {
-      std::stringstream ss;
-      ss << "Map1-" << data.count_map1_;
-      label_ = ss.str();
+      label_ = Concat(args...);
     }
   }
 
+  /**
+   * \brief Upward for root cells
+   */
   template<class Funct, class...Args>
   inline void UpwardRoot(Funct f, tapas::iterator::SubCellIterator<Cell> &iter, Args...args) {
     Cell &c = iter.cell();
@@ -322,7 +341,7 @@ struct CPUMapper {
       LocalUpwardMap(f, c, args...); // Run local upward first
             
       double et = MPI_Wtime();
-      data.time_rec_.Record(data.timestep_, "Map1-upw-local", et - bt);
+      data.time_rec_.Record(data.timestep_, label_ + "-local", et - bt);
     }
 
     // Global upward
@@ -333,12 +352,15 @@ struct CPUMapper {
       iter++;
     }
     double et = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map1-upw-global", et - bt);
+    data.time_rec_.Record(data.timestep_, label_ + "-global", et - bt);
     
     data.local_upw_results_.clear();
     map1_dir_ = Map1Dir::None; // Upward is done.
   }
 
+  /**
+   * \brief Upward for non-root cells
+   */
   template<class Funct, class ...Args>
   inline void UpwardNonRoot(Funct f, tapas::iterator::SubCellIterator<Cell> &iter, Args...args) {
     Cell &c = iter.cell();
@@ -383,7 +405,7 @@ struct CPUMapper {
       iter++;
     }
     double et = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map1-dwn-global", et - bt);
+    data.time_rec_.Record(data.timestep_, label_ + "-global", et - bt);
     
     map1_dir_ = Map1Dir::None;
   }
@@ -424,8 +446,7 @@ struct CPUMapper {
 
       // Find the label of f.
       // (for example, "DTT", "Upward", etc.
-      GetFuncLabel<Funct>(f, data);
-      std::cout << "Label = " << label_ << std::endl;
+      GetFuncLabel(f, "Map2-", data.count_map2_);
       
       // Map() has just started.
       // Find the direction of the function f (upward or downward)
@@ -478,6 +499,8 @@ struct CPUMapper {
       // All Map() function traverse starts from (root, root)
       // for LET construction and GPU init/finalize
 
+      GetFuncLabel(f, "Map1-", data.count_map2_);
+
       double insp_bt = MPI_Wtime();
       
       if (data.mpi_size_ > 1) {
@@ -497,7 +520,7 @@ struct CPUMapper {
       SCOREP_USER_REGION_BEGIN(trav_handle, "NetTraverse", SCOREP_USER_REGION_TYPE_COMMON);
 
       double insp_et = MPI_Wtime();
-      data.time_rec_.Record(data.timestep_, "Map2-insp", insp_et - insp_bt);
+      data.time_rec_.Record(data.timestep_, label_ + "-insp", insp_et - insp_bt);
 
       exec_bt = MPI_Wtime();
     }
@@ -510,7 +533,7 @@ struct CPUMapper {
     if (c1.IsRoot() && c2.IsRoot()) {
       // Post-traverse procedure
       exec_et = MPI_Wtime();
-      c1.data().time_rec_.Record(data.timestep_, "Map2-exec", exec_et - exec_bt);
+      c1.data().time_rec_.Record(data.timestep_, label_ + "-exec", exec_et - exec_bt);
       SCOREP_USER_REGION_END(trav_handle);
     }
   }
