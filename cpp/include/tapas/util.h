@@ -252,7 +252,8 @@ class TimeRec {
     int total_length = std::accumulate(recvcounts.begin(), recvcounts.end(), 0);
     char *recv_buf = new char[total_length + 1];
 
-    MPI_Gatherv(ss.str().c_str(), ss.str().size(), MPI_BYTE,
+    char *send_buf = const_cast<char *>(ss.str().c_str());
+    MPI_Gatherv(send_buf, ss.str().size(), MPI_BYTE,
                 &(recv_buf[0]),  &(recvcounts[0]), &(disps[0]), MPI_BYTE, 0, MPI_COMM_WORLD);
 
     recv_buf[total_length] = '\0';
