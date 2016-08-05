@@ -68,17 +68,10 @@ struct SharedData {
   std::vector<index_t> leaf_nb_;   //!< Number of bodies in each leaf cell
   std::vector<int>     leaf_owners_; //!< Owner process of leaf[i]
 
-#if 0
-  std::vector<BodyType, Allocator<BodyType>> local_bodies_; //!< Bodies that belong to the local process
-  std::vector<BodyType, Allocator<BodyType>> let_bodies_; //!< Bodies sent from remote processes
-  std::vector<BodyAttrType, Allocator<BodyAttrType>> local_body_attrs_; //!< Local body attributes
-  std::vector<BodyAttrType, Allocator<BodyAttrType>> let_body_attrs_; //!< Local body attributes
-#else
   std::vector<BodyType> local_bodies_; //!< Bodies that belong to the local process
   std::vector<BodyType> let_bodies_; //!< Bodies sent from remote processes
   std::vector<BodyAttrType> local_body_attrs_; //!< Local body attributes
   std::vector<BodyAttrType> let_body_attrs_; //!< Local body attributes
-#endif
 
   std::vector<KeyType>  local_body_keys_; //!< SFC keys of local bodies
 
