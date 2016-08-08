@@ -34,6 +34,13 @@ struct P2P {
       real_t invR2 = 1.0 / R2;
       real_t invR = Bi.SRC * Bj.SRC * sqrt(invR2);
       dX *= invR2 * invR;
+
+      std::cout << "P2P: "
+                << "Bi " << Bi.X << " " << Bi.SRC << " "
+                << "Bj " << Bj.X << " " << Bj.SRC << " "
+                << "invR " << invR << " "
+                << "dX " << dX
+                << std::endl;
       TapasFMM::Reduce(Bi, Bi_attr[0], invR);
       TapasFMM::Reduce(Bi, Bi_attr[1], -dX[0]);
       TapasFMM::Reduce(Bi, Bi_attr[2], -dX[1]);

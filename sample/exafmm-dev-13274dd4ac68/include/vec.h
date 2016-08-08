@@ -154,7 +154,7 @@ public:
   operator       T* ()       {return data;}                     // Type-casting (lvalue)
   operator const T* () const {return data;}                     // Type-casting (rvalue)
   friend std::ostream &operator<<(std::ostream & s, const vec & v) {// Component-wise output stream
-    for (int i=0; i<N; i++) s << std::scientific << v[i] << ' ';
+    for (int i=0; i<N; i++) s << std::scientific << std::showpos << v[i] << ' ';
     return s;
   }
 	size_t size() const { return N; }

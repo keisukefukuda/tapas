@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include "types.h"
 
@@ -78,12 +79,74 @@ class Dataset {                                                 // Contains all 
               << "end = " << end << std::endl;
   }
 
+  void LoadFile(size_t numBodies, int mpi_rank, int mpi_size, Bodies &bodies) {
+    size_t rem = numBodies % mpi_size;
+    size_t nb_local = numBodies / mpi_size + (mpi_rank + 1 == mpi_size ? rem : 0); // local number of bodies
+    size_t beg = (numBodies / mpi_size) * mpi_rank;
+    size_t end = beg + nb_local;
+
+    std::ifstream ifs(getenv("FMM_LOAD_BODIES"), std::ios::in);
+
+    size_t nb2 = 0;
+    ifs >> nb2;
+    assert(nb2 == numBodies);
+
+    bodies.clear();
+
+    for (size_t i = 0; i < numBodies; i++) {
+      Body B;
+      for (int d=0; d<3; d++) {
+        ifs >> B.X[d];
+      }
+      ifs >> B.SRC;
+      for (int d=0; d<3; d++) {
+        ifs >> B.TRG[d];
+      }
+      if (beg <= i && i < end) {
+        bodies.push_back(B);                                // Use this particle if it belongs to this process.
+      }
+    }
+  }
+
+  void DumpFile(int mpi_rank, int mpi_size, const Bodies &bodies) {
+    long numBodies = bodies.size();
+    
+    MPI_Reduce(MPI_IN_PLACE, (void*)&numBodies, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    const char *fname = getenv("FMM_DUMP_BODIES");
+    assert(fname); // checked before
+    
+    if (mpi_rank == 0) {
+      std::ofstream ofs(fname, std::ios::out | std::ios::trunc);
+      assert(ofs.good());
+      ofs << numBodies << std::endl;
+      ofs.close();
+    }
+
+    for (int p = 0; p < mpi_size; p++) {
+      for (const Body &b : bodies) {
+        std::ofstream ofs(fname, std::ios::out | std::ios::app);
+        assert(ofs.good());
+        for (int d = 0; d < 3; d++) {
+          ofs << std::scientific << std::showpos << b.X[d] << " ";
+        }
+        ofs << std::scientific << std::showpos << b.SRC << " ";
+        for (int d = 0; d < 3; d++) {
+          ofs << std::scientific << std::showpos << b.TRG[d] << " ";
+        }
+        ofs << std::endl;
+        
+        ofs.close();
+      }
+    }
+  }
+  
   /**
    * @brief Generates uniform distribution on [-1,1]^3 lattice
    * @note The first argument numBodies will be overwritten because 
    *       number of lattices does not always match the given numBodies.
    */
-  Bodies lattice(int &numBodies, int proc_rank, int proc_size) {
+  Bodies lattice(int &numBodies, int mpi_rank, int mpi_size) {
     long nx = std::lround(std::pow(numBodies, 1./3));
     long ny = nx;
     long nz = nx;
@@ -92,13 +155,13 @@ class Dataset {                                                 // Contains all 
     // in many cases.
     numBodies = nx * ny * nz;
 
-    size_t rem = numBodies % proc_size;
-    size_t nb_local = numBodies / proc_size + (proc_rank + 1 == proc_size ? rem : 0); // local number of bodies
-    size_t beg = (numBodies / proc_size) * proc_rank;
+    size_t rem = numBodies % mpi_size;
+    size_t nb_local = numBodies / mpi_size + (mpi_rank + 1 == mpi_size ? rem : 0); // local number of bodies
+    size_t beg = (numBodies / mpi_size) * mpi_rank;
     size_t end = beg + nb_local;
     Bodies bodies(nb_local);
     size_t gi = 0, li = 0;
-    assert(proc_size == 1 || numBodies > (int)nb_local);
+    assert(mpi_size == 1 || numBodies > (int)nb_local);
 
     for (int ix = 0; ix < nx; ix++) {
       for (int iy = 0; iy < ny; iy++) {
@@ -128,11 +191,11 @@ class Dataset {                                                 // Contains all 
    * It always generates an identical distribution from a same seed, no matter 
    * how many processes are used.
    */
-  Bodies cube(int numBodies, int proc_rank, int proc_size) {
+  Bodies cube(int numBodies, int mpi_rank, int mpi_size) {
     // Calculate number of bodies which this process generates.
-    long rem = numBodies % proc_size;
-    long nb_local = numBodies / proc_size + (proc_rank + 1 == proc_size ? rem : 0); // num bodies local
-    long beg = (numBodies / proc_size) * proc_rank;
+    long rem = numBodies % mpi_size;
+    long nb_local = numBodies / mpi_size + (mpi_rank + 1 == mpi_size ? rem : 0); // num bodies local
+    long beg = (numBodies / mpi_size) * mpi_rank;
     long end = beg + nb_local;
     Bodies bodies;
     bodies.reserve(nb_local);
@@ -152,11 +215,11 @@ class Dataset {                                                 // Contains all 
   }
 
   //! Random distribution on r = 1 sphere
-  Bodies sphere(int numBodies, int proc_rank, int proc_size) {
+  Bodies sphere(int numBodies, int mpi_rank, int mpi_size) {
     // Calculate number of bodies which this process generates.
-    size_t rem = numBodies % proc_size;
-    size_t nb_local = numBodies / proc_size + (proc_rank + 1 == proc_size ? rem : 0); // num bodies local
-    long beg = (numBodies / proc_size) * proc_rank;
+    size_t rem = numBodies % mpi_size;
+    size_t nb_local = numBodies / mpi_size + (mpi_rank + 1 == mpi_size ? rem : 0); // num bodies local
+    long beg = (numBodies / mpi_size) * mpi_rank;
     long end = beg + nb_local;
     Bodies bodies;
     bodies.reserve(nb_local);
@@ -181,12 +244,12 @@ class Dataset {                                                 // Contains all 
   }
 
   //! Plummer distribution in a r = M_PI/2 sphere
-  Bodies plummer(int numBodies, int proc_rank, int proc_size) {
-    assert(proc_rank < proc_size);
+  Bodies plummer(int numBodies, int mpi_rank, int mpi_size) {
+    assert(mpi_rank < mpi_size);
     // Calculate number of bodies which this process generates.
-    long rem = numBodies % proc_size;
-    long nb_local = numBodies / proc_size + (proc_rank + 1 == proc_size ? rem : 0); // num bodies local
-    long beg = (numBodies / proc_size) * proc_rank;
+    long rem = numBodies % mpi_size;
+    long nb_local = numBodies / mpi_size + (mpi_rank + 1 == mpi_size ? rem : 0); // num bodies local
+    long beg = (numBodies / mpi_size) * mpi_rank;
     long end = beg + nb_local;
     Bodies bodies(nb_local);
     //bodies.reserve(nb_local);
@@ -229,12 +292,12 @@ class Dataset {                                                 // Contains all 
    * @param numBodies Total number of bodies (over ALL processes)
    * @param bodies Local bodies
    */
-  void initSource(Bodies & bodies, int numBodies, int proc_rank, int proc_size) {
+  void initSource(Bodies & bodies, int numBodies, int mpi_rank, int mpi_size) {
     srand48(master_seed_);                                      //  Set seed for random number generator
     
-    long rem = numBodies % proc_size;
-    long nb_local = numBodies / proc_size + (proc_rank + 1 == proc_size ? rem : 0); // num bodies local
-    long beg = (numBodies / proc_size) * proc_rank;
+    long rem = numBodies % mpi_size;
+    long nb_local = numBodies / mpi_size + (mpi_rank + 1 == mpi_size ? rem : 0); // num bodies local
+    long beg = (numBodies / mpi_size) * mpi_rank;
     long end = beg + nb_local;
 
     assert((size_t)nb_local == bodies.size());
@@ -286,31 +349,43 @@ class Dataset {                                                 // Contains all 
    * distribution due to the restriction of body placement.
    */
   Bodies initBodies(int &numBodies, const char * distribution,
-                    int mpirank=0, int mpisize=1) {
+                    int mpi_rank=0, int mpi_size=1) {
     Bodies bodies;                                              // Initialize bodies
-    switch (distribution[0]) {                                  // Switch between data distribution type
-      case 'l':                                                   // Case for lattice
-        bodies = lattice(numBodies, mpirank, mpisize);          //  Uniform distribution on [-1,1]^3 lattice
-        break;                                                  // End case for lattice
-      case 'c':                                                   // Case for cube
-        bodies = cube(numBodies, mpirank, mpisize);             //  Random distribution in [-1,1]^3 cube
-        break;                                                  // End case for cube
-      case 's':                                                   // Case for sphere
-        bodies = sphere(numBodies,mpirank,mpisize);             //  Random distribution on surface of r = 1 sphere
-        break;                                                  // End case for sphere
-      case 'p':                                                   // Case plummer
-        bodies = plummer(numBodies,mpirank,mpisize);            //  Plummer distribution in a r = M_PI/2 sphere
-        break;                                                  // End case for plummer
-      default:                                                    // If none of the above
-        fprintf(stderr, "Unknown data distribution %s\n", distribution);// Print error message
-    }                                                           // End switch between data distribution type
-    initSource(bodies, numBodies, mpirank, mpisize);            // Initialize source values
-    initTarget(bodies);                                         // Initialize target values
 
-    for (auto &&b : bodies) {
-      std::cout << "Body: " << b.X << " " << b.SRC << " " << b.TRG << std::endl;
+    if (getenv("FMM_LOAD_BODIES")) {
+      LoadFile(numBodies, mpi_rank, mpi_size, bodies);
+    } else {
+      switch (distribution[0]) {                                  // Switch between data distribution type
+        case 'l':                                                   // Case for lattice
+          bodies = lattice(numBodies, mpi_rank, mpi_size);          //  Uniform distribution on [-1,1]^3 lattice
+          break;                                                  // End case for lattice
+        case 'c':                                                   // Case for cube
+          bodies = cube(numBodies, mpi_rank, mpi_size);             //  Random distribution in [-1,1]^3 cube
+          break;                                                  // End case for cube
+        case 's':                                                   // Case for sphere
+          bodies = sphere(numBodies,mpi_rank,mpi_size);             //  Random distribution on surface of r = 1 sphere
+          break;                                                  // End case for sphere
+        case 'p':                                                   // Case plummer
+          bodies = plummer(numBodies,mpi_rank,mpi_size);            //  Plummer distribution in a r = M_PI/2 sphere
+          break;                                                  // End case for plummer
+        default:                                                    // If none of the above
+          fprintf(stderr, "Unknown data distribution %s\n", distribution);// Print error message
+      }                                                           // End switch between data distribution type
+      initSource(bodies, numBodies, mpi_rank, mpi_size);            // Initialize source values
+      initTarget(bodies);                                         // Initialize target values
     }
-        
+
+    if (getenv("FMM_DUMP_BODIES")) {
+      DumpFile(mpi_rank, mpi_size, bodies);
+    }
+
+    assert(numBodies == (int)bodies.size());
+
+    for (size_t i = 0; i < bodies.size(); i++) {
+      Body &b = bodies[i];
+      std::cout << b.X << " SRC=" << b.SRC << " TRG=" << b.TRG << std::endl;
+    }
+    
     return bodies;                                              // Return bodies
   }
 
