@@ -323,8 +323,6 @@ function tapasCheck() {
             ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist > $TMPFILE
             echo "exit status=$?"
             echo "TMPFILE=${TMPFILE}"
-            cp $TMPFILE /Users/keisuke/tapas/sample/exafmm-dev-13274dd4ac68/examples/tmp.txt
-            echo $TMPFILE "-->" /Users/keisuke/tapas/sample/exafmm-dev-13274dd4ac68/examples/tmp.txt
             cat $TMPFILE ||:
 
             accuracyCheck $TMPFILE
