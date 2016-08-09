@@ -22,9 +22,11 @@ DEVICE	= CPU
 CXX ?= clang++
 MPICXX ?= mpicxx -cxx=$(CXX) # mpich's mpicxx
 
-ifneq (,$(findstring clang++,$(CXX)))
-	CXX    += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -lrt -Wno-unused-function
-	MPICXX += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -lrt -Wno-unused-function
+CXX_VER=$(shell $(CXX) --version)
+
+ifneq (,$(findstring LLVM,$(CXX_VER)))
+	CXX    += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -Wno-unused-function
+	MPICXX += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -Wno-unused-function
 else ifneq (,$(findstring g++,$(CXX)))
 	GCC_INLINE=-finline-functions --param max-inline-insns-recursive=2000 --param max-inline-recursive-depth=10 --param max-inline-insns-single=1000
   GCC_WARNING=-pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Winit-self \
