@@ -17,6 +17,10 @@
 #include <mpi.h>
 #endif
 
+namespace {
+const real_t EPS = 1e-8;
+}
+
 extern uint64_t numM2L;
 extern uint64_t numP2P;
 
@@ -279,8 +283,8 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
 }
 
 void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.
-  complex_t Ynm[P*P], YnmTheta[P*P];
-  vec3 dX = b.X - tovec(C.center());
+  complex_t Ynm[P*P] = {{0,0}}, YnmTheta[P*P] = {{0,0}};
+  vec3 dX = b.X - tovec(C.center()) + EPS;
   vec3 spherical = 0;
   vec3 cartesian = 0;
   real_t r, theta, phi;
