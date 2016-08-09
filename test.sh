@@ -43,21 +43,21 @@ echo TMPFILE=${TMPFILE}
 
 
 function echoRed() {
-    echo -en "\e[0;31m"
+    printf "\033[0;31m"
     echo "$*"
-    echo -en "\e[0;39m"
+    printf "\033[0;39m"
 }
 
 function echoGreen() {
-    echo -en "\e[0;32m"
+    printf "\033[0;32m"
     echo "$*"
-    echo -en "\e[0;39m"
+    printf "\033[0;39m"
 }
 
 function echoCyan() {
-    echo -en "\e[0;36m"
+    printf "\033[0;36m"
     echo "$*"
-    echo -en "\e[0;39m"
+    printf "\033[0;39m"
 }
 
 function get_script_dir() {
@@ -318,13 +318,16 @@ function tapasCheck() {
 
         if [[ -x ${BIN} ]]; then
             # run Exact LET TapasFMM
-            rm -f $TMPFILE; sleep 1s
+            rm -f $TMPFILE; sleep 0.5s # make sure that file is deleted on NFS
             echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist 
             ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist > $TMPFILE
-            cat $TMPFILE
+            echo "exit status=$?"
+            echo "TMPFILE=${TMPFILE}"
+            cp $TMPFILE /Users/keisuke/tapas/sample/exafmm-dev-13274dd4ac68/examples/tmp.txt
+            echo $TMPFILE "-->" /Users/keisuke/tapas/sample/exafmm-dev-13274dd4ac68/examples/tmp.txt
+            cat $TMPFILE ||:
 
             accuracyCheck $TMPFILE
-
         else
             echo "*** Skipping ${BIN}"
         fi
@@ -352,7 +355,7 @@ for MUTUAL in "" "_mutual" ; do
     rm -f $TMPFILE; sleep 0.5s
     echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c
     ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c  > $TMPFILE
-    cat $TMPFILE
+    cat $TMPFILE ||:
     
     accuracyCheck $TMPFILE
 done
