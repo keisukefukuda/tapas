@@ -89,6 +89,13 @@ class Dataset {                                                 // Contains all 
 
     size_t nb2 = 0;
     ifs >> nb2;
+    std::cout << "Loaded numBodies = " << nb2 << std::endl;
+    if (nb2 != numBodies) {
+      std::cerr << "Error: numBodies does not match: " << nb2
+                << " bodies saved in " << getenv("FMM_LOAD_BODIES")
+                << " but specified numBodies = " << numBodies << std::endl;
+      exit(-1);
+    }
     assert(nb2 == numBodies);
 
     bodies.clear();
@@ -99,7 +106,7 @@ class Dataset {                                                 // Contains all 
         ifs >> B.X[d];
       }
       ifs >> B.SRC;
-      for (int d=0; d<3; d++) {
+      for (int d=0; d<4; d++) {
         ifs >> B.TRG[d];
       }
       if (beg <= i && i < end) {
@@ -131,7 +138,7 @@ class Dataset {                                                 // Contains all 
           ofs << std::scientific << std::showpos << b.X[d] << " ";
         }
         ofs << std::scientific << std::showpos << b.SRC << " ";
-        for (int d = 0; d < 3; d++) {
+        for (int d = 0; d < 4; d++) {
           ofs << std::scientific << std::showpos << b.TRG[d] << " ";
         }
         ofs << std::endl;
@@ -353,6 +360,7 @@ class Dataset {                                                 // Contains all 
     Bodies bodies;                                              // Initialize bodies
 
     if (getenv("FMM_LOAD_BODIES")) {
+      std::cout << "Loading bodies from " << getenv("FMM_LOAD_BODIES") << std::endl;
       LoadFile(numBodies, mpi_rank, mpi_size, bodies);
     } else {
       switch (distribution[0]) {                                  // Switch between data distribution type
@@ -378,13 +386,15 @@ class Dataset {                                                 // Contains all 
     if (getenv("FMM_DUMP_BODIES")) {
       DumpFile(mpi_rank, mpi_size, bodies);
     }
+    
+    //assert(numBodies == (int)bodies.size());
 
-    assert(numBodies == (int)bodies.size());
-
+#if 0
     for (size_t i = 0; i < bodies.size(); i++) {
       Body &b = bodies[i];
-      std::cout << b.X << " SRC=" << b.SRC << " TRG=" << b.TRG << std::endl;
+      std::cout << "initBodies: " << b.X << " SRC=" << b.SRC << " TRG=" << b.TRG << std::endl;
     }
+#endif
     
     return bodies;                                              // Return bodies
   }
