@@ -80,6 +80,7 @@ void evalMultipole(real_t rho, real_t alpha, real_t beta, complex_t * Ynm, compl
   real_t rhom = 1;                                              // Initialize rho^m
   complex_t ei = std::exp(I * beta);                            // exp(i * beta)
   complex_t eim = 1.0;                                          // Initialize exp(i * m * beta)
+
   for (int m=0; m<P; m++) {                                     // Loop over m in Ynm
     real_t p = pn;                                              //  Associated Legendre polynomial Pnm
     int npn = m * m + 2 * m;                                    //  Index of Ynm for m > 0

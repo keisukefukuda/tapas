@@ -270,7 +270,6 @@ struct FMM_DTT {
 };
 
 void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
-
   int mpi_rank = 0;
   int mpi_size = 1;
 
@@ -286,6 +285,10 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
   Bodies samples(numSamples);
 
   int stride = bodies.size() / numSamples;
+
+  //std::cout << "numSamples = " << numSamples << std::endl;
+  //std::cout << "stride=" << stride << std::endl;
+  //std::cout << "bodies.size() = " << bodies.size() << std::endl;
 
   if (mpi_rank == 0) {
     for (int i=0, j=0; i < numSamples; i++,j+=stride) {
@@ -321,7 +324,7 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
 
             for (int i = 0; i < Ci->NBODY; i++) {
               for (int j = 0; j < Cj->NBODY; j++) {
-                P2P()(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
+                P2P(false)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
               }
             }
           }
@@ -380,7 +383,6 @@ static inline void CopyBackResult(Bodies &bodies, TapasFMM::Cell *root) {
     bodies[i].TRG = root->local_body_attr(i);
   }
 }
-
 
 std::string Now() {
   time_t now = time(NULL);
@@ -607,7 +609,7 @@ int main(int argc, char ** argv) {
 #endif
 
     if (args.check) {
-      const int numTargets = 100;
+      const int numTargets = 10;
       logger::startTimer("Total Direct");
       CheckResult(bodies, numTargets, cycle, args.images);
       logger::stopTimer("Total Direct");
