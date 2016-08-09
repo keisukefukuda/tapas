@@ -850,7 +850,7 @@ void GlobalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
 
   // c is not a global leaf.
   size_t nc = c.nsubcells();
-  for (int ci = 0; ci < nc; ci++) {
+  for (size_t ci = 0; ci < nc; ci++) {
     KeyType chk = SFC::Child(c.key(), ci);
     Cell<TSP> *child = data.ht_gtree_.at(chk);
     GlobalUpwardTraversal(*child, f, args...);

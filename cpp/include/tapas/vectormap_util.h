@@ -53,14 +53,13 @@ static void rank_in_node(MPI_Comm comm, int &rankofnode, int &rankinnode,
     }
   }
   assert(group.size() > 0);
-  std::vector<int>::iterator m = std::find(group.begin(), group.end(), rank);
-  assert(m != group.end());
+  assert(std::find(group.begin(), group.end(), rank) != group.end());
 
   int head = ((group[0] == rank) ? 1 : 0);
   int headrank;
   cc = MPI_Scan(&head, &headrank, 1, MPI_INT, MPI_SUM, comm);
   assert(cc == MPI_SUCCESS);
-
+  
   int section [nprocs];
   for (int i = 0; i < nprocs; i++) {
     section[i] = 0;

@@ -272,9 +272,7 @@ struct CPUMapper {
         auto iter = lrc.subcells();
         for (index_t i = 0; i < iter.size(); i++) {
           // TODO: parallelization
-          KeyType ck = SFC::Child(lrc.key(), i);
-
-
+          //KeyType ck = SFC::Child(lrc.key(), i);
           f(lrc, *iter, args...);
           iter++;
         }
