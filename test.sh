@@ -306,6 +306,7 @@ function accuracyCheck() {
 }
 
 function tapasCheck() {
+    for ts in 1 2 10; do
     for nb in ${NB[@]}; do
     for ncrit in ${NCRIT[@]}; do
     for dist in ${DIST[@]}; do
@@ -319,8 +320,8 @@ function tapasCheck() {
         if [[ -x ${BIN} ]]; then
             # run Exact LET TapasFMM
             rm -f $TMPFILE; sleep 0.5s # make sure that file is deleted on NFS
-            echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist 
-            ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist > $TMPFILE
+            echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts}
+            ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts} > $TMPFILE
             echo "exit status=$?"
             echo "TMPFILE=${TMPFILE}"
             cat $TMPFILE ||:
@@ -331,6 +332,7 @@ function tapasCheck() {
         fi
         echo
         echo
+    done
     done
     done
     done
