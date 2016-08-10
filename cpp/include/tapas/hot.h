@@ -225,7 +225,7 @@ class Cell {
   // Typedefs
   //========================================================
  public: // public type usings
-  
+
 #ifdef TAPAS_ONESIDE_LET
   friend struct OptLET<TSP>;
   using LET = OptLET<TSP>;
@@ -288,9 +288,13 @@ class Cell {
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
   {}
-  
+
   Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
   Cell(Cell&& rhs) = delete; // move constructor is neither allowed.
+
+  ~Cell() throw() {
+    if (key_ == 0) DestroyTree();
+  }
   //: tapas::BasicCell<TSP>(region, bid, nb)
 
   //========================================================
@@ -454,15 +458,15 @@ class Cell {
     // Todo
     return depth() < 4;
   }
-  
+
   void static ExchangeGlobalLeafAttrs(CellHashTable &gtree, const KeySet &lroots);
-  
+
   static Reg CalcRegion(KeyType key, const Reg& R) {
     auto ret = R;
     SFC::template CalcRegion<FP>(key, R.max(), R.min(), ret.max(), ret.min());
     return ret;
   }
-  
+
   static Vec CalcCenter(KeyType key, const Reg& region) {
     auto r = CalcRegion(key, region);
     return r.min() + r.width() / 2;
@@ -478,7 +482,7 @@ class Cell {
   SubCellIterator subcells() {
     return SubCellIterator(*this);
   }
-  
+
   SubCellIterator subcells() const {
     return SubCellIterator(const_cast<CellType&>(*this));
   }
@@ -516,6 +520,8 @@ class Cell {
    * @brief Returns the number of subcells. This is 0 or 2^DIM in HOT algorithm.
    */
   size_t nsubcells() const;
+
+  void DestroyTree() throw();
 
   //========================================================
   // Member variables
@@ -760,7 +766,7 @@ void LocalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
 
 /**
  * \brief Exchange cell attrs of global leaves
- * Used in upward traversal. After all local trees are traversed, exchange global leaves 
+ * Used in upward traversal. After all local trees are traversed, exchange global leaves
  * between processes.
  */
 template<class TSP>
@@ -801,7 +807,7 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
   //   }
   //   std::cout << "M2M: -----------------------------" << std::endl;
   // }
-  
+
   MPI_Barrier(MPI_COMM_WORLD);
 
   for (size_t i = 0; i < keys_recv.size(); i++) {
@@ -810,7 +816,7 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
     TAPAS_ASSERT(gtree.count(key) == 1);
     gtree[key]->attr() = attr_recv[i];
     data.local_upw_results_[key] = attr_recv[i];
-    
+
     // if (key == 4035225266123964417 && data.mpi_rank_ == RANK) {
     //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "key= " << key << std::endl;
     //   std::cout << "debug: gtree.count(key) = " << gtree.count(key) << std::endl;
@@ -969,7 +975,7 @@ Cell<TSP> &Cell<TSP>::subcell(int idx) {
       } else if (data_->ht_gtree_.count(k) > 0) {
         ss << "[gtree] ";
       }
-      
+
       ss << std::endl;
     }
 
@@ -1012,7 +1018,7 @@ inline Cell<TSP> *Cell<TSP>::Lookup(KeyType k) const {
     assert(i->second != nullptr);
     return i->second;
   }
-  
+
   return nullptr;
 }
 
@@ -1042,6 +1048,47 @@ Cell<TSP> &Cell<TSP>::parent() const {
 #endif
 
   return *c;
+}
+
+template<class TSP>
+void Cell<TSP>::DestroyTree() throw() {
+  // Free memory
+  assert(key_ == 0);
+  using CellT = Cell<TSP>;
+
+  std::set<CellT*> ptrs;
+
+  // Free all Cell pointers (except this).
+  for (auto kv : data().ht_) {
+    CellT* ptr = kv.second;
+
+    if (ptr != this) {
+      ptrs.insert(ptr);
+    }
+  }
+  for (auto kv : data().ht_let_) {
+    CellT *ptr = kv.second;
+
+    if (ptr != this) {
+      ptrs.insert(ptr);
+    }
+  }
+
+  for (auto p : ptrs) {
+    delete p;
+  }
+
+  // Free MPI_Datatypes
+#ifdef USE_MPI
+  MPI_Type_free(&data().mpi_type_key_);
+  MPI_Type_free(&data().mpi_type_attr_);
+  MPI_Type_free(&data().mpi_type_body_);
+  MPI_Type_free(&data().mpi_type_battr_);
+#endif
+
+  // Delete SharedData structure
+  delete data_;
+  data_ = nullptr;
 }
 
 template <class TSP>
@@ -1182,7 +1229,7 @@ class Partitioner {
   Partitioner(unsigned max_nb): max_nb_(max_nb) {}
 
   Cell<TSP> *Partition(typename TSP::Body *b, index_t nb);
-  
+
   /**
    * @brief Overloaded version of Partitioner::Partition
    */
@@ -1457,7 +1504,7 @@ struct Tapas {
   using ProxyCell = typename Cell::LET::ProxyCell;
   using ProxyAttr = typename Cell::LET::ProxyAttr;
   using ProxyBodyIterator = typename Cell::LET::ProxyBodyIterator;
-  
+
   /**
    * @brief Partition and build an octree of the target space.
    * @param b Array of body of BT::type.
@@ -1516,7 +1563,7 @@ struct Tapas {
     T& d = const_cast<T&>(dst);
     f(d, src);
   }
-  
+
   template<typename T, typename ReduceFunc>
   static inline void Reduce(ProxyCell &cell, const T&, const T&, ReduceFunc) {
     //std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;

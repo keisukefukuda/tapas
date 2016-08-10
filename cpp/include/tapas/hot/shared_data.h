@@ -95,10 +95,12 @@ struct SharedData {
 
   std::unordered_map<int, int> let_func_count_;
 
+#ifdef USE_MPI
   MPI_Datatype mpi_type_key_;
   MPI_Datatype mpi_type_attr_;
   MPI_Datatype mpi_type_body_;
   MPI_Datatype mpi_type_battr_;
+#endif
 
   SharedData()
       : mpi_rank_(0)
@@ -141,6 +143,7 @@ struct SharedData {
 
   void SetupMPITypes() {
     // Cell Attributes
+#ifdef USE_MPI
     MPI_Type_contiguous(sizeof(KeyType), MPI_BYTE, &mpi_type_key_);
     MPI_Type_contiguous(sizeof(CellAttr), MPI_BYTE, &mpi_type_attr_);
     MPI_Type_contiguous(sizeof(BodyType), MPI_BYTE, &mpi_type_body_);
@@ -150,6 +153,7 @@ struct SharedData {
     MPI_Type_commit(&mpi_type_attr_);
     MPI_Type_commit(&mpi_type_body_);
     MPI_Type_commit(&mpi_type_battr_);
+#endif
   }
 };
 

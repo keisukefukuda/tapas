@@ -103,7 +103,7 @@ struct FMM_Upward {
     attr.M = 0;
     attr.L = 0;
     child.attr() = attr;
-    
+
     // Compute the child cell recursively
     if (child.IsLeaf()) {
       TapasFMM::Map(P2M(), child.bodies()); // P2M
@@ -121,9 +121,9 @@ struct FMM_Downward {
   template<class Cell>
   inline void operator()(Cell &parent, Cell &child) {
     //if (c.nb() == 0) return;
-    
+
     L2L(parent, child);
-    
+
     if (child.IsLeaf()) {
       if (child.nb() > 0) {
         TapasFMM::Map(L2P, child.bodies());
@@ -201,7 +201,7 @@ void DebugWatchCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, real_t R2) {
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
   std::string label() const { return "FMM-DTT"; }
-  
+
   template<class Cell>
   inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
     //real_t R2 = (Ci.center() - Cj.center()).norm();
@@ -461,7 +461,7 @@ int main(int argc, char ** argv) {
   // In this case, however, we want to exclude initialization cost of CUDA runtime from performance
   // measurement.
   tapas::SetGPU();
-  
+
   if (args.mpi_rank == 0) {
     std::cout << "Threading model " << FMM_Threading::name() << std::endl;
   }
@@ -471,7 +471,7 @@ int main(int argc, char ** argv) {
   FMM_Threading::init();
 #endif
 
-  Bodies bodies, bodies2, bodies3, jbodies;
+  Bodies bodies;
   Cells cells, jcells;
   Dataset data;
 
@@ -501,7 +501,7 @@ int main(int argc, char ** argv) {
   {
     tapas::debug::DebugStream err("bodies");
     for (auto &b : bodies) {
-      err.out() << b.X << " " << b.SRC << std::endl;
+      err.out() << b.X << " " << b.SRC  << " " << b.TRG << std::endl;
     }
   }
 #endif
@@ -517,26 +517,29 @@ int main(int argc, char ** argv) {
     std::cout << "Starting FMM timesteps" << std::endl;
   }
 
+#ifdef USE_MPI
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+#endif
+
   TapasFMM::Cell *root = nullptr;
 
   // Start timesteps
-  for (int t=0; t<args.repeat; t++) {
+  for (int t = 0; t < args.repeat; t++) {
+    if (rank == 0) {
+      std::cout << "===== Timestep " << t << " =====" << std::endl;
+    }
     logger::printTitle("FMM Profiling");
     logger::startTimer("Total FMM");
     logger::startPAPI();
     logger::startDAG();
-    
+
     {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
       root = TapasFMM::Partition(bodies.data(), bodies.size(), args.ncrit);
     }
-
-#ifdef USE_MPI
-    int rank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-#endif
 
     // Upward (P2M + M2M)
     {
@@ -548,7 +551,7 @@ int main(int argc, char ** argv) {
       if (!root->IsLeaf()) {
         TapasFMM::Map(FMM_Upward(), root->subcells(), args.theta);
       }
-      
+
       logger::stopTimer("Upward pass");
     }
 
@@ -569,7 +572,6 @@ int main(int argc, char ** argv) {
     }
 
     TAPAS_LOG_DEBUG() << "Dual Tree Traversal done\n";
-    jbodies = bodies;
 
 #ifdef TAPAS_DEBUG_DUMP
     dumpL(*root);
@@ -608,17 +610,6 @@ int main(int argc, char ** argv) {
     logger::writeTime();
 #endif
 
-    if (args.check) {
-      const int numTargets = 10;
-      logger::startTimer("Total Direct");
-      CheckResult(bodies, numTargets, cycle, args.images);
-      logger::stopTimer("Total Direct");
-    }
-
-    //buildTree.printTreeData(cells);
-    logger::printPAPI();
-    logger::stopDAG();
-
 #ifdef COUNT
     if (args.mpi_rank == 0) {
       std::cout << "P2P calls" << " : " << numP2P << std::endl;
@@ -626,12 +617,29 @@ int main(int argc, char ** argv) {
     }
 #endif
 
-    bodies = bodies3;
-    data.initTarget(bodies);
+    //buildTree.printTreeData(cells);
+    logger::printPAPI();
+    logger::stopDAG();
 
-  } /* end for */
-  
-  root->Report();
+    if (t == args.repeat - 1) { // Final Timesteps
+      if (args.check) {
+        const int numTargets = 10;
+        logger::startTimer("Total Direct");
+        CheckResult(bodies, numTargets, cycle, args.images);
+        logger::stopTimer("Total Direct");
+      }
+      root->Report();
+    } else {
+      data.initTarget(bodies);
+    }
+    // Prepare for the next timestep
+
+    delete root; root = nullptr;
+#if USE_MPI
+    MPI_Barrier(MPI_COMM_WORLD);
+#endif
+  } /* end for t */
+
 #ifdef USE_MPI
   MPI_Finalize();
 #endif
