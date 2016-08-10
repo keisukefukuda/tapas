@@ -228,6 +228,7 @@ struct CPUMapper {
   
   using KeyType = typename Cell::KeyType;
   using SFC = typename Cell::SFC;
+  using Data = typename Cell::Data;
 
   CPUMapper() : map1_dir_(Map1Dir::None), label_() { }
 
@@ -421,6 +422,20 @@ struct CPUMapper {
         f(c, *iter, args...);
       }
       iter++;
+    }
+  }
+
+  /**
+   * CPUMapper::Map (Bodies)
+   * Apply f to `all` bodies in parallel
+   */
+  template<class Funct, class...Args>
+  inline void Map(Funct f, tapas::iterator::Bodies<Cell> bodies, Args...args) {
+    Data &data = bodies.cell().data();
+    size_t nb = data.local_bodies_.size();
+
+    for (size_t i = 0; i < nb; i++) {
+      f(data.local_bodies_[i], data.local_body_attrs_[i], args...);
     }
   }
 

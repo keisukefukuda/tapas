@@ -605,8 +605,10 @@ int main(int argc, char ** argv) {
     dumpBodies(*root);
 #endif
 
+    // Copy BodyAttr values back to Body
+
+    TapasFMM::Map([](Body &b, BodyAttr &a) { b.TRG = a; }, root->Bodies());
     CopyBackResult(bodies, root);
-    //CopyBackResult(bodies, root->body_attrs(), args.numBodies);
 
     logger::printTitle("Total runtime");
     logger::stopPAPI();
@@ -627,7 +629,7 @@ int main(int argc, char ** argv) {
     //buildTree.printTreeData(cells);
     logger::printPAPI();
     logger::stopDAG();
-
+    
     if (t == args.repeat - 1) { // Final Timesteps
       if (args.check) {
         const int numTargets = 10;

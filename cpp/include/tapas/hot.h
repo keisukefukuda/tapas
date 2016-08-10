@@ -406,6 +406,10 @@ class Cell {
     return BodyIterator(const_cast<CellType&>(*this));
   }
 
+  tapas::iterator::Bodies<Cell> Bodies() {
+    return tapas::iterator::Bodies<Cell>(*this);
+  }
+
   BodyAttrType &body_attr(index_t idx);
   const BodyAttrType &body_attr(index_t idx) const;
 
@@ -878,26 +882,26 @@ void GlobalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
     ds.out() << std::endl;                            \
   } while(0)
 
-template<class TSP>
-template<class Funct, class...Args>
-void Cell<TSP>::DownwardMap(Funct f, Cell<TSP> &c, Args...args) {
-  f(c, args...);
+// template<class TSP>
+// template<class Funct, class...Args>
+// void Cell<TSP>::DownwardMap(Funct f, Cell<TSP> &c, Args...args) {
+//   f(c, args...);
 
-  if (c.IsLeaf()) return;
+//   if (c.IsLeaf()) return;
 
-  auto &data = c.data();
+//   auto &data = c.data();
 
-  for (auto && ch_key : SFC::GetChildren(c.key())) {
-#ifdef TAPAS_DEBUG
-    if (data.ht_gtree_.count(ch_key) > 0 && data.ht_.count(ch_key) > 0) {
-      TAPAS_ASSERT(data.ht_gtree_[ch_key] == data.ht_[ch_key]);
-    }
-#endif
+//   for (auto && ch_key : SFC::GetChildren(c.key())) {
+// #ifdef TAPAS_DEBUG
+//     if (data.ht_gtree_.count(ch_key) > 0 && data.ht_.count(ch_key) > 0) {
+//       TAPAS_ASSERT(data.ht_gtree_[ch_key] == data.ht_[ch_key]);
+//     }
+// #endif
 
-    if      (data.ht_gtree_.count(ch_key) > 0) DownwardMap(f, *data.ht_gtree_.at(ch_key), args...);
-    else if (data.ht_.count(ch_key)       > 0) DownwardMap(f, *data.ht_.at(ch_key), args...);
-  }
-}
+//     if      (data.ht_gtree_.count(ch_key) > 0) DownwardMap(f, *data.ht_gtree_.at(ch_key), args...);
+//     else if (data.ht_.count(ch_key)       > 0) DownwardMap(f, *data.ht_.at(ch_key), args...);
+//   }
+// }
 
 template <class TSP>
 bool Cell<TSP>::operator==(const Cell &c) const {
@@ -1571,6 +1575,13 @@ struct Tapas {
   static void Destroy(Cell *&root) {
     DestroyTree(root);
     root = nullptr;
+  }
+
+  template<class Funct, class...Args>
+  static inline void Map(Funct f,
+                         tapas::iterator::Bodies<Cell> bodies,
+                         Args... args) {
+    bodies.cell().mapper().Map(f, bodies, args...);
   }
 
   template<class Funct, class T1_Iter, class T2_Iter, class...Args>

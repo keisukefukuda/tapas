@@ -8,6 +8,18 @@ namespace tapas {
 
 namespace iterator {
 
+/**
+ * \brief An abstract container representing globally all bodies
+ */
+template<class Cell>
+class Bodies {
+  Cell &cell_;
+ public:
+  Bodies(Cell &cell) : cell_(cell) { }
+
+  Cell &cell() { return cell_; }
+}; // class AllBodies
+
 template <class Cell>
 class BodyIterator {
   Cell &c_;
