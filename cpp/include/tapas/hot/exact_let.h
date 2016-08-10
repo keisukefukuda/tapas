@@ -35,7 +35,8 @@ struct ExactLET {
   using KeySet = typename Cell<TSP>::SFC::KeySet;
   using BodyType = typename CellType::BodyType;
   using BodyAttrType = typename CellType::BodyAttrType;
-  using attr_type = typename CellType::attr_type; // alias for backward compatibility
+  
+  using attr_type = typename CellType::OrigCellAttr;
   using CellAttrType = attr_type;
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;

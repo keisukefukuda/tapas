@@ -222,6 +222,30 @@ class Cell {
   friend class iter::BodyIterator<Cell>;
 
   //========================================================
+  // Internal structures
+  //========================================================
+
+  // Wrapper for Cell attributes to trap assignment in
+  // executor
+  struct CellAttrWrapper : public TSP::CellAttr {
+    using OrigCellAttr = typename TSP::CellAttr;
+    
+    Cell &c_;
+    
+    CellAttrWrapper(Cell &c) : c_(c) { }
+    CellAttrWrapper &operator=(const CellAttrWrapper& rhs) {
+      //std::cout << "operator=" << std::endl;
+      (OrigCellAttr&)*this = (OrigCellAttr&) rhs;
+    }
+
+    CellAttrWrapper &operator=(const OrigCellAttr& rhs) {
+      //std::cout << "operator=" << std::endl;
+      (OrigCellAttr&)*this = rhs;
+      return *this;
+    }
+  };
+  
+  //========================================================
   // Typedefs
   //========================================================
  public: // public type usings
@@ -246,11 +270,12 @@ class Cell {
   using CellHashTable = std::unordered_map<KeyType, Cell*>;
   using KeySet = std::unordered_set<KeyType>;
 
-  typedef typename TSP::CellAttr attr_type;
-  typedef typename TSP::CellAttr AttrType;
-  typedef typename TSP::Body BodyType;
-  typedef typename TSP::BodyAttr BodyAttrType;
-  typedef typename TSP::Threading Threading;
+  using attr_type = CellAttrWrapper;
+  using CellAttr = CellAttrWrapper;
+  using OrigCellAttr = typename TSP::CellAttr;
+  using BodyType = typename TSP::Body;
+  using BodyAttrType = typename TSP::BodyAttr;
+  using Threading = typename TSP::Threading;
 
   using Body = BodyType;
   using BodyAttr = BodyAttrType;
@@ -287,6 +312,7 @@ class Cell {
       , bid_(bid)
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
+      , attr_(*this)
   {}
 
   Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
@@ -446,11 +472,11 @@ class Cell {
     return nb_;
   }
 
-  AttrType &attr() {
+  CellAttr &attr() {
     return attr_;
   }
 
-  const AttrType &attr() const {
+  const CellAttr &attr() const {
     return attr_;
   }
 
@@ -544,7 +570,7 @@ class Cell {
 
   Mapper mapper_;
 
-  AttrType attr_;
+  CellAttr attr_;
 
   void CheckBodyIndex(index_t idx) const;
 }; // class Cell
@@ -779,19 +805,18 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
                                         const typename Cell<TSP>::KeySet &lroots) {
   // data.gleaves_ is unnecessary?
   using KeyType = typename Cell<TSP>::KeyType;
-  using AttrType = typename Cell<TSP>::AttrType;
 
   std::vector<KeyType> keys_send(lroots.begin(), lroots.end());
   std::vector<KeyType> keys_recv;
-  std::vector<AttrType> attr_send;
-  std::vector<AttrType> attr_recv;
+  std::vector<OrigCellAttr> attr_send;
+  std::vector<OrigCellAttr> attr_recv;
 
   auto &data = gtree[0]->data();
 
   for(size_t i = 0; i < keys_send.size(); i++) {
     KeyType k = keys_send[i];
     TAPAS_ASSERT(data.ht_.count(k) == 1);
-    attr_send.push_back(data.ht_[k]->attr());
+    attr_send.push_back((OrigCellAttr&)(data.ht_[k]->attr()));
   }
 
   tapas::mpi::Allgatherv(keys_send, keys_recv, MPI_COMM_WORLD);
@@ -1229,7 +1254,8 @@ class Partitioner {
 
   using BodyType = typename TSP::Body;
   using KeyType = typename Cell<TSP>::KeyType;
-  using CellAttrType = typename Cell<TSP>::AttrType;
+  using CellAttr = typename Cell<TSP>::CellAttr;
+  using OrigCellAttr = typename Cell<TSP>::OrigCellAttr;
   using CellHashTable = typename Cell<TSP>::CellHashTable;
 
   using KeySet = typename Cell<TSP>::SFC::KeySet;
@@ -1374,9 +1400,9 @@ class Partitioner {
   }
 
   static void KeysToAttrs(const std::vector<KeyType> &keys,
-                          std::vector<CellAttrType> &attrs,
+                          std::vector<OrigCellAttr> &attrs,
                           const HT& hash) {
-    auto key_to_attr = [&hash](KeyType k) -> CellAttrType {
+    auto key_to_attr = [&hash](KeyType k) -> OrigCellAttr& {
       return hash.at(k)->attr();
     };
     attrs.resize(keys.size());
@@ -1523,7 +1549,7 @@ struct Tapas {
   using Partitioner = typename TSP::template Partitioner<TSP>;
   using Region = tapas::Region<Dim, FP>;
   using Cell = hot::Cell<TSP>;
-  using CellAttr = typename Cell::AttrType;
+  using CellAttr = typename Cell::CellAttr;
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
   using ProxyCell = typename Cell::LET::ProxyCell;

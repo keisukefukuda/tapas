@@ -267,7 +267,12 @@ class SamplingOctree {
     int sample_nb = std::max((int)(bodies_.size() * R),
                              (int)min_sample_nb);
 
-    std::vector<BodyType> sampled_bodies = std::vector<BodyType>(bodies_.begin(), bodies_.begin() + sample_nb);
+    std::vector<BodyType> sampled_bodies(sample_nb);
+    // Sample bodies by strided access
+    int stride = bodies_.size() / sample_nb;
+    for (int i = 0; i < sample_nb; i++) {
+      sampled_bodies[i] = bodies_[i * stride];
+    }
     std::vector<KeyType> sampled_keys_local = BodiesToKeys(sampled_bodies, data_->region_);
     std::vector<KeyType> sampled_keys;
 
