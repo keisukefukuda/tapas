@@ -629,12 +629,13 @@ int main(int argc, char ** argv) {
         logger::stopTimer("Total Direct");
       }
       root->Report();
+      TapasFMM::Destroy(root);
     } else {
       data.initTarget(bodies);
+      root = TapasFMM::Partition(root, args.ncrit);
     }
     // Prepare for the next timestep
 
-    delete root; root = nullptr;
 #if USE_MPI
     MPI_Barrier(MPI_COMM_WORLD);
 #endif

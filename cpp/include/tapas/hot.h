@@ -293,7 +293,6 @@ class Cell {
   Cell(Cell&& rhs) = delete; // move constructor is neither allowed.
 
   ~Cell() throw() {
-    if (key_ == 0) DestroyTree();
   }
   //: tapas::BasicCell<TSP>(region, bid, nb)
 
@@ -520,8 +519,6 @@ class Cell {
    * @brief Returns the number of subcells. This is 0 or 2^DIM in HOT algorithm.
    */
   size_t nsubcells() const;
-
-  void DestroyTree() throw();
 
   //========================================================
   // Member variables
@@ -1051,44 +1048,51 @@ Cell<TSP> &Cell<TSP>::parent() const {
 }
 
 template<class TSP>
-void Cell<TSP>::DestroyTree() throw() {
-  // Free memory
-  assert(key_ == 0);
+static void DestroyCells(Cell<TSP> *root) throw() {
   using CellT = Cell<TSP>;
 
   std::set<CellT*> ptrs;
 
+  auto &data = root->data();
+  
   // Free all Cell pointers (except this).
-  for (auto kv : data().ht_) {
-    CellT* ptr = kv.second;
-
-    if (ptr != this) {
-      ptrs.insert(ptr);
-    }
+  for (auto kv : data.ht_) {
+    ptrs.insert(kv.second);
   }
-  for (auto kv : data().ht_let_) {
-    CellT *ptr = kv.second;
-
-    if (ptr != this) {
-      ptrs.insert(ptr);
-    }
+  for (auto kv : data.ht_let_) {
+    ptrs.insert(kv.second);
   }
 
   for (auto p : ptrs) {
     delete p;
   }
+}
+
+/**
+ * \brief Destroy the tree completely.
+ */
+template<class TSP>
+static void DestroyTree(Cell<TSP> *root) throw() {
+  // Free memory
+  using CellT = Cell<TSP>;
+
+  std::set<CellT*> ptrs;
+
+  auto &data = root->data();
+  auto *pdata = &data;
+
+  DestroyCells(root);
 
   // Free MPI_Datatypes
 #ifdef USE_MPI
-  MPI_Type_free(&data().mpi_type_key_);
-  MPI_Type_free(&data().mpi_type_attr_);
-  MPI_Type_free(&data().mpi_type_body_);
-  MPI_Type_free(&data().mpi_type_battr_);
+  MPI_Type_free(&data.mpi_type_key_);
+  MPI_Type_free(&data.mpi_type_attr_);
+  MPI_Type_free(&data.mpi_type_body_);
+  MPI_Type_free(&data.mpi_type_battr_);
 #endif
 
   // Delete SharedData structure
-  delete data_;
-  data_ = nullptr;
+  delete pdata;
 }
 
 template <class TSP>
@@ -1225,10 +1229,15 @@ class Partitioner {
   using SFC = typename TSP::SFC;
   using HT = typename Cell<TSP>::CellHashTable;
 
+  using Data = typename Cell<TSP>::Data;
+
  public:
   Partitioner(unsigned max_nb): max_nb_(max_nb) {}
 
-  Cell<TSP> *Partition(typename TSP::Body *b, index_t nb);
+  /**
+   * @brief Partition the space and build the tree
+   */
+  Cell<TSP> *Partition(Data *data, BodyType *b, index_t nb);
 
   /**
    * @brief Overloaded version of Partitioner::Partition
@@ -1400,12 +1409,16 @@ class Partitioner {
  */
 template <class TSP> // TSP : Tapas Static Params
 Cell<TSP>*
-Partitioner<TSP>::Partition(typename TSP::Body *b, index_t num_bodies) {
+Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
+                            typename TSP::Body *b,
+                            index_t num_bodies) {
   using SFC = typename TSP::SFC;
   using CellType = Cell<TSP>;
   using Data = typename CellType::Data;
 
-  Data *data = new Data;
+  if (data == nullptr) {
+    data = new Data;
+  }
 
   MPI_Comm_rank(MPI_COMM_WORLD, &data->mpi_rank_);
   MPI_Comm_size(MPI_COMM_WORLD, &data->mpi_size_);
@@ -1504,6 +1517,7 @@ struct Tapas {
   using ProxyCell = typename Cell::LET::ProxyCell;
   using ProxyAttr = typename Cell::LET::ProxyAttr;
   using ProxyBodyIterator = typename Cell::LET::ProxyBodyIterator;
+  using Data = typename Cell::Data;
 
   /**
    * @brief Partition and build an octree of the target space.
@@ -1511,7 +1525,43 @@ struct Tapas {
    */
   static Cell *Partition(Body *b, index_t nb, int max_nb) {
     Partitioner part(max_nb);
-    return part.Partition(b, nb);
+    return part.Partition(nullptr, b, nb);
+  }
+
+  /**
+   * @brief Re-construct the tree and returns the new tree.
+   * the argument pointer is deleted.
+   */
+  static Cell *Partition(Cell *root, int max_nb) {
+    // All cells are to be deleted.
+    // all other data are recycled.
+    Data *data = &(root->data());
+    DestroyCells(root);
+
+    std::vector<Body> bodies = std::move(data->local_bodies_);
+    
+    data->ht_.clear();
+    data->ht_let_.clear();
+    data->ht_gtree_.clear();
+    data->gleaves_.clear();
+    data->lroots_.clear();
+    data->let_used_key_.clear();
+    data->local_br_.clear();
+    data->leaf_keys_.clear();
+    data->leaf_nb_.clear();
+    data->leaf_owners_.clear();
+    data->local_body_attrs_.clear();
+    data->let_body_attrs_.clear();
+    data->local_body_keys_.clear();
+    data->proc_first_keys_.clear();
+
+    Partitioner part(max_nb);
+    return part.Partition(data, bodies.data(), bodies.size());
+  }
+
+  static void Destroy(Cell *&root) {
+    DestroyTree(root);
+    root = nullptr;
   }
 
   template<class Funct, class T1_Iter, class T2_Iter, class...Args>
