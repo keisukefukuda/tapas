@@ -306,7 +306,7 @@ function accuracyCheck() {
 }
 
 function tapasCheck() {
-    for ts in 1 2 10; do
+    for ts in 1 2 3; do
     for nb in ${NB[@]}; do
     for ncrit in ${NCRIT[@]}; do
     for dist in ${DIST[@]}; do
