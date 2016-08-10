@@ -155,6 +155,7 @@ std::string demangle_function_name(const std::string& mangled) {
     if(!(c)) {                                                          \
       auto bt = tapas::get_backtrace10();                               \
       std::cerr << "Tapas: Assertion failed: '" << #c << "' == 0"       \
+                << " at " << __FILE__ << ":" << __LINE__                \
                 << std::endl;                                           \
       std::cerr << "Backtrace:" << std::endl;                           \
       for (auto &&it : bt) {                                            \
