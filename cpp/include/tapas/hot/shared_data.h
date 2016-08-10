@@ -102,10 +102,10 @@ struct SharedData {
   MPI_Datatype mpi_type_battr_;
 #endif
 
-  SharedData()
+  SharedData(MPI_Comm comm)
       : mpi_rank_(0)
       , mpi_size_(1)
-      , mpi_comm_(MPI_COMM_WORLD)
+      , mpi_comm_(comm)
       , max_depth_(0)
       , opt_task_spawn_threshold_(1000)
       , nb_total(0)
@@ -122,6 +122,11 @@ struct SharedData {
   {
     ReadEnv();
     SetupMPITypes();
+
+#if USE_MPI
+    MPI_Comm_rank(mpi_comm_, &mpi_rank_);
+    MPI_Comm_size(mpi_comm_, &mpi_size_);
+#endif
   }
 
   SharedData(const SharedData<TSP, SFC>& rhs) = delete; // no copy

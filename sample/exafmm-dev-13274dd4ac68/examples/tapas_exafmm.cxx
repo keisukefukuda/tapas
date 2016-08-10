@@ -538,7 +538,14 @@ int main(int argc, char ** argv) {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
-      root = TapasFMM::Partition(bodies.data(), bodies.size(), args.ncrit);
+      if (root == nullptr) {
+        // first timestep
+        root = TapasFMM::Partition(bodies.data(), bodies.size(),
+                                   args.ncrit, MPI_COMM_WORLD);
+      } else {
+        // otherwise
+        root = TapasFMM::Partition(root, args.ncrit);
+      }
     }
 
     // Upward (P2M + M2M)
@@ -631,10 +638,9 @@ int main(int argc, char ** argv) {
       root->Report();
       TapasFMM::Destroy(root);
     } else {
+      // Prepare for the next timestep
       data.initTarget(bodies);
-      root = TapasFMM::Partition(root, args.ncrit);
     }
-    // Prepare for the next timestep
 
 #if USE_MPI
     MPI_Barrier(MPI_COMM_WORLD);

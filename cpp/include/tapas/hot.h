@@ -593,24 +593,28 @@ void ReportSplitType(typename Cell<TSP>::KeyType trg_key,
   e.out() << " " << (by_pred == orig ? "OK" : "NG") << std::endl;
 }
 
+#if 0
 /**
  * @brief Return a new Region object that covers all Regions across multiple MPI processes
  */
 template<class TSP>
-Region<TSP::Dim, typename TSP::FP> ExchangeRegion(const Region<TSP::Dim, typename TSP::FP> &r) {
+Region<TSP::Dim, typename TSP::FP> ExchangeRegion(const Region<TSP::Dim,
+                                                  typename TSP::FP> &r,
+                                                  MPI_Comm comm) {
   const int Dim = TSP::Dim;
   typedef typename TSP::FP FP;
 
   Vec<Dim, FP> new_max, new_min;
 
   // Exchange max
-  tapas::mpi::Allreduce(&r.max()[0], &new_max[0], Dim, MPI_MAX, MPI_COMM_WORLD);
+  tapas::mpi::Allreduce(&r.max()[0], &new_max[0], Dim, MPI_MAX, comm);
 
   // Exchange min
-  tapas::mpi::Allreduce(&r.min()[0], &new_min[0], Dim, MPI_MIN, MPI_COMM_WORLD);
+  tapas::mpi::Allreduce(&r.min()[0], &new_min[0], Dim, MPI_MIN, comm);
 
   return Region<Dim, FP>(new_min, new_max);
 }
+#endif
 
 /**
  * @brief Create an array of HelperNode from bodies
@@ -1054,7 +1058,7 @@ static void DestroyCells(Cell<TSP> *root) throw() {
   std::set<CellT*> ptrs;
 
   auto &data = root->data();
-  
+
   // Free all Cell pointers (except this).
   for (auto kv : data.ht_) {
     ptrs.insert(kv.second);
@@ -1237,7 +1241,7 @@ class Partitioner {
   /**
    * @brief Partition the space and build the tree
    */
-  Cell<TSP> *Partition(Data *data, BodyType *b, index_t nb);
+  Cell<TSP> *Partition(Data *data, BodyType *b, index_t nb, MPI_Comm comm);
 
   /**
    * @brief Overloaded version of Partitioner::Partition
@@ -1411,17 +1415,21 @@ template <class TSP> // TSP : Tapas Static Params
 Cell<TSP>*
 Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
                             typename TSP::Body *b,
-                            index_t num_bodies) {
+                            index_t num_bodies,
+                            MPI_Comm comm) {
   using SFC = typename TSP::SFC;
   using CellType = Cell<TSP>;
   using Data = typename CellType::Data;
 
   if (data == nullptr) {
-    data = new Data;
+    // First timestep
+    data = new Data(comm);
+  } else {
+    // if `data` is not NULL,
+    // This is re-partitioning. Increase time step counter
+    // for reporting.
+    data->timestep_++;
   }
-
-  MPI_Comm_rank(MPI_COMM_WORLD, &data->mpi_rank_);
-  MPI_Comm_size(MPI_COMM_WORLD, &data->mpi_size_);
 
   // Build local trees
   SamplingOctree<TSP, SFC> stree(b, num_bodies, data, max_nb_);
@@ -1523,9 +1531,10 @@ struct Tapas {
    * @brief Partition and build an octree of the target space.
    * @param b Array of body of BT::type.
    */
-  static Cell *Partition(Body *b, index_t nb, int max_nb) {
+  static Cell *Partition(Body *b, index_t nb, int max_nb,
+                         MPI_Comm comm = MPI_COMM_WORLD) {
     Partitioner part(max_nb);
-    return part.Partition(nullptr, b, nb);
+    return part.Partition(nullptr, b, nb, comm);
   }
 
   /**
@@ -1539,7 +1548,7 @@ struct Tapas {
     DestroyCells(root);
 
     std::vector<Body> bodies = std::move(data->local_bodies_);
-    
+
     data->ht_.clear();
     data->ht_let_.clear();
     data->ht_gtree_.clear();
@@ -1556,7 +1565,7 @@ struct Tapas {
     data->proc_first_keys_.clear();
 
     Partitioner part(max_nb);
-    return part.Partition(data, bodies.data(), bodies.size());
+    return part.Partition(data, bodies.data(), bodies.size(), data->mpi_comm_);
   }
 
   static void Destroy(Cell *&root) {

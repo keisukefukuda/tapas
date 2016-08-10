@@ -145,10 +145,12 @@ class SamplingOctree {
     Vec<kDim, FP> new_max, new_min;
 
     // Exchange max
-    tapas::mpi::Allreduce(&region_.max()[0], &new_max[0], kDim, MPI_MAX, MPI_COMM_WORLD);
+    tapas::mpi::Allreduce(&region_.max()[0], &new_max[0], kDim,
+                          MPI_MAX, MPI_COMM_WORLD);
 
     // Exchange min
-    tapas::mpi::Allreduce(&region_.min()[0], &new_min[0], kDim, MPI_MIN, MPI_COMM_WORLD);
+    tapas::mpi::Allreduce(&region_.min()[0], &new_min[0], kDim,
+                          MPI_MIN, MPI_COMM_WORLD);
 
     region_ = Reg(new_min, new_max);
   }
