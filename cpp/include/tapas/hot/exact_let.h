@@ -300,6 +300,9 @@ struct ExactLET {
     inline Mapper &mapper() { return mapper_; }
     inline const Mapper &mapper() const { return mapper_; }
 
+    // dummy
+    double weight() const { return 0; }
+
     /**
      * bool ProxyCell::operator==(const ProxyCell &rhs) const
      */

@@ -229,17 +229,24 @@ class Cell {
   // executor
   struct CellAttrWrapper : public TSP::CellAttr {
     using OrigCellAttr = typename TSP::CellAttr;
-    
+
     Cell &c_;
+
+    CellAttrWrapper(Cell &c) : c_(c) {
+      // zero-clear the OrigCellAttr part.
+      bzero(this, sizeof(OrigCellAttr));
+    }
     
-    CellAttrWrapper(Cell &c) : c_(c) { }
     CellAttrWrapper &operator=(const CellAttrWrapper& rhs) {
       //std::cout << "operator=" << std::endl;
+      std::cout << &(c_) << std::endl;
+      c_.weight_++;
       (OrigCellAttr&)*this = (OrigCellAttr&) rhs;
     }
 
     CellAttrWrapper &operator=(const OrigCellAttr& rhs) {
       //std::cout << "operator=" << std::endl;
+      c_.weight_++;
       (OrigCellAttr&)*this = rhs;
       return *this;
     }
@@ -313,7 +320,9 @@ class Cell {
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
       , attr_(*this)
-  {}
+      , weight_(1)
+  { }
+  
 
   Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
   Cell(Cell&& rhs) = delete; // move constructor is neither allowed.
@@ -328,6 +337,7 @@ class Cell {
 
  public:
   KeyType key() const { return key_; }
+  double weight() const { return weight_; }
 
   template <class T> bool operator==(const T &) const { return false; }
   bool operator==(const Cell &c) const;
@@ -571,6 +581,8 @@ class Cell {
   Mapper mapper_;
 
   CellAttr attr_;
+
+  double weight_;
 
   void CheckBodyIndex(index_t idx) const;
 }; // class Cell

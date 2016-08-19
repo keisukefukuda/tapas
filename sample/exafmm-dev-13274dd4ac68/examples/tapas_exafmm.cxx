@@ -644,6 +644,8 @@ int main(int argc, char ** argv) {
       data.initTarget(bodies);
     }
 
+    TapasFMM::Map(DumpWeight(), root->subcells());
+
 #if USE_MPI
     MPI_Barrier(MPI_COMM_WORLD);
 #endif

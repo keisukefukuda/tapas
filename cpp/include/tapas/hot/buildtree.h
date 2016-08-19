@@ -427,7 +427,6 @@ class SamplingOctree {
     c->local_nb_ = nb;
     c->data_ = data_;
     c->bid_ = body_beg;
-    bzero(&c->attr_, sizeof(c->attr_));
 
     TAPAS_ASSERT(nb >= 0);
     TAPAS_ASSERT(body_beg >= 0);
