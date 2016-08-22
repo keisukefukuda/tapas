@@ -65,7 +65,7 @@ template<class Cell, class Body, class LET>struct CPUMapper;
 
 
 /**
- * @brief Helper subroutine called from Mapper::Map
+ * @brief Helper subroutine called from Mapper::Map, the body of Map-2 operation
  */
 template<class Mapper, class T1_Iter, class T2_Iter, class Funct, class...Args>
 static void ProductMapImpl(Mapper &mapper,
@@ -80,6 +80,8 @@ static void ProductMapImpl(Mapper &mapper,
   const constexpr int kT1 = T1_Iter::kThreadSpawnThreshold;
   const constexpr int kT2 = T2_Iter::kThreadSpawnThreshold;
 
+  // If the user's function f is mutual or not.
+  // (Determined from the constness of its parameters)
   constexpr bool kMutual = CheckMutualCell<Funct, CellType>::value
                       && std::is_same<typename T1_Iter::value_type,
                                       typename T2_Iter::value_type>::value;

@@ -311,6 +311,7 @@ class Cell {
  public:
   KeyType key() const { return key_; }
   double weight() const { return weight_; }
+  void WeightUp() { weight_ += 1; }
 
   template <class T> bool operator==(const T &) const { return false; }
   bool operator==(const Cell &c) const;
