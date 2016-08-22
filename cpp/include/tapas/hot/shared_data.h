@@ -73,6 +73,8 @@ struct SharedData {
   std::vector<BodyAttrType> local_body_attrs_; //!< Local body attributes
   std::vector<BodyAttrType> let_body_attrs_; //!< Local body attributes
 
+  std::vector<double> local_body_weights_; //!< Local body's weights
+
   std::vector<KeyType>  local_body_keys_; //!< SFC keys of local bodies
 
   std::vector<KeyType> proc_first_keys_; //!< first SFC key of each process

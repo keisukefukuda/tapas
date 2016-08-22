@@ -29,25 +29,6 @@ struct DumpM_Callback {
   }
 };
 
-struct DumpWeight {
-  template<class Cell>
-  void operator()(Cell &parent, Cell &child) {
-    if (!Cell::Inspector) {
-      using SFC = typename Cell::SFC;
-      std::cout << SFC::Simplify(parent.key()) << " " << parent.weight() << std::endl;
-      
-      if (child.IsLeaf()) {
-        TapasFMM::Map(*this, child.subcells());
-      } else {
-        std::cout << SFC::Simplify(child.key()) << " " << child.weight() << std::endl;
-      }
-
-      // dummy code
-      parent.attr() = parent.attr();
-    }
-  }
-};
-
 // Debug function: Dump the M vectors of all cells.
 void dumpM(TapasFMM::Cell &root) {
   std::stringstream ss;

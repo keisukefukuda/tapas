@@ -141,6 +141,9 @@ class SamplingOctree {
     }
   }
 
+  /**
+   * Calculate the region of the whole space by exchanging max/min coordinates of the bodies.
+   */
   void ExchangeRegion() {
     Vec<kDim, FP> new_max, new_min;
 
@@ -161,19 +164,20 @@ class SamplingOctree {
    *
    * \param keys Keys of sampled bodies
    * \param mpi_size Number of processes
+   *
+   * Split L-level keys into `mpi_size` groups.
+   *
+   * We determine L by
+   *     B = 2^Dim  (B = 8 in 3 dim space)
+   *     Np = mpi_size
+   *     L = log_B(Np) + 2
+   *
+   * L must be larger than the number of processes, and large enough to achieve good load balancing.
+   * However, too large L leads to unnecessary deep tree structure because domain boundary may be too
+   * close to a certain particle.
+   *
    */
   static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &keys, int mpi_size) {
-    // Split L-level keys into `mpi_size` groups.
-    //
-    // We determine L by
-    //     B = 2^Dim  (B = 8 in 3 dim space)
-    //     Np = mpi_size
-    //     L = log_B(Np) + 2
-    //
-    // L must be larger than the number of processes, and large enough to achieve good load balancing.
-    // However, too large L leads to unnecessary deep tree structure because domain boundary may be too
-    // close to a certain particle.
-
     const int B = 1 << kDim;
     const int L  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
     const KeyType K = SFC::AppendDepth(0, L);

@@ -225,7 +225,37 @@ class Cell {
   // Internal structures
   //========================================================
 
+ public:
+  using CellAttr = typename TSP::CellAttr;
+  //using CellAttr = CellAttrWrapper;
+
+ protected:
   
+  struct CellAttrWrapper : CellAttr {
+    friend Cell<TSP>;
+    
+   protected:
+    Cell<TSP> &c_;
+
+    CellAttrWrapper(Cell<TSP> &c) : c_(c) {
+      // zero-clear the CellAttr part of this.
+      memset(this, 0, sizeof(CellAttr));
+    }
+    
+   public:
+    inline CellAttrWrapper &operator=(const CellAttrWrapper& rhs) {
+      c_.WeightUp();
+      ((CellAttr&)*this) = (const CellAttr&)rhs;
+      return *this;
+    }
+
+    inline CellAttrWrapper &operator=(const CellAttr &rhs) {
+      c_.WeightUp();
+      ((CellAttr&)*this) = rhs;
+      return *this;
+    }
+  };
+
   //========================================================
   // Typedefs
   //========================================================
@@ -251,7 +281,6 @@ class Cell {
   using CellHashTable = std::unordered_map<KeyType, Cell*>;
   using KeySet = std::unordered_set<KeyType>;
 
-  using CellAttr = typename TSP::CellAttr;
   using BodyType = typename TSP::Body;
   using BodyAttrType = typename TSP::BodyAttr;
   using Threading = typename TSP::Threading;
@@ -277,7 +306,6 @@ class Cell {
     c->is_local_subtree_ = false;
     c->nb_ = nb;
     c->data_ = data;
-    bzero(&c->attr_, sizeof(c->attr_));
 
     return c;
   }
@@ -291,10 +319,9 @@ class Cell {
       , bid_(bid)
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
+      , attr_(*this)
       , weight_(1.0)
-  {
-    memset(&attr_, 0, sizeof(attr_));
-  }
+  { }
   
 
   Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
@@ -310,8 +337,8 @@ class Cell {
 
  public:
   KeyType key() const { return key_; }
-  double weight() const { return weight_; }
-  void WeightUp() { weight_ += 1; }
+  double Weight() const { return weight_; }
+  void WeightUp(double inc = 1.0) { weight_ += inc; }
 
   template <class T> bool operator==(const T &) const { return false; }
   bool operator==(const Cell &c) const;
@@ -456,12 +483,12 @@ class Cell {
     return nb_;
   }
 
-  CellAttr &attr() {
+  CellAttrWrapper &attr() {
     return attr_;
   }
 
   const CellAttr &attr() const {
-    return attr_;
+    return (const CellAttr&)attr_;
   }
 
   /**
@@ -554,7 +581,7 @@ class Cell {
 
   Mapper mapper_;
 
-  CellAttr attr_;
+  CellAttrWrapper attr_;
 
   double weight_;
 
@@ -608,29 +635,6 @@ void ReportSplitType(typename Cell<TSP>::KeyType trg_key,
 
   e.out() << " " << (by_pred == orig ? "OK" : "NG") << std::endl;
 }
-
-#if 0
-/**
- * @brief Return a new Region object that covers all Regions across multiple MPI processes
- */
-template<class TSP>
-Region<TSP::Dim, typename TSP::FP> ExchangeRegion(const Region<TSP::Dim,
-                                                  typename TSP::FP> &r,
-                                                  MPI_Comm comm) {
-  const int Dim = TSP::Dim;
-  typedef typename TSP::FP FP;
-
-  Vec<Dim, FP> new_max, new_min;
-
-  // Exchange max
-  tapas::mpi::Allreduce(&r.max()[0], &new_max[0], Dim, MPI_MAX, comm);
-
-  // Exchange min
-  tapas::mpi::Allreduce(&r.min()[0], &new_min[0], Dim, MPI_MIN, comm);
-
-  return Region<Dim, FP>(new_min, new_max);
-}
-#endif
 
 /**
  * @brief Create an array of HelperNode from bodies
@@ -752,34 +756,6 @@ void CompleteRegion(typename TSP::SFC::KeyType x,
   }
   std::sort(std::begin(s), std::end(s));
 }
-
-#if 0
-/**
- * \brief UpwardMap starting from a local cell. The subtree under c must be completely local.
- */
-template<class TSP, class Funct, class...Args>
-void LocalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
-  if (!c.IsLocal()) {
-    using SFC = typename Cell<TSP>::SFC;
-    auto k = c.key();
-    std::cerr << SFC::Simplify(k) << " "
-              << SFC::Decode(k) << " "
-              << k << std::endl;
-  }
-  TAPAS_ASSERT(c.IsLocal());
-
-  if (c.IsLeaf()) {
-    f(c, args...);
-  } else {
-    size_t nc = c.nsubcells();
-    for (int ci = 0; ci < nc; ci++) {
-      Cell<TSP> &child = c.subcell(ci);
-      LocalUpwardTraversal(child, f, args...);
-    }
-    f(c, args...);
-  }
-}
-#endif
 
 /**
  * \brief Exchange cell attrs of global leaves
@@ -1085,6 +1061,51 @@ static void DestroyCells(Cell<TSP> *root) throw() {
   for (auto p : ptrs) {
     delete p;
   }
+}
+
+namespace {
+
+// A recursive subroutine for PropagateWeight() function.
+template<class Cell>
+void PropagateFunc(Cell *cell, typename Cell::Data &data) {
+  using SFC = typename Cell::SFC;
+  using KeyType = typename SFC::KeyType;
+  
+  if (cell->IsLeaf()) {
+    // Put the leaf's weight on each body
+    for (size_t bi = 0; bi < cell->nb(); bi++) {
+      size_t bidx = cell->body_offset() + bi;
+      data.local_body_weights_[bidx] = cell->Weight();
+    }
+  } else {
+    // Add the parent's weight to the children
+    for (KeyType ck : SFC::GetChildren(cell->key())) {
+      if (data.ht_.count(ck) > 0) {
+        // the children (with key ck) is local
+        Cell *child = data.ht_[ck];
+        child->WeightUp(cell->Weight());
+        PropagateFunc(child, data);
+      }
+    }
+  }
+}
+
+} // namespace
+
+template<class Cell>
+void PropagateWeight(Cell *root) {
+  using Data = typename Cell::Data;
+  Data &data = root->data();
+
+  data.local_body_weights_.resize(data.local_bodies_.size(), 1);
+
+  PropagateFunc(data.ht_[0], data);
+
+  std::cout << "------------ body weights -------------" << std::endl;
+  for (size_t i = 0; i < data.local_body_weights_.size(); i++) {
+    std::cout << i << " " << data.local_body_weights_[i] << std::endl;
+  }
+
 }
 
 /**
@@ -1559,12 +1580,17 @@ struct Tapas {
    * the argument pointer is deleted.
    */
   static Cell *Partition(Cell *root, int max_nb) {
+    // Put weight values to each bodies by 'downward' traversal of the tree
+    PropagateWeight(root);
+    
     // All cells are to be deleted.
     // all other data are recycled.
     Data *data = &(root->data());
+    
     DestroyCells(root);
 
     std::vector<Body> bodies = std::move(data->local_bodies_);
+    std::vector<double> weights = std::move(data->local_body_weights_);
 
     data->ht_.clear();
     data->ht_let_.clear();
@@ -1576,10 +1602,12 @@ struct Tapas {
     data->leaf_keys_.clear();
     data->leaf_nb_.clear();
     data->leaf_owners_.clear();
+    data->local_bodies_.clear();
     data->local_body_attrs_.clear();
     data->let_body_attrs_.clear();
     data->local_body_keys_.clear();
     data->proc_first_keys_.clear();
+    data->local_body_weights_.clear();
 
     Partitioner part(max_nb);
     return part.Partition(data, bodies.data(), bodies.size(), data->mpi_comm_);

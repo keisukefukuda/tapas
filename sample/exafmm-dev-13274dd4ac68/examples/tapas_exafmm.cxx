@@ -630,8 +630,6 @@ int main(int argc, char ** argv) {
     logger::printPAPI();
     logger::stopDAG();
     
-    TapasFMM::Map(DumpWeight(), root->subcells());
-
     if (t == args.repeat - 1) { // Final Timesteps
       if (args.check) {
         const int numTargets = 10;

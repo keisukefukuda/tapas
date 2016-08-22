@@ -185,6 +185,12 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
 
   CELL &c1 = iter1.cell();
   CELL &c2 = iter2.cell();
+
+  c1.WeightUp();
+  if (mutual) {
+    c2.WeightUp();
+  }
+  
   //auto data = c1.data_ptr();
   auto *bodies1 = &c1.body(0);
   auto *bodies2 = &c2.body(0);
