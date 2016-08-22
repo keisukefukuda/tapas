@@ -630,6 +630,8 @@ int main(int argc, char ** argv) {
     logger::printPAPI();
     logger::stopDAG();
     
+    TapasFMM::Map(DumpWeight(), root->subcells());
+
     if (t == args.repeat - 1) { // Final Timesteps
       if (args.check) {
         const int numTargets = 10;
@@ -643,8 +645,6 @@ int main(int argc, char ** argv) {
       // Prepare for the next timestep
       data.initTarget(bodies);
     }
-
-    TapasFMM::Map(DumpWeight(), root->subcells());
 
 #if USE_MPI
     MPI_Barrier(MPI_COMM_WORLD);

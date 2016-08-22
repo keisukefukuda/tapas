@@ -29,7 +29,7 @@ class BodyIterator {
   typedef BodyIterator value_type;
   using Body = typename CellType::Body;
   using BodyAttr = typename CellType::BodyAttr;
-  using attr_type = typename CellType::BodyAttr;
+  using CellAttr = typename CellType::CellAttr;
 
 #ifdef TAPAS_BODY_THREAD_SPAWN_THRESHOLD
   static const constexpr int kThreadSpawnThreshold = TAPAS_BODY_THREAD_SPAWN_THRESHOLD;
@@ -118,9 +118,9 @@ class CellIterator {
  public:
   int index() const { return 0; } // dummy. to be deleted soon
   CellIterator(CELL &c): c_(c) {}
-  typedef CELL value_type;
-  typedef CELL CellType;
-  typedef typename CELL::attr_type attr_type;
+  using value_type = CELL;
+  using CellType = CELL;
+  using CellAttr = typename CellType::CellAttr;
   using KeyType = typename CellType::KeyType;
 
   static const constexpr int kThreadSpawnThreshold = 1;
@@ -152,10 +152,10 @@ class CellIterator {
     return c_.key();
   }
 
-  attr_type &attr() {
+  CellAttr &attr() {
     return c_.attr();
   }
-  const attr_type &attr() const {
+  const CellAttr &attr() const {
     return c_.attr();
   }
   bool operator==(const CellIterator &x) const {
@@ -198,7 +198,7 @@ class SubCellIterator {
  public:
   using CellType = Cell;
   using value_type = CellType;
-  using attr_type = typename CellType::attr_type;
+  using CellAttr = typename CellType::CellAttr;
   using KeyType = typename CellType::KeyType;
   using SFC = typename CellType::SFC;
 
@@ -325,10 +325,10 @@ class ProductIterator {
   typename T2::value_type &second() {
     return *t2_;
   }
-  typename T1::attr_type &attr_first() {
+  typename T1::CellAttr &attr_first() {
     return t1_.attr();
   }
-  typename T2::attr_type &attr_second() {
+  typename T2::CellAttr &attr_second() {
     return t2_.attr();
   }
   
@@ -382,10 +382,10 @@ class ProductIterator<ITER, void> {
   ITER &second() {
     return t2_;
   }
-  typename ITER::attr_type &attr_first() {
+  typename ITER::CellAttr &attr_first() {
     return t1_.attr();
   }
-  typename ITER::attr_type &attr_second() {
+  typename ITER::CellAttr &attr_second() {
     return t2_.attr();
   }
   

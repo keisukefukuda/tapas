@@ -859,9 +859,9 @@ struct OptLET {
    * The boundary box is max/min of
    */
   template<class UserFunct, class...Args>
-  static void DoTraverse(CellType &root,
-                         KeySet &req_keys_attr, KeySet &req_keys_body,
-                         UserFunct f, Args...args) {
+  static void Inspect(CellType &root,
+                      KeySet &req_keys_attr, KeySet &req_keys_body,
+                      UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
     MPI_Barrier(MPI_COMM_WORLD);
     double beg = MPI_Wtime();
@@ -1250,7 +1250,7 @@ struct OptLET {
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    DoTraverse(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested

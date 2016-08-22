@@ -36,8 +36,7 @@ struct ExactLET {
   using BodyType = typename CellType::BodyType;
   using BodyAttrType = typename CellType::BodyAttrType;
   
-  using attr_type = typename CellType::OrigCellAttr;
-  using CellAttrType = attr_type;
+  using CellAttr = typename CellType::CellAttr;
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
@@ -69,32 +68,32 @@ struct ExactLET {
     }
   }; // class ProxyBodyAttr
 
-  class ProxyAttr : public CellAttrType {
+  class ProxyAttr : public CellAttr {
     friend ProxyCell;
     
    protected:
     ProxyAttr &operator=(const ProxyAttr &rhs) {
-      this->CellAttrType::operator=(rhs);
+      this->CellAttr::operator=(rhs);
       cell_ = rhs.cell_;
       return *this;
     }
     
    public:
-    ProxyAttr(ProxyCell *cell) : CellAttrType(), cell_(cell) { }
-    ProxyAttr(ProxyCell *cell, CellAttrType &rhs) : CellAttrType(rhs), cell_(cell) { }
+    ProxyAttr(ProxyCell *cell) : CellAttr(), cell_(cell) { }
+    ProxyAttr(ProxyCell *cell, CellAttr &rhs) : CellAttr(rhs), cell_(cell) { }
 
     //ProxyAttr(const ProxyAttr &) = delete;
     
     ProxyCell &cell() const { return *cell_; }
 
-    inline void operator=(const CellAttrType&) const {
+    inline void operator=(const CellAttr&) const {
       //std::cout << "ProxyAttr::operator=() is called for cell [" << cell_->key() << "]" << std::endl;
       cell_->MarkModified();
       //return *this;
     }
 
     template<class T>
-    inline void operator=(const CellAttrType&) const {
+    inline void operator=(const CellAttr&) const {
       //std::cout << "ProxyAttr::operator=() const is called for cell [" << cell_->key() << "]" << std::endl;
       cell_->MarkModified();
       //return *this;
@@ -119,8 +118,8 @@ struct ExactLET {
   class ProxyBodyIterator  {
    public:
     using CellType = ProxyCell;
+    using CellAttr = ProxyBodyAttr;
     using value_type = ProxyBodyIterator;
-    using attr_type = ProxyBodyAttr;
     //using Mapper = typename CellType::Mapper;
     using Mapper = ProxyMapper;
 
@@ -249,8 +248,7 @@ struct ExactLET {
     using KeyType = tapas::hot::ExactLET<TSP>::KeyType;
     using SFC = tapas::hot::ExactLET<TSP>::SFC;
 
-    using attr_type = ProxyAttr;
-    using CellAttrType = ProxyAttr;
+    using CellAttr = ProxyAttr;
     using BodyAttrType = ProxyBodyAttr;
     using BodyType = ProxyBody;
 
@@ -356,19 +354,17 @@ struct ExactLET {
       // lv0_mod and lv1_mod represents the timing of modification to the cell.
       // here `time' is measured by the 'clock' value.
       
-      assert(lv0_mod != lv1_mod);
-
       if (lv0_mod > lv1_mod) { // level 0 cell was updated later => Upward
         // Upward
         return MAP1_UP;
       } else if (lv0_mod < lv1_mod) { // level 1 cell was updated later => Downward
         // Downward
         return MAP1_DOWN;
+      } else {
+        // lv0_mod == lv1_mod
+        // Leaf-only traversal or non-destructive traverse (such as debug printing)
+        return MAP1_UNKNOWN;
       }
-      
-      std::cerr << "Tapas [ERROR] Cannot detect directdion for 1-argument map" << std::endl;
-      abort();
-      return MAP1_UNKNOWN; // Error
     }
 
     // TODO
@@ -491,7 +487,7 @@ struct ExactLET {
     /**
      * \fn ProxyCell::attr
      */
-    const attr_type &attr() const {
+    const CellAttr &attr() const {
       Touched();
       return attr_;
     }
@@ -603,7 +599,7 @@ struct ExactLET {
     CellType *cell_;
     std::vector<ProxyBody*> bodies_;
     std::vector<ProxyBodyAttr*> body_attrs_;
-    attr_type attr_;
+    CellAttr attr_;
     
     ProxyCell *parent_;
     std::vector<ProxyCell*> children_;
@@ -861,12 +857,12 @@ struct ExactLET {
   }
 
   /**
-   * \brief Traverse hypothetical global tree and construct a cell list.
+   * \brief Inspector for Map-2. Traverse hypothetical global tree and construct a cell list.
    */
   template<class UserFunct, class...Args>
-  static void DoTraverse(CellType &root,
-                         KeySet &req_keys_attr, KeySet &req_keys_body,
-                         UserFunct f, Args...args) {
+  static void Inspect_2(CellType &root,
+                        KeySet &req_keys_attr, KeySet &req_keys_body,
+                        UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -1006,7 +1002,7 @@ struct ExactLET {
   static void Response(Data &data,
                        std::vector<KeyType> &req_attr_keys, std::vector<int> &attr_src_ranks,
                        std::vector<KeyType> &req_leaf_keys, std::vector<int> &leaf_src_ranks,
-                       std::vector<CellAttrType> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
+                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
 
     SCOREP_USER_REGION("LET-Response", SCOREP_USER_REGION_TYPE_FUNCTION);
     // req_attr_keys : list of cell keys of which cell attributes are requested
@@ -1038,7 +1034,7 @@ struct ExactLET {
     std::vector<KeyType> attr_keys_send = req_attr_keys; // copy (split senbuf and recvbuf)
     std::vector<int> attr_dest_ranks = attr_src_ranks;
     res_cell_attrs.clear();
-    std::vector<CellAttrType> attr_sendbuf;
+    std::vector<CellAttr> attr_sendbuf;
     Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
 
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et - bt);
@@ -1157,7 +1153,7 @@ struct ExactLET {
    */
   static void Register(Data *data,
                        const std::vector<KeyType> &res_cell_attr_keys,
-                       const std::vector<CellAttrType> &res_cell_attrs,
+                       const std::vector<CellAttr> &res_cell_attrs,
                        const std::vector<KeyType> &res_leaf_keys,
                        const std::vector<index_t> &res_nb) {
     SCOREP_USER_REGION("LET-Register", SCOREP_USER_REGION_TYPE_FUNCTION);
@@ -1232,7 +1228,7 @@ struct ExactLET {
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    DoTraverse(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    Inspect_2(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested
@@ -1245,7 +1241,7 @@ struct ExactLET {
             res_cell_attr_keys, res_leaf_keys, attr_src, leaf_src);
 
     // Response
-    std::vector<CellAttrType> res_cell_attrs;
+    std::vector<CellAttr> res_cell_attrs;
     std::vector<BodyType> res_bodies;
     std::vector<index_t> res_nb; // number of bodies responded from remote processes
     Response(root.data(), res_cell_attr_keys, attr_src, res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);

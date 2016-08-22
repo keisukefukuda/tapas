@@ -33,12 +33,17 @@ struct DumpWeight {
   template<class Cell>
   void operator()(Cell &parent, Cell &child) {
     if (!Cell::Inspector) {
-      std::cout << parent.weight() << std::endl;
+      using SFC = typename Cell::SFC;
+      std::cout << SFC::Simplify(parent.key()) << " " << parent.weight() << std::endl;
+      
       if (child.IsLeaf()) {
         TapasFMM::Map(*this, child.subcells());
       } else {
-        std::cout << child.weight() << std::endl;
+        std::cout << SFC::Simplify(child.key()) << " " << child.weight() << std::endl;
       }
+
+      // dummy code
+      parent.attr() = parent.attr();
     }
   }
 };

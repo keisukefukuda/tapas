@@ -225,32 +225,6 @@ class Cell {
   // Internal structures
   //========================================================
 
-  // Wrapper for Cell attributes to trap assignment in
-  // executor
-  struct CellAttrWrapper : public TSP::CellAttr {
-    using OrigCellAttr = typename TSP::CellAttr;
-
-    Cell &c_;
-
-    CellAttrWrapper(Cell &c) : c_(c) {
-      // zero-clear the OrigCellAttr part.
-      bzero(this, sizeof(OrigCellAttr));
-    }
-    
-    CellAttrWrapper &operator=(const CellAttrWrapper& rhs) {
-      //std::cout << "operator=" << std::endl;
-      std::cout << &(c_) << std::endl;
-      c_.weight_++;
-      (OrigCellAttr&)*this = (OrigCellAttr&) rhs;
-    }
-
-    CellAttrWrapper &operator=(const OrigCellAttr& rhs) {
-      //std::cout << "operator=" << std::endl;
-      c_.weight_++;
-      (OrigCellAttr&)*this = rhs;
-      return *this;
-    }
-  };
   
   //========================================================
   // Typedefs
@@ -277,9 +251,7 @@ class Cell {
   using CellHashTable = std::unordered_map<KeyType, Cell*>;
   using KeySet = std::unordered_set<KeyType>;
 
-  using attr_type = CellAttrWrapper;
-  using CellAttr = CellAttrWrapper;
-  using OrigCellAttr = typename TSP::CellAttr;
+  using CellAttr = typename TSP::CellAttr;
   using BodyType = typename TSP::Body;
   using BodyAttrType = typename TSP::BodyAttr;
   using Threading = typename TSP::Threading;
@@ -319,9 +291,10 @@ class Cell {
       , bid_(bid)
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
-      , attr_(*this)
-      , weight_(1)
-  { }
+      , weight_(1.0)
+  {
+    memset(&attr_, 0, sizeof(attr_));
+  }
   
 
   Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
@@ -820,15 +793,15 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
 
   std::vector<KeyType> keys_send(lroots.begin(), lroots.end());
   std::vector<KeyType> keys_recv;
-  std::vector<OrigCellAttr> attr_send;
-  std::vector<OrigCellAttr> attr_recv;
+  std::vector<CellAttr> attr_send;
+  std::vector<CellAttr> attr_recv;
 
   auto &data = gtree[0]->data();
 
   for(size_t i = 0; i < keys_send.size(); i++) {
     KeyType k = keys_send[i];
     TAPAS_ASSERT(data.ht_.count(k) == 1);
-    attr_send.push_back((OrigCellAttr&)(data.ht_[k]->attr()));
+    attr_send.push_back((CellAttr&)(data.ht_[k]->attr()));
   }
 
   tapas::mpi::Allgatherv(keys_send, keys_recv, MPI_COMM_WORLD);
@@ -1267,7 +1240,6 @@ class Partitioner {
   using BodyType = typename TSP::Body;
   using KeyType = typename Cell<TSP>::KeyType;
   using CellAttr = typename Cell<TSP>::CellAttr;
-  using OrigCellAttr = typename Cell<TSP>::OrigCellAttr;
   using CellHashTable = typename Cell<TSP>::CellHashTable;
 
   using KeySet = typename Cell<TSP>::SFC::KeySet;
@@ -1412,11 +1384,13 @@ class Partitioner {
   }
 
   static void KeysToAttrs(const std::vector<KeyType> &keys,
-                          std::vector<OrigCellAttr> &attrs,
+                          std::vector<CellAttr> &attrs,
                           const HT& hash) {
-    auto key_to_attr = [&hash](KeyType k) -> OrigCellAttr& {
+    // functor
+    auto key_to_attr = [&hash](KeyType k) -> CellAttr& {
       return hash.at(k)->attr();
     };
+    
     attrs.resize(keys.size());
     std::transform(keys.begin(), keys.end(), attrs.begin(), key_to_attr);
   }

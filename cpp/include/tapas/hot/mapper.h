@@ -472,10 +472,16 @@ struct CPUMapper {
       auto dir = LET::FindMap1Direction(c, f, args...);
       double find_et = MPI_Wtime();
       data.time_rec_.Record(data.timestep_, "Map1-finddir", find_et - find_bt);
+
+      // note for MAP1_UNKNOWN:
+      // The Inspector checks if the function make modification on the parent or child.
+      // If f does not write to any of them, we assume that it only writes leaves or
+      // non-destructive function (like debug printer).
       
       switch(dir) {
         case LET::MAP1_UP:    UpwardRoot<Funct, Args...>(f, iter, args...); break;
         case LET::MAP1_DOWN:  DownwardRoot<Funct, Args...>(f, iter, args...); break;
+        case LET::MAP1_UNKNOWN: DownwardRoot<Funct, Args...>(f, iter, args...); break;
         default:
           // This should not happen.
           assert(0);
