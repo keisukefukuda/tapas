@@ -62,7 +62,8 @@ class SamplingOctree {
   template<class T> using Vector = std::vector<T, Allocator<T>>;
 
  private:
-  std::vector<BodyType> bodies_;
+  std::vector<BodyType> bodies_; // bodies
+  std::vector<double> weights_;  // weights of bodies
   std::vector<KeyType> body_keys_;
   std::vector<KeyType> proc_first_keys_; // first key of each process's region
   Reg region_;
@@ -70,8 +71,10 @@ class SamplingOctree {
   int ncrit_;
 
  public:
-  SamplingOctree(const BodyType *b, index_t nb, Data *data, int ncrit)
-      : bodies_(b, b+nb), body_keys_(), proc_first_keys_(), region_(), data_(data), ncrit_(ncrit)
+  SamplingOctree(const BodyType *b, const double *w, index_t nb, Data *data, int ncrit)
+      : bodies_(b, b+nb)
+      , weights_()
+      , body_keys_(), proc_first_keys_(), region_(), data_(data), ncrit_(ncrit)
   {
     Vec<kDim, FP> local_max, local_min;
 
@@ -81,6 +84,13 @@ class SamplingOctree {
         local_max = (i == 0) ? pos[d] : std::max(pos[d], local_max[d]);
         local_min = (i == 0) ? pos[d] : std::min(pos[d], local_min[d]);
       }
+    }
+
+    // If nullptr is specified as weights, use a vector of 1.0
+    if (w == nullptr) {
+      weights_.resize(nb, 1.0);
+    } else {
+      weights_.assign(w, w + nb);
     }
 
     region_.min() = local_min;
@@ -177,7 +187,9 @@ class SamplingOctree {
    * close to a certain particle.
    *
    */
-  static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &keys, int mpi_size) {
+  static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &keys,
+                                             const std::vector<double> &weights,
+                                             int mpi_size) {
     const int B = 1 << kDim;
     const int L  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
     const KeyType K = SFC::AppendDepth(0, L);
@@ -192,28 +204,31 @@ class SamplingOctree {
 
     TAPAS_ASSERT(W > mpi_size);
 
-    const int q = keys.size() / mpi_size; // each process should have roughly q bodies
+    // total weight
+    double tw = std::accumulate(weights.begin(), weights.end(), 0, std::plus<double>());
 
-    std::vector<int> nb(W); // number of bodies each L-level key owns
+    const double q = tw / mpi_size; // quota: each process should have roughly tw/mpi_size weight
+
+    std::vector<double> wb(W); // weight of bodies each L-level key owns
 
     KeyType kl = K;
 
-    // For each key(cell) in level L, count how many bodies belong to the cell out of the sampled set.
-    for (size_t i = 0; i < nb.size(); i++) {
+    // Calculate weight of each L-level key 
+    for (size_t i = 0; i < wb.size(); i++) {
       index_t b, e;
       SFC::FindRangeByKey(keys, kl, b, e);
-      nb[i] = e - b;
+      wb[i] = accumulate(weights.begin() + b, weights.begin() + e, 0, std::plus<double>());
       kl = SFC::GetNext(kl);
     }
-
+    
     // sum(nb) must be equal to keys.size(), becuase the for loop above cover the entire domain
-    TAPAS_ASSERT(std::accumulate(nb.begin(), nb.end(), 0) == (int)keys.size());
+    //TAPAS_ASSERT(std::accumulate(nb.begin(), nb.end(), 0) == (int)keys.size());
 
-    std::vector<int> nb_iscan(W); // inclusive scan of nb vector
+    std::vector<double> wb_iscan(W); // inclusive scan (prefix sum) of wb vector
 
-    for (size_t i = 0; i < nb_iscan.size(); i++) {
-      // Future work: this operation can be parallelized by parallel scan
-      nb_iscan[i] = nb[i] + (i > 0 ? nb_iscan[i-1] : 0);
+    for (size_t i = 0; i < wb_iscan.size(); i++) {
+      // Future work: this operation can be parallelized by parallel scan?
+      wb_iscan[i] = wb[i] + (i > 0 ? wb_iscan[i-1] : 0.0);
     }
 
     std::vector<KeyType> beg_keys(mpi_size); // return value
@@ -223,10 +238,10 @@ class SamplingOctree {
     //   nb_iscan[j] >= q * i
     beg_keys[0] = SFC::AppendDepth(0, L);
     for (int i = 1; i < mpi_size; i++) {
-      int j = std::upper_bound(nb_iscan.begin(), nb_iscan.end(), q*i) - nb_iscan.begin();
+      int j = std::upper_bound(wb_iscan.begin(), wb_iscan.end(), q*i) - wb_iscan.begin();
       beg_keys[i] = SFC::GetNext(K, j);
     }
-
+    
     return beg_keys;
   }
 
@@ -267,25 +282,49 @@ class SamplingOctree {
 
     int min_sample_nb = std::min((int)100, (int)bodies_.size());
 
-    // sample particles in this process
+    // sample bodies in this process
     int sample_nb = std::max((int)(bodies_.size() * R),
                              (int)min_sample_nb);
 
-    std::vector<BodyType> sampled_bodies(sample_nb);
+    std::vector<BodyType> sb(sample_nb); // local sampled bodies
+    std::vector<double> sw(sample_nb);   // corresponding weights to sampled bodies
+
+    assert(bodies_.size() == weights_.size());
+
     // Sample bodies by strided access
     int stride = bodies_.size() / sample_nb;
     for (int i = 0; i < sample_nb; i++) {
-      sampled_bodies[i] = bodies_[i * stride];
+      sb[i] = bodies_[i * stride];
+      sw[i] = weights_[i * stride];
     }
-    std::vector<KeyType> sampled_keys_local = BodiesToKeys(sampled_bodies, data_->region_);
+    std::vector<KeyType> sk= BodiesToKeys(sb, data_->region_); // keys of local sampled bodies
     std::vector<KeyType> sampled_keys;
+    std::vector<double> sampled_weights;
 
     // Gather the sampled particles into the DD-process
     int dd_proc_id = DDProcId();
 
-    tapas::mpi::Gather(sampled_keys_local, sampled_keys, dd_proc_id, MPI_COMM_WORLD);
+    // Gather the sampled keys and weights
+    tapas::mpi::Gather(sk, sampled_keys, dd_proc_id, MPI_COMM_WORLD);
+    tapas::mpi::Gather(sw, sampled_weights, dd_proc_id, MPI_COMM_WORLD);
 
-    std::sort(std::begin(sampled_keys), std::end(sampled_keys));
+    // check
+#ifdef TAPAS_DEBUG
+    std::unordered_map<KeyType, double> w;
+    for (size_t i = 0; i < sampled_keys.size(); i++) {
+      w[sampled_keys[i]] = sampled_weights[i];
+    }
+#endif
+
+    // Sort the body keys and corresponding weights
+    tapas::util::TiedSort(sampled_keys, sampled_weights);
+
+#ifdef TAPAS_DEBUG
+    // check
+    for (size_t i = 0; i < sampled_keys.size(); i++) {
+      assert(w[sampled_keys[i]] == sampled_weights[i]);
+    }
+#endif
 
     proc_first_keys_.resize(data_->mpi_size_);
 
@@ -293,7 +332,7 @@ class SamplingOctree {
       // in DD-process
       TAPAS_ASSERT(SFC::GetDepth(sampled_keys[0]) == SFC::MAX_DEPTH);
 
-      proc_first_keys_ = PartitionSpace(sampled_keys, data_->mpi_size_);
+      proc_first_keys_ = PartitionSpace(sampled_keys, sampled_weights, data_->mpi_size_);
       TAPAS_ASSERT((int)proc_first_keys_.size() == data_->mpi_size_);
     }
 

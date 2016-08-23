@@ -289,6 +289,35 @@ struct function_traits<R(T::*)(Args...)> {
   using arity = std::tuple<Args...>;
 };
 
+
+/**
+ * \brief Sort multiple vectors together, with the first vector as keys.
+ */
+template<class T, class...Args>
+void TiedSort(std::vector<T> &a, std::vector<Args>&... args) {
+  using tt = struct {
+    T key;
+    std::tuple<Args...> val;
+  };
+  std::vector<tt> vals(a.size());
+
+  for (size_t i = 0; i < a.size(); i++) {
+    vals[i].key = a[i];
+    vals[i].val = std::make_tuple(args[i]...);
+  }
+
+  std::sort(std::begin(vals), std::end(vals), [](const tt& a, const tt& b) {
+      return a.key < b.key;
+    });
+  
+  for (size_t i = 0; i < a.size(); i++) {
+    a[i] = vals[i].key;
+    std::tuple<Args&...>(args[i]...) = vals[i].val;
+  }
+}
+
+
+
 } // namespace util
 } // namespace tapas
 

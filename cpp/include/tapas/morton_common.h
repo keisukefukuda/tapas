@@ -340,10 +340,12 @@ void SortByPermutations(std::vector<T1> &keys, std::vector<T2> &vals) {
 
   std::vector<size_t> perm(len);
 
+  // perm = [0,1,2,3,...,N-1]
   for (size_t i = 0; i < len; i++) {
     perm[i] = i;
   }
 
+  // Sort permutation vector with a special comparison keys
   std::sort(std::begin(perm), std::end(perm),
             [&keys](size_t a, size_t b) { return keys[a] < keys[b]; });
 
@@ -357,21 +359,6 @@ void SortByPermutations(std::vector<T1> &keys, std::vector<T2> &vals) {
   vals = vals2;
   keys = keys2;
 }
-
-#if 0
-template <int DIM>
-KeyType CalcFinestMortonKey(const tapas::Vec<DIM, int> &anchor) {
-  KeyType k = 0;
-  int mask = 1 << (MAX_DEPTH - 1);
-  for (int i = 0; i < MAX_DEPTH; ++i) {
-    for (int d = DIM-1; d >= 0; --d) {
-      k = (k << 1) | ((anchor[d] & mask) >> (MAX_DEPTH - i - 1));
-    }
-    mask >>= 1;
-  }
-  return MortonKeyAppendDepth(k, MAX_DEPTH);
-}
-#endif
 
 } // namespace morton_common
 } // namespace tapas

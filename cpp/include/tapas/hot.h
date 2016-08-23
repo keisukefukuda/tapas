@@ -1101,10 +1101,12 @@ void PropagateWeight(Cell *root) {
 
   PropagateFunc(data.ht_[0], data);
 
+#if 0
   std::cout << "------------ body weights -------------" << std::endl;
   for (size_t i = 0; i < data.local_body_weights_.size(); i++) {
     std::cout << i << " " << data.local_body_weights_[i] << std::endl;
   }
+#endif
 
 }
 
@@ -1278,6 +1280,7 @@ class Partitioner {
    * @brief Partition the space and build the tree
    */
   Cell<TSP> *Partition(Data *data, BodyType *b, index_t nb, MPI_Comm comm);
+  Cell<TSP> *Partition(Data *data, BodyType *b, const double *w, index_t nb, MPI_Comm comm);
 
   /**
    * @brief Overloaded version of Partitioner::Partition
@@ -1438,6 +1441,18 @@ class Partitioner {
 
 }; // class Partitioner
 
+template<class TSP>
+Cell<TSP>*
+Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
+                            typename TSP::Body *b,
+                            index_t num_bodies,
+                            MPI_Comm comm) {
+  // If `w` is omitted, use nullptr instead.
+  // In the first tree construction, there is no information of body weights
+  // so a vector of 1.0 is used inside SamplingOctree class.
+  return Partition(data, b, nullptr, num_bodies, comm);
+}
+
 /**
  * @brief Partition the simulation space and build SFC key based octree
  * @tparam TSP Tapas static params
@@ -1453,6 +1468,7 @@ template <class TSP> // TSP : Tapas Static Params
 Cell<TSP>*
 Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
                             typename TSP::Body *b,
+                            const double *w,
                             index_t num_bodies,
                             MPI_Comm comm) {
   using SFC = typename TSP::SFC;
@@ -1470,7 +1486,7 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
   }
 
   // Build local trees
-  SamplingOctree<TSP, SFC> stree(b, num_bodies, data, max_nb_);
+  SamplingOctree<TSP, SFC> stree(b, w, num_bodies, data, max_nb_);
   stree.Build();
 
   // Build Global trees
@@ -1610,7 +1626,7 @@ struct Tapas {
     data->local_body_weights_.clear();
 
     Partitioner part(max_nb);
-    return part.Partition(data, bodies.data(), bodies.size(), data->mpi_comm_);
+    return part.Partition(data, bodies.data(), weights.data(), bodies.size(), data->mpi_comm_);
   }
 
   static void Destroy(Cell *&root) {
