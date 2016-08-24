@@ -146,17 +146,17 @@ template<class T> struct MPI_DatatypeTraits {
   }
 };
 
-#define DEF_MPI_DATATYPE(__ctype, __mpitype)        \
-  template<> struct MPI_DatatypeTraits<__ctype>  {  \
-    static MPI_Datatype type() {                    \
-      return __mpitype;                             \
-    }                                               \
-    static constexpr bool IsEmbType() {             \
-      return true;                                  \
-    }                                               \
-    static constexpr int count(size_t n) {          \
-      return n;                                     \
-    }                                               \
+#define DEF_MPI_DATATYPE(ctype_, mpitype_)        \
+  template<> struct MPI_DatatypeTraits<ctype_>  { \
+    static MPI_Datatype type() {                  \
+      return mpitype_;                            \
+    }                                             \
+    static constexpr bool IsEmbType() {           \
+      return true;                                \
+    }                                             \
+    static constexpr int count(size_t n) {        \
+      return n;                                   \
+    }                                             \
   }
 
 DEF_MPI_DATATYPE(char, MPI_CHAR);

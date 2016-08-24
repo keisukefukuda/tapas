@@ -67,9 +67,6 @@ constexpr T spow(T base, T exp) noexcept {
       :  base * spow(base, exp-1);
 }
 
-template<class T>
-T __id(T v) { return v; }
-
 } // anon namespace
 
 

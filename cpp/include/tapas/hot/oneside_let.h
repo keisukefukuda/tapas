@@ -1,5 +1,5 @@
-#ifndef __TAPAS_HOT_ONESIDE_LET__
-#define __TAPAS_HOT_ONESIDE_LET__
+#ifndef TAPAS_HOT_ONESIDE_LET_
+#define TAPAS_HOT_ONESIDE_LET_
 
 #include <vector>
 #include <stack>
@@ -1329,4 +1329,4 @@ struct OptLET {
 
 } // namespace tapas
 
-#endif // __TAPAS_HOT_ONESIDE_LET__
+#endif // TAPAS_HOT_ONESIDE_LET_

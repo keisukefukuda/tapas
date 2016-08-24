@@ -148,7 +148,7 @@ template <class SFC, class BT, class Iter, class Functor>
 std::pair<typename SFC::KeyType, typename SFC::KeyType>
 GetBodyRange(const typename SFC::KeyType k,
              Iter beg, Iter end,
-             Functor get_key = __id<BT>) {
+             Functor get_key = tapas::util::identity<BT>) {
   using KeyType = typename SFC::KeyType;
 
   // When used in Refine(), a cells has sometimes no body.
@@ -174,7 +174,7 @@ template<class SFC, class T, class Functor>
 std::pair<typename SFC::KeyType, typename SFC::KeyType>
 GetBodyRange(const typename SFC::KeyType k,
              const std::vector<T> &hn,
-             Functor get_key = __id<T>) {
+             Functor get_key = tapas::util::identity<T>) {
   using Iter = typename std::vector<T>::const_iterator;
   return GetBodyRange<SFC, T, Iter, Functor>(k, hn.begin(), hn.end(), get_key);
 }

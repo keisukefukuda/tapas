@@ -70,7 +70,7 @@ using std::unordered_map;
 //
 // (__uint128_t is GCC's extension)
 
-template<class __KeyType>
+template<class KT>
 struct BestDepthBitWidth;
 
 template<> struct BestDepthBitWidth<uint32_t> { static constexpr int Bits = 4; };
@@ -107,11 +107,6 @@ KeyType CalcMortonKeyNext(KeyType k) {
   return k + inc;
 }
 
-template <class T>
-T __id(const T& t) {
-    return t;
-}
-
 /**
  * @brief Set depth information in a Morton key.
  */
@@ -136,7 +131,7 @@ KeyType MortonKeyRemoveDepth(KeyType k) {
  * @return returns std::pair of (pos, len)
  */
 template <int DIM, class T, class Iter, class Functor>
-KeyPair GetBodyRange(const KeyType k, Iter beg, Iter end, Functor get_key = __id<T>) {
+KeyPair GetBodyRange(const KeyType k, Iter beg, Iter end, Functor get_key = tapas::util::identity<T>) {
     // When used in Refine(), a cells has sometimes no body.
     // In this special case, just returns (0, 0)
     if (beg == end) return std::make_pair(0, 0);
@@ -157,7 +152,7 @@ KeyPair GetBodyRange(const KeyType k, Iter beg, Iter end, Functor get_key = __id
  * @brief std::vector version of GetBodyRange
  */
 template<int DIM, class T, class Functor>
-KeyPair GetBodyRange(const KeyType k, const std::vector<T> &hn, Functor get_key = __id<T>) {
+KeyPair GetBodyRange(const KeyType k, const std::vector<T> &hn, Functor get_key = tapas::util::identity<T>) {
     return GetBodyRange<DIM, T, typename std::vector<T>::const_iterator>(k, hn.begin(), hn.end(), get_key);
 }
                         

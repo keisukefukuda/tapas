@@ -1,5 +1,5 @@
-#ifndef __TAPAS_HOT_LET_COMMON__
-#define __TAPAS_HOT_LET_COMMON__
+#ifndef TAPAS_HOT_LET_COMMON_
+#define TAPAS_HOT_LET_COMMON_
 
 #include <string>
 
@@ -40,4 +40,4 @@ std::ostream& operator<<(std::ostream &os, SplitType st) {
 } /* namespace hot */
 } /* namespace tapas */
 
-#endif /* __TAPAS_HOT_LET_COMMON__ */
+#endif /* TAPAS_HOT_LET_COMMON_ */

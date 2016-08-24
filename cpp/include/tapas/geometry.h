@@ -1,5 +1,5 @@
-#ifndef __TAPAS_HOT_GEOMETRY_H__
-#define __TAPAS_HOT_GEOMETRY_H__
+#ifndef TAPAS_GEOMETRY_H_
+#define TAPAS_GEOMETRY_H_
 
 #include <iterator>
 #include <type_traits>
@@ -15,7 +15,7 @@ bool Separated(const VEC &xmax, const VEC &xmin, const VEC &ymax, const VEC &ymi
 
   bool separated = false;
 
-  for (int d = 0; d < Dim; d++) {
+ for (int d = 0; d < Dim; d++) {
     separated |= (xmax[d] <= ymin[d] || ymax[d] <= xmin[d]);
   }
 
@@ -135,4 +135,4 @@ struct Distance<_DIM, CenterClass, _FP> {
 
 } // namespace tapas
 
-#endif // __TAPAS_HOT_GEOMETRY_H__
+#endif // TAPAS_GEOMETRY_H_

@@ -16,30 +16,30 @@
   std::vector<std::string> fail_log;            \
   }                                             \
 
-#define ASSERT_EQ(should, actual) do {              \
-    auto __s = should;                              \
-    auto __a = actual;                              \
-    if (__s == __a) {                               \
-      test_app::succ_cnt++;                         \
-    } else {                                        \
-      std::stringstream ss;                         \
-      ss << "ASSERT_EQUAL failed in "               \
-         << __FILE__ << ":" << __LINE__ << " "      \
-         << __PRETTY_FUNCTION__                     \
-         << std::endl;                              \
-      ss << "\tshould = '" << #should << "' (= "    \
-         << tapas::test::ToString(__s) << "), "     \
-         << "\tactual = '" << #actual << "' (= "    \
-         << tapas::test::ToString(__a) << ").";     \
-      ss << std::endl;                              \
-      test_app::fail_log.push_back(ss.str());       \
-      test_app::fail_cnt++;                         \
-    }                                               \
+#define ASSERT_EQ(should, actual) do {            \
+    auto s_ = should;                             \
+    auto a_ = actual;                             \
+    if (s_ == a_) {                               \
+      test_app::succ_cnt++;                       \
+    } else {                                      \
+      std::stringstream ss;                       \
+      ss << "ASSERT_EQUAL failed in "             \
+         << __FILE__ << ":" << __LINE__ << " "    \
+         << __PRETTY_FUNCTION__                   \
+         << std::endl;                            \
+      ss << "\tshould = '" << #should << "' (= "  \
+         << tapas::test::ToString(s_) << "), "    \
+         << "\tactual = '" << #actual << "' (= "  \
+         << tapas::test::ToString(a_) << ").";    \
+      ss << std::endl;                            \
+      test_app::fail_log.push_back(ss.str());     \
+      test_app::fail_cnt++;                       \
+    }                                             \
   } while(0)
 
 #define ASSERT_TRUE(exp) do {                         \
-    auto __e = exp;                                   \
-    if (__e) {                                        \
+    auto e_ = exp;                                    \
+    if (e_) {                                         \
       test_app::succ_cnt++;                           \
     } else {                                          \
       std::stringstream ss;                           \
