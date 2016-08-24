@@ -191,7 +191,7 @@ class SamplingOctree {
                                              const std::vector<double> &weights,
                                              int mpi_size) {
     const int B = 1 << kDim;
-    const int L  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
+    const int L  = (int)(log((double)mpi_size) / log((double)B) + 5); // logB(Np) = log(Np) / log(B)
     const KeyType K = SFC::AppendDepth(0, L);
     const int W = pow(B, L); // number of cells in level L
 
@@ -213,6 +213,13 @@ class SamplingOctree {
 
     KeyType kl = K;
 
+    // debug
+    std::cout << "Weights:" << std::endl;
+    for (auto w : weights) {
+      std::cout << (int)w << " ";
+    }
+    std::cout << std::endl;
+
     // Calculate weight of each L-level key 
     for (size_t i = 0; i < wb.size(); i++) {
       index_t b, e;
@@ -220,6 +227,13 @@ class SamplingOctree {
       wb[i] = accumulate(weights.begin() + b, weights.begin() + e, 0, std::plus<double>());
       kl = SFC::GetNext(kl);
     }
+
+    // debug
+    std::cout << "Weights of each L-level key" << std::endl;
+    for (auto w : wb) {
+      std::cout << (int)w << " ";
+    }
+    std::cout << std::endl;
     
     // sum(nb) must be equal to keys.size(), becuase the for loop above cover the entire domain
     //TAPAS_ASSERT(std::accumulate(nb.begin(), nb.end(), 0) == (int)keys.size());
@@ -298,14 +312,26 @@ class SamplingOctree {
       sw[i] = weights_[i * stride];
     }
     std::vector<KeyType> sk= BodiesToKeys(sb, data_->region_); // keys of local sampled bodies
-    std::vector<KeyType> sampled_keys;
-    std::vector<double> sampled_weights;
+    std::vector<KeyType> sampled_keys;    // gather()ed sampled body keys
+    std::vector<double> sampled_weights;  // gather()ed sampled weights
 
     // Gather the sampled particles into the DD-process
     int dd_proc_id = DDProcId();
 
     // Gather the sampled keys and weights
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "MPI_Gather <sk>" << std::endl;
+    }
+    tapas::debug::BarrierExec([&](int rank, int) {
+        std::cout << "Rank " << rank << " " << "sample_nb=" << sample_nb << std::endl;
+        std::cout << "Rank " << rank << " " << "bodies_.size()=" << bodies_.size() << std::endl;
+        std::cout << "Rank " << rank << " " << "sk.size()=" << sk.size() << std::endl;
+      });
     tapas::mpi::Gather(sk, sampled_keys, dd_proc_id, MPI_COMM_WORLD);
+    
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "MPI_Gather <sw>" << std::endl;
+    }
     tapas::mpi::Gather(sw, sampled_weights, dd_proc_id, MPI_COMM_WORLD);
 
     // check

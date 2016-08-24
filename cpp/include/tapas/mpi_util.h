@@ -116,6 +116,24 @@ exclusive_scan(InputIterator first, InputIterator last,
 namespace tapas {
 namespace mpi {
 
+/**
+ * \brief Returns MPI rank in the specified communicator
+ */
+int Rank(MPI_Comm comm = MPI_COMM_WORLD) {
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  return rank;
+}
+
+/**
+ * \brief Returns MPI size in the specified communicator
+ */
+int Size(MPI_Comm comm = MPI_COMM_WORLD) {
+  int size;
+  MPI_Comm_size(comm, &size);
+  return size;
+}
+
 template <class T> void *void_cast(T* p) { return reinterpret_cast<void*>(p); }
 template <class T> void *void_cast(const T* p) { return const_cast<void*>(reinterpret_cast<const void*>(p)); }
 
