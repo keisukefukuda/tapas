@@ -23,6 +23,18 @@ namespace util {
 template<class T>
 T identity(T v) { return v; }
 
+double stddev(std::vector<double> vals) {
+  int n = (int)vals.size();
+  double mean = std::accumulate(std::begin(vals), std::end(vals), 0) / n;
+  double sigma = 0.0;
+
+  for (double v : vals) {
+    sigma += (mean - v) * (mean - v) / n;
+  }
+
+  return std::sqrt(sigma);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

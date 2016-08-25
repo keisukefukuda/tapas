@@ -81,10 +81,26 @@ class SamplingOctree {
     for (index_t i = 0; i < nb; i++) {
       Vec<kDim, FP> pos = ParticlePosOffset<kDim, FP, kPosOffset>::vec(reinterpret_cast<const void*>(b+i));
       for (int d = 0; d < kDim; d++) {
-        local_max = (i == 0) ? pos[d] : std::max(pos[d], local_max[d]);
-        local_min = (i == 0) ? pos[d] : std::min(pos[d], local_min[d]);
+        local_max[d] = (i == 0) ? pos[d] : std::max(pos[d], local_max[d]);
+        local_min[d] = (i == 0) ? pos[d] : std::min(pos[d], local_min[d]);
       }
     }
+    
+    tapas::debug::BarrierExec([&](int rank, int) {
+        std::cout << __FILE__ << ":" << __LINE__ << " " << "In SamplingOctree::ctor "
+                  << "nb=" << nb << " "
+                  << "local_max=" << local_max << " "
+                  << "local_min=" << local_min << " "
+                  << std::endl;
+
+        for (index_t i = 0; i < nb; i++) {
+          break;
+          std::cout << "Body: TS=" << std::noshowpos << data_->timestep_ << " "
+                    << "RANK=" << rank << " "
+                    << bodies_[i].X << std::endl;
+        }
+      });
+    MPI_Barrier(MPI_COMM_WORLD);
 
     // If nullptr is specified as weights, use a vector of 1.0
     if (w == nullptr) {
@@ -157,6 +173,10 @@ class SamplingOctree {
   void ExchangeRegion() {
     Vec<kDim, FP> new_max, new_min;
 
+    // tapas::debug::BarrierExec([&](int,int) {
+    //     std::cout << __FILE__ << ":" << __LINE__ << " In ExchangeRegion() local region = " << region_.min() << " - " << region_.max() << std::endl;
+    //   });
+    
     // Exchange max
     tapas::mpi::Allreduce(&region_.max()[0], &new_max[0], kDim,
                           MPI_MAX, MPI_COMM_WORLD);
@@ -166,6 +186,10 @@ class SamplingOctree {
                           MPI_MIN, MPI_COMM_WORLD);
 
     region_ = Reg(new_min, new_max);
+    
+    // tapas::debug::BarrierExec([&](int,int) {
+    //     std::cout << __FILE__ << ":" << __LINE__ << " In ExchangeRegion() region = " << region_.min() << " - " << region_.max() << std::endl;
+    //   });
   }
 
 
@@ -180,34 +204,120 @@ class SamplingOctree {
    * We determine L by
    *     B = 2^Dim  (B = 8 in 3 dim space)
    *     Np = mpi_size
-   *     L = log_B(Np) + 2
+   *     Ls = log_B(Np) + 2
+   *     (Ls is a starting value of L)
    *
    * L must be larger than the number of processes, and large enough to achieve good load balancing.
    * However, too large L leads to unnecessary deep tree structure because domain boundary may be too
    * close to a certain particle.
-   *
    */
-  static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &keys,
-                                             const std::vector<double> &weights,
+  static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &body_keys,
+                                             const std::vector<double> &body_weights,
                                              int mpi_size) {
-    const int B = 1 << kDim;
-    const int L  = (int)(log((double)mpi_size) / log((double)B) + 5); // logB(Np) = log(Np) / log(B)
-    const KeyType K = SFC::AppendDepth(0, L);
-    const int W = pow(B, L); // number of cells in level L
-
-#ifdef TAPAS_DEBUG_DUMP
-    std::cerr << "mpi_size = " << mpi_size << std::endl;
-    std::cerr << "B = " << B << std::endl;
-    std::cerr << "L = " << L << std::endl;
-    std::cerr << "W = " << W << std::endl;
-#endif
-
-    TAPAS_ASSERT(W > mpi_size);
+    const int B = 1 << kDim; // 8 in 3-dim space
+    const int Ls  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
 
     // total weight
-    double tw = std::accumulate(weights.begin(), weights.end(), 0, std::plus<double>());
+    const double totalw = std::accumulate(body_weights.begin(), body_weights.end(), 0);
+    const double q = totalw / mpi_size; // quota: each process should have roughly totalw/mpi_size weight
 
-    const double q = tw / mpi_size; // quota: each process should have roughly tw/mpi_size weight
+    // Beginning key of each process.
+    // This is the target value of this function to be returned to the caller.
+    std::vector<KeyType> beg_keys(mpi_size);
+    std::vector<double> proc_weights(mpi_size);
+
+    for (int L = Ls; L < SFC::MaxDepth(); L++) {
+      // Loop over [Ls, Ls+1, ...] until the load balancing seems good.
+      
+      const KeyType K0 = SFC::AppendDepth(0, L); // the first key in level L
+      const int W = pow(B, L); // number of cells in level L
+      TAPAS_ASSERT(W > mpi_size);
+      
+#ifdef TAPAS_DEBUG_DUMP
+      std::cerr << "mpi_size = " << mpi_size << std::endl;
+      std::cerr << "B = " << B << std::endl;
+      std::cerr << "L = " << L << std::endl;
+      std::cerr << "W = " << W << std::endl;
+#endif
+      
+      // Scan over the weight vector and find beginning keys.
+      KeyType k = K0; // current key
+      int ki = 0; // key index (to avoid overrun)
+      
+      beg_keys[0] = K0; // The beginning key of the first process is always 0.
+      
+      for (int pi = 1; pi < mpi_size; pi++) {
+        // pi = process index
+        double w = 0;  // weight of the *previous* process
+
+        // Find the range of `k` from `body_keys` and add the range weight to `proc_weight`
+        index_t b = 0, e = 0;
+        for (; w < q; k = SFC::GetNext(k), ki++) {
+          assert(ki < W); // something is wrong.
+          
+          // Find the range of bodies that belongs to `k`
+          SFC::FindRangeByKey(body_keys, k, b, e);
+          
+          // sum of the body weights in the range [b,e)
+          // std::cout << "k=" << SFC::Decode(k)
+          //           << " ki=" << ki << " range weight="
+          //           << accumulate(body_weights.begin() + b, body_weights.begin() + e, 0)
+          //           << std::endl;
+          w += accumulate(body_weights.begin() + b, body_weights.begin() + e, 0);
+        }
+
+        // k is the key of the process
+        beg_keys[pi] = k;
+        // weight of the *previous* process
+        proc_weights[pi-1] = w;
+        
+        if (pi == mpi_size - 1) {
+          // if pi is the last process, compute the weight of itself
+          proc_weights[pi] = accumulate(body_weights.begin() + e, body_weights.end(), 0);
+        }
+      }
+
+      // compute the stddev of weights and check it's acceptable, increase L if not.
+      double mean = std::accumulate(std::begin(proc_weights),
+                                    std::end(proc_weights),
+                                    0);
+      double sigma = tapas::util::stddev(proc_weights);
+
+      // std::cout << "--------------------" << std::endl;
+      // std::cout << "L = " << L << std::endl;
+
+      // std::cout << "body weights = ";
+      // for (auto w : body_weights) std::cout << (int)w << " ";
+      // std::cout << std::endl;
+        
+      // std::cout << "total weights = " << (int)totalw << std::endl;
+      // std::cout << "q = " << q << std::endl;
+        
+      // std::cout << "proc_weights = ";
+      // for (auto w : proc_weights) std::cout << (int)w << " ";
+      // std::cout << std::endl;
+
+      // std::cout << "MEAN   = " << mean << std::endl;
+      // std::cout << "STDDEV = " << sigma << std::endl;
+
+      // for (int i = 0; i < mpi_size; i++) {
+      //   std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
+      // }
+
+      double ratio = sigma / mean;
+      //std::cout << "Ratio = " << ratio << std::endl;
+
+      if (ratio < 0.05) break;
+    }
+
+    return beg_keys;
+
+#if 0
+    // The loop reached maximum depth.
+    // This situation should not happen in normal cases, but it means that sampled particles are too close
+    // to each other (maybe ALL the particle are at the same coordinate).
+    // Abort.
+    abort();
 
     std::vector<double> wb(W); // weight of bodies each L-level key owns
 
@@ -223,7 +333,7 @@ class SamplingOctree {
     // Calculate weight of each L-level key 
     for (size_t i = 0; i < wb.size(); i++) {
       index_t b, e;
-      SFC::FindRangeByKey(keys, kl, b, e);
+      SFC::FindRangeByKey(body_keys, kl, b, e);
       wb[i] = accumulate(weights.begin() + b, weights.begin() + e, 0, std::plus<double>());
       kl = SFC::GetNext(kl);
     }
@@ -235,8 +345,8 @@ class SamplingOctree {
     }
     std::cout << std::endl;
     
-    // sum(nb) must be equal to keys.size(), becuase the for loop above cover the entire domain
-    //TAPAS_ASSERT(std::accumulate(nb.begin(), nb.end(), 0) == (int)keys.size());
+    // sum(nb) must be equal to body_keys.size(), becuase the for loop above cover the entire domain
+    //TAPAS_ASSERT(std::accumulate(nb.begin(), nb.end(), 0) == (int)body_keys.size());
 
     std::vector<double> wb_iscan(W); // inclusive scan (prefix sum) of wb vector
 
@@ -244,8 +354,6 @@ class SamplingOctree {
       // Future work: this operation can be parallelized by parallel scan?
       wb_iscan[i] = wb[i] + (i > 0 ? wb_iscan[i-1] : 0.0);
     }
-
-    std::vector<KeyType> beg_keys(mpi_size); // return value
 
     // find domain boundaries:
     // process i's beginning key is j-th key in level L, where j is the smallest index satisfying
@@ -257,6 +365,7 @@ class SamplingOctree {
     }
     
     return beg_keys;
+#endif
   }
 
   /**
@@ -311,29 +420,28 @@ class SamplingOctree {
       sb[i] = bodies_[i * stride];
       sw[i] = weights_[i * stride];
     }
-    std::vector<KeyType> sk= BodiesToKeys(sb, data_->region_); // keys of local sampled bodies
+
+    std::vector<KeyType> sk = BodiesToKeys(sb, data_->region_); // keys of local sampled bodies
     std::vector<KeyType> sampled_keys;    // gather()ed sampled body keys
     std::vector<double> sampled_weights;  // gather()ed sampled weights
 
+    tapas::debug::BarrierExec([&](int rank,int) {
+        std::cout << "Rank " << rank << " "
+                  << "sk.size() = " << sk.size() << " "
+                  << "sample_nb = " << sample_nb << std::endl;
+      });
+    
     // Gather the sampled particles into the DD-process
     int dd_proc_id = DDProcId();
 
     // Gather the sampled keys and weights
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "MPI_Gather <sk>" << std::endl;
-    }
-    tapas::debug::BarrierExec([&](int rank, int) {
-        std::cout << "Rank " << rank << " " << "sample_nb=" << sample_nb << std::endl;
-        std::cout << "Rank " << rank << " " << "bodies_.size()=" << bodies_.size() << std::endl;
-        std::cout << "Rank " << rank << " " << "sk.size()=" << sk.size() << std::endl;
-      });
-    tapas::mpi::Gather(sk, sampled_keys, dd_proc_id, MPI_COMM_WORLD);
-    
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "MPI_Gather <sw>" << std::endl;
-    }
-    tapas::mpi::Gather(sw, sampled_weights, dd_proc_id, MPI_COMM_WORLD);
+    tapas::mpi::Gatherv(sk, sampled_keys, dd_proc_id, MPI_COMM_WORLD);
+    tapas::mpi::Gatherv(sw, sampled_weights, dd_proc_id, MPI_COMM_WORLD);
 
+    tapas::debug::BarrierExec([&](int rank,int) {
+        std::cout << "Rank " << rank << " sampled_keys.size = " << sampled_keys.size() << std::endl;
+      });
+    
     // check
 #ifdef TAPAS_DEBUG
     std::unordered_map<KeyType, double> w;
@@ -353,9 +461,14 @@ class SamplingOctree {
 #endif
 
     proc_first_keys_.resize(data_->mpi_size_);
-
+    
     if (data_->mpi_rank_ == dd_proc_id) {
       // in DD-process
+      if (!(SFC::GetDepth(sampled_keys[0]) == SFC::MAX_DEPTH)) {
+        std::cout << "SFC::GetDepth(sampled_keys[0])=" << SFC::GetDepth(sampled_keys[0]) << std::endl;
+        std::cout << "sampled_keys[0] = " << SFC::Decode(sampled_keys[0]) << std::endl;
+        std::cout << "SFC::MAX_DEPTH=" << SFC::MAX_DEPTH << std::endl;
+      }
       TAPAS_ASSERT(SFC::GetDepth(sampled_keys[0]) == SFC::MAX_DEPTH);
 
       proc_first_keys_ = PartitionSpace(sampled_keys, sampled_weights, data_->mpi_size_);
@@ -572,8 +685,9 @@ class SamplingOctree {
   }
 
   /**
-   * \brief Transform a vector of bodies into a vector of Kyes
-   * \param[in] bodies A vector of bodies
+   * \brief Transform a vector of bodies into a vector of keys
+   * \param[in] beg Iterator pointing the beginning of a vector of bodies
+   * \param[in] end Iterator pointing the ned of a vector of bodies
    * \param[in] region Region of the global simulation space (returned by ExchangeRegion()).
    * \return           Vector of keys
    */
@@ -588,19 +702,26 @@ class SamplingOctree {
       pitch[d] = (region.max()[d] - region.min()[d]) / (FP)num_finest_cells;
     }
 
+    // tapas::debug::BarrierExec([&](int,int) {
+    //     std::cout << "num_finest_cells = " << num_finest_cells << std::endl;
+    //     std::cout << "region = " << region.min() << " - " << region.max() << std::endl;
+    //     std::cout << "pitch = " << pitch << std::endl;
+    //   });
     auto ins = std::back_inserter(keys);
 
+    // For each bodies
     for (auto iter = beg; iter != end; iter++) {
-      Vec<kDim, FP> ofst = ParticlePosOffset<kDim, FP, kPosOffset>::vec(reinterpret_cast<const void*>(&*iter));
-      ofst -= region.min();
-      ofst /= pitch;
+      // Read the coordinates of the body (= *iter)
+      // Coordinates are located after kPosOffset bytes from the head of the body structure.
+      Vec<kDim, FP> pos = ParticlePosOffset<kDim, FP, kPosOffset>::vec(reinterpret_cast<const void*>(&*iter));
+      Vec<kDim, FP> ofst = (pos - region.min()) / pitch;
 
-      Vec<kDim, int> anchor; // An SFC key-like, but SOA-format vector without depth information  (not that SFC keys are AOS format).
+      Vec<kDim, int> anchor; // An SFC key-like, but SoA-format vector without depth information. (Note that SFC keys are AoS format).
 
       // now ofst is a kDim-dimensional index of the finest-level cell to which the body belongs.
       for (int d = 0; d < kDim; d++) {
         anchor[d] = (int)ofst[d];
-
+        
         if (anchor[d] == num_finest_cells) {
           // the body is just on the upper edge so anchor[d] is over the
           TAPAS_LOG_DEBUG() << "Particle located at max boundary." << std::endl;

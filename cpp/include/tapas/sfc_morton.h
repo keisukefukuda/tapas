@@ -384,6 +384,10 @@ class Morton {
   static
   KeyType CalcFinestKey(const tapas::Vec<Dim, int> &anchor) {
     for (int d = Dim-1; d >= 0; --d) {
+      // debug
+      if (!(anchor[d] <= pow(2, MaxDepth()))) {
+        std::cout << "anchor[d] = " << anchor[d] << " where d=" << d << ", MaxDepth()=" << MaxDepth() << ", pow(2,MaxDepth())=" << pow(2,MaxDepth()) << std::endl;
+      }
       assert(anchor[d] <= pow(2, MaxDepth()));
     }
 
