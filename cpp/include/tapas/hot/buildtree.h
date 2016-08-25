@@ -86,22 +86,6 @@ class SamplingOctree {
       }
     }
     
-    tapas::debug::BarrierExec([&](int rank, int) {
-        std::cout << __FILE__ << ":" << __LINE__ << " " << "In SamplingOctree::ctor "
-                  << "nb=" << nb << " "
-                  << "local_max=" << local_max << " "
-                  << "local_min=" << local_min << " "
-                  << std::endl;
-
-        for (index_t i = 0; i < nb; i++) {
-          break;
-          std::cout << "Body: TS=" << std::noshowpos << data_->timestep_ << " "
-                    << "RANK=" << rank << " "
-                    << bodies_[i].X << std::endl;
-        }
-      });
-    MPI_Barrier(MPI_COMM_WORLD);
-
     // If nullptr is specified as weights, use a vector of 1.0
     if (w == nullptr) {
       weights_.resize(nb, 1.0);
@@ -173,10 +157,6 @@ class SamplingOctree {
   void ExchangeRegion() {
     Vec<kDim, FP> new_max, new_min;
 
-    // tapas::debug::BarrierExec([&](int,int) {
-    //     std::cout << __FILE__ << ":" << __LINE__ << " In ExchangeRegion() local region = " << region_.min() << " - " << region_.max() << std::endl;
-    //   });
-    
     // Exchange max
     tapas::mpi::Allreduce(&region_.max()[0], &new_max[0], kDim,
                           MPI_MAX, MPI_COMM_WORLD);
@@ -186,10 +166,6 @@ class SamplingOctree {
                           MPI_MIN, MPI_COMM_WORLD);
 
     region_ = Reg(new_min, new_max);
-    
-    // tapas::debug::BarrierExec([&](int,int) {
-    //     std::cout << __FILE__ << ":" << __LINE__ << " In ExchangeRegion() region = " << region_.min() << " - " << region_.max() << std::endl;
-    //   });
   }
 
 
@@ -214,6 +190,13 @@ class SamplingOctree {
   static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &body_keys,
                                              const std::vector<double> &body_weights,
                                              int mpi_size) {
+
+    if (mpi_size == 1) {
+      // If single process, there's no need to space partitioning. The rank 0 owns all.
+      std::vector<KeyType> beg_keys = {0};
+      return beg_keys;
+    }
+    
     const int B = 1 << kDim; // 8 in 3-dim space
     const int Ls  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
 
@@ -233,7 +216,7 @@ class SamplingOctree {
       const int W = pow(B, L); // number of cells in level L
       TAPAS_ASSERT(W > mpi_size);
       
-#ifdef TAPAS_DEBUG_DUMP
+#if 0 // debug print: to be removed
       std::cerr << "mpi_size = " << mpi_size << std::endl;
       std::cerr << "B = " << B << std::endl;
       std::cerr << "L = " << L << std::endl;
@@ -245,7 +228,7 @@ class SamplingOctree {
       int ki = 0; // key index (to avoid overrun)
       
       beg_keys[0] = K0; // The beginning key of the first process is always 0.
-      
+
       for (int pi = 1; pi < mpi_size; pi++) {
         // pi = process index
         double w = 0;  // weight of the *previous* process
@@ -282,30 +265,32 @@ class SamplingOctree {
                                     std::end(proc_weights),
                                     0);
       double sigma = tapas::util::stddev(proc_weights);
-
-      // std::cout << "--------------------" << std::endl;
-      // std::cout << "L = " << L << std::endl;
-
-      // std::cout << "body weights = ";
-      // for (auto w : body_weights) std::cout << (int)w << " ";
-      // std::cout << std::endl;
-        
-      // std::cout << "total weights = " << (int)totalw << std::endl;
-      // std::cout << "q = " << q << std::endl;
-        
-      // std::cout << "proc_weights = ";
-      // for (auto w : proc_weights) std::cout << (int)w << " ";
-      // std::cout << std::endl;
-
-      // std::cout << "MEAN   = " << mean << std::endl;
-      // std::cout << "STDDEV = " << sigma << std::endl;
-
-      // for (int i = 0; i < mpi_size; i++) {
-      //   std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
-      // }
-
       double ratio = sigma / mean;
-      //std::cout << "Ratio = " << ratio << std::endl;
+
+#if 0 // debug outputs: to be removed.
+      std::cout << "--------------------" << std::endl;
+      std::cout << "L = " << L << std::endl;
+
+      std::cout << "body weights = ";
+      for (auto w : body_weights) std::cout << (int)w << " ";
+      std::cout << std::endl;
+        
+      std::cout << "total weights = " << (int)totalw << std::endl;
+      std::cout << "q = " << q << std::endl;
+        
+      std::cout << "proc_weights = ";
+      for (auto w : proc_weights) std::cout << (int)w << " ";
+      std::cout << std::endl;
+
+      std::cout << "MEAN   = " << mean << std::endl;
+      std::cout << "STDDEV = " << sigma << std::endl;
+      
+      for (int i = 0; i < mpi_size; i++) {
+        std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
+      }
+      
+      std::cout << "Ratio = " << ratio << std::endl;
+#endif
 
       if (ratio < 0.05) break;
     }
@@ -425,12 +410,6 @@ class SamplingOctree {
     std::vector<KeyType> sampled_keys;    // gather()ed sampled body keys
     std::vector<double> sampled_weights;  // gather()ed sampled weights
 
-    tapas::debug::BarrierExec([&](int rank,int) {
-        std::cout << "Rank " << rank << " "
-                  << "sk.size() = " << sk.size() << " "
-                  << "sample_nb = " << sample_nb << std::endl;
-      });
-    
     // Gather the sampled particles into the DD-process
     int dd_proc_id = DDProcId();
 
@@ -438,10 +417,6 @@ class SamplingOctree {
     tapas::mpi::Gatherv(sk, sampled_keys, dd_proc_id, MPI_COMM_WORLD);
     tapas::mpi::Gatherv(sw, sampled_weights, dd_proc_id, MPI_COMM_WORLD);
 
-    tapas::debug::BarrierExec([&](int rank,int) {
-        std::cout << "Rank " << rank << " sampled_keys.size = " << sampled_keys.size() << std::endl;
-      });
-    
     // check
 #ifdef TAPAS_DEBUG
     std::unordered_map<KeyType, double> w;
@@ -702,11 +677,6 @@ class SamplingOctree {
       pitch[d] = (region.max()[d] - region.min()[d]) / (FP)num_finest_cells;
     }
 
-    // tapas::debug::BarrierExec([&](int,int) {
-    //     std::cout << "num_finest_cells = " << num_finest_cells << std::endl;
-    //     std::cout << "region = " << region.min() << " - " << region.max() << std::endl;
-    //     std::cout << "pitch = " << pitch << std::endl;
-    //   });
     auto ins = std::back_inserter(keys);
 
     // For each bodies

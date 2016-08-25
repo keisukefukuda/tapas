@@ -644,6 +644,7 @@ int main(int argc, char ** argv) {
       data.initTarget(bodies);
     }
 
+    logger::timer.clear();
 #if USE_MPI
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
