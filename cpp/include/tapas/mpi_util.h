@@ -558,6 +558,44 @@ void Gather(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int root, MP
 }
 
 template<class T>
+void Gatherv(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int root, MPI_Comm comm) {
+  int size = -1;
+  int rank = -1;
+
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &size);
+
+  std::vector<int> recvcounts; // only significant at root
+  std::vector<int> displs; // only significant at root
+
+  auto type = MPI_DatatypeTraits<T>::type();
+  int count = MPI_DatatypeTraits<T>::count(sendbuf.size());
+
+  // Gather recvcounts to root process
+  Gather(count, recvcounts, root, comm);
+
+  if (rank == root) {
+    assert(recvcounts.size() == (size_t)size);
+    exclusive_scan(recvcounts.begin(), recvcounts.end(), back_inserter(displs));
+    int total_recv_count = std::accumulate(recvcounts.begin(), recvcounts.end(), 0);
+    
+    recvbuf.clear();
+    if (MPI_DatatypeTraits<T>::IsEmbType()) {
+      recvbuf.resize(total_recv_count);
+    } else {
+      recvbuf.resize(total_recv_count / sizeof(T));
+    }
+  } else {
+    recvbuf.clear();
+  }
+  
+  int ret = ::MPI_Gatherv(void_cast(sendbuf.data()), count, type,
+                          void_cast(recvbuf.data()), recvcounts.data(), displs.data(), type, root, comm);
+
+  TAPAS_ASSERT(ret == MPI_SUCCESS); (void)ret;
+}
+
+template<class T>
 void Allgatherv(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, MPI_Comm comm) {
   int size = -1, rank = -1;
 
