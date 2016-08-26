@@ -362,6 +362,8 @@ done
 
 if [[ $STATUS -eq 0 ]]; then
     echo OK.
+else
+    echoRed "***** Test failed."
 fi
 
 exit $STATUS
