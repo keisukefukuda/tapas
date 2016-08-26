@@ -62,6 +62,11 @@ ifneq (,$(TAPAS_ONESIDE_LET))
 	MPICXX += -DTAPAS_ONESIDE_LET
 endif
 
+ifneq (,$(WEIGHT))
+	CXX += -DTAPAS_USE_WEIGHT
+	MPICXX += -DTAPAS_USE_WEIGHT
+endif
+
 ### choose C++ compiler
 #CXX	= mpicxx -ggdb3 -Wall -Wextra -O3 -msse4a -ffast-math -funroll-loops -fopenmp -std=c++11 # GCC
 #CXX	= CC -Wall -xHOST -O3 -funroll-loops -finline-functions -ansi-alias -openmp # Intel

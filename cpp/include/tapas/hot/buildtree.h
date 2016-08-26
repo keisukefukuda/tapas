@@ -214,7 +214,7 @@ class SamplingOctree {
       
       const KeyType K0 = SFC::AppendDepth(0, L); // the first key in level L
       const int W = pow(B, L); // number of cells in level L
-      TAPAS_ASSERT(W > mpi_size);
+      TAPAS_ASSERT(W > mpi_size); (void)W;
       
 #if 0 // debug print: to be removed
       std::cerr << "mpi_size = " << mpi_size << std::endl;
@@ -236,7 +236,7 @@ class SamplingOctree {
         // Find the range of `k` from `body_keys` and add the range weight to `proc_weight`
         index_t b = 0, e = 0;
         for (; w < q; k = SFC::GetNext(k), ki++) {
-          assert(ki < W); // something is wrong.
+          assert(ki < W); // something is wrong. ki should look over the range of (0, W]
           
           // Find the range of bodies that belongs to `k`
           SFC::FindRangeByKey(body_keys, k, b, e);

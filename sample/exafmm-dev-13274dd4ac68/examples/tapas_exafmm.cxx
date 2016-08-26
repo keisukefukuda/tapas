@@ -457,8 +457,16 @@ int main(int argc, char ** argv) {
   task_scheduler_init init(args.threads);
 #endif
 
-  // This function is called by Tapas automatically and user program doesn't need to call it.
-  // In this case, however, we want to exclude initialization cost of CUDA runtime from performance
+  if (args.mpi_rank == 0) {
+#ifdef TAPAS_USE_WEIGHT
+    std::cout << "Weighted re-partitioning is activated." << std::endl;
+#else
+    std::cout << "Weighted re-partitioning is NOT activated." << std::endl;
+#endif
+  }
+
+  // This function is called by Tapas automatically and user program doesn't need to call it actually.
+  // In this program, however, we want to exclude initialization time of CUDA runtime from performance
   // measurement.
   tapas::SetGPU();
 

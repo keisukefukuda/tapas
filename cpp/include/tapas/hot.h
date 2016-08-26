@@ -227,10 +227,21 @@ class Cell {
 
  public:
   using CellAttr = typename TSP::CellAttr;
-  //using CellAttr = CellAttrWrapper;
 
  protected:
-  
+
+#ifdef TAPAS_USE_WEIGHT
+  /**
+   * \brief A wrapper of user's cell attribute class for weighted re-partitioning.
+   *
+   * If weighted re-partitioning is activated (by compile-time macro switching),
+   * Tapas needs to decide when to increase weights of cell/bodies.
+   * Basically it's "when heavy computation is done on the Cell", but it is not obvious
+   * to Tapas because computation is included in user's functions and it's a blackbox fom Tapas.
+   * Thus, Tapas uses CellAttrWrapper to hook writes to cell attributes.
+   *
+   * This class is unnecessary when weighted re-partitioning is NOT activated.
+   */
   struct CellAttrWrapper : CellAttr {
     friend Cell<TSP>;
     
@@ -255,6 +266,7 @@ class Cell {
       return *this;
     }
   };
+#endif
 
   //========================================================
   // Typedefs
@@ -319,8 +331,10 @@ class Cell {
       , bid_(bid)
       , region_(CalcRegion(key, reg))
       , center_((region_.max() + region_.min()) / 2)
-      , attr_(*this)
+#ifdef TAPAS_USE_WEIGHT
+      , attr_(*this) // pass this pointer to CellAttrWrapper's ctor (CellAttrWrapper is to manage weights)
       , weight_(1.0)
+#endif
   { }
   
 
@@ -483,9 +497,15 @@ class Cell {
     return nb_;
   }
 
+#ifdef TAPAS_USE_WEIGHT
   CellAttrWrapper &attr() {
     return attr_;
   }
+#else
+  CellAttr &attr() {
+    return attr_;
+  }
+#endif
 
   const CellAttr &attr() const {
     return (const CellAttr&)attr_;
@@ -581,7 +601,11 @@ class Cell {
 
   Mapper mapper_;
 
+#ifdef TAPAS_USE_WEIGHT
   CellAttrWrapper attr_;
+#else
+  CellAttr attr_;
+#endif
 
   double weight_;
 
@@ -1092,6 +1116,8 @@ void PropagateFunc(Cell *cell, typename Cell::Data &data) {
 
 } // namespace
 
+#ifdef TAPAS_USE_WEIGHT
+
 template<class Cell>
 void PropagateWeight(Cell *root) {
   using Data = typename Cell::Data;
@@ -1109,6 +1135,8 @@ void PropagateWeight(Cell *root) {
 #endif
 
 }
+
+#endif
 
 /**
  * \brief Destroy the tree completely.
@@ -1597,7 +1625,9 @@ struct Tapas {
    */
   static Cell *Partition(Cell *root, int max_nb) {
     // Put weight values to each bodies by 'downward' traversal of the tree
+#ifdef TAPAS_USE_WEIGHT
     PropagateWeight(root);
+#endif
     
     // All cells are to be deleted.
     // all other data are recycled.
