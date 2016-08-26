@@ -335,7 +335,11 @@ class Cell {
       , attr_(*this) // pass this pointer to CellAttrWrapper's ctor (CellAttrWrapper is to manage weights)
       , weight_(1.0)
 #endif
-  { }
+  {
+#ifndef TAPAS_USE_WEIGHT
+    memset((void*)&attr_, 0, sizeof(attr_));
+#endif
+  }
   
 
   Cell(const Cell &rhs) = delete; // copy constructor is not allowed.
