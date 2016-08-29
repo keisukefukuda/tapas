@@ -236,12 +236,14 @@ struct ExactInsp2 {
    * \brief Inspector for Map-2. Traverse hypothetical global tree and construct a cell list.
    */
   template<class UserFunct, class...Args>
-  static void Inspect_2(CellType &root,
-                        KeySet &req_keys_attr, KeySet &req_keys_body,
-                        UserFunct f, Args...args) {
+  static void Inspect(CellType &root,
+                      KeySet &req_keys_attr, KeySet &req_keys_body,
+                      UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
     MPI_Barrier(MPI_COMM_WORLD);
 
+    double beg = MPI_Wtime();
+    auto & data = root.data();
     req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
     req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
 
@@ -251,6 +253,9 @@ struct ExactInsp2 {
     req_keys_attr.insert(root.key());
 
     Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
+
+    double end = MPI_Wtime();
+    data.time_rec_.Record(data.timestep_, "Map2-LET-insp", end - beg);
   }
 
   /**
@@ -423,7 +428,7 @@ struct ExactInsp2 {
     tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map2-LET-attr-comm", et - bt);
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
 
 #if 0
     // Dump request keys
@@ -604,7 +609,7 @@ struct ExactInsp2 {
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    Inspect_2(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested

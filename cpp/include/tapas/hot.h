@@ -274,8 +274,8 @@ class Cell {
  public: // public type usings
 
 #ifdef TAPAS_ONESIDE_LET
-  friend struct OptLET<TSP>;
-  using LET = OptLET<TSP>;
+  friend struct OptInsp2<TSP>;
+  using Inspector2 = OptInsp2<TSP>;
 #else
   friend struct ExactInsp2<TSP>;
   using Inspector2 = ExactInsp2<TSP>;

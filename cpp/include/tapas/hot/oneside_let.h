@@ -25,7 +25,7 @@ template<class TSP> class Partitioner;
  * It emulates all the behavior of user's function.
  */
 template<class TSP>
-struct OptLET {
+struct OptInsp2 {
   // typedefs
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -97,6 +97,7 @@ struct OptLET {
   class ProxyBodyIterator  {
    public:
     using CellType = ProxyCell;
+    using CellAttr = typename CellType::CellAttr;
     using value_type = ProxyBodyIterator;
     using attr_type = ProxyBodyAttr;
     //using Mapper = typename CellType::Mapper;
@@ -224,8 +225,8 @@ struct OptLET {
   class ProxyCell {
    public:
     // Export same type definitions as tapas::hot::Cell does.
-    using KeyType = tapas::hot::OptLET<TSP>::KeyType;
-    using SFC = tapas::hot::OptLET<TSP>::SFC;
+    using KeyType = tapas::hot::OptInsp2<TSP>::KeyType;
+    using SFC = tapas::hot::OptInsp2<TSP>::SFC;
 
     using CellAttr = ProxyAttr;
     using BodyAttrType = ProxyBodyAttr;
@@ -347,7 +348,7 @@ struct OptLET {
     /**
      * \fn Vec ProxyCell::center()
      */
-    inline Vec center() {
+    inline Vec center() const {
       Touched();
       return center_;
     }
@@ -359,7 +360,7 @@ struct OptLET {
     /**
      * \brief Distance Function
      */
-    inline FP Distance(ProxyCell &rhs, tapas::CenterClass) {
+    inline FP Distance(const ProxyCell &rhs, tapas::CenterClass) {
 #ifdef TAPAS_DEBUG
       // In LET traversal, when disatance of two cells is calculated,
       // one of the cells must be target and the other is source,
@@ -396,7 +397,7 @@ struct OptLET {
     /**
      * \fn bool ProxyCell::IsLeaf() const
      */
-    inline bool IsLeaf() {
+    inline bool IsLeaf() const {
       isleaf_called_ = true;
       Touched();
       return isleaf_ || (data_.max_depth_ <= depth_);
@@ -436,6 +437,11 @@ struct OptLET {
       return SubCellIterator<ProxyCell>(*this);
     }
 
+    inline SubCellIterator<ProxyCell> subcells() const {
+      Split();
+      return SubCellIterator<ProxyCell>(const_cast<ProxyCell&>(*this));
+    }
+
     inline ProxyCell &subcell(int) {
       return *this;
     }
@@ -458,6 +464,11 @@ struct OptLET {
     ProxyBodyIterator bodies() {
       Touched();
       return ProxyBodyIterator(this);
+    }
+
+    ProxyBodyIterator bodies() const {
+      Touched();
+      return ProxyBodyIterator(const_cast<ProxyCell*>(this));
     }
 
     const ProxyBody &body(index_t idx) {
@@ -512,7 +523,7 @@ struct OptLET {
 
    protected:
     void Touched() const { marked_touched_ = true; }
-    void Split()   { marked_split_ = true; }
+    void Split()   const { marked_split_ = true; }
     void Body()    { marked_body_ = true; }
 
     void InitBodies() {
@@ -549,9 +560,9 @@ struct OptLET {
     const Data &data_;
 
     mutable bool marked_touched_;
-    bool marked_split_;
+    mutable bool marked_split_;
     bool marked_body_;  //<! nb() is called for this cell
-    bool isleaf_called_; // IsLeaf() is called.
+    mutable bool isleaf_called_; // IsLeaf() is called.
     
     bool is_local_;
 
@@ -707,9 +718,8 @@ struct OptLET {
       split_src = true;
     } else {
       // Approx/Split branch
-      int depth = SFC::GetDepth(src_key);
-      data.let_func_count[depth]++;
-      SplitType split = OptLET<TSP>::ProxyCell::Pred(src_key, data, &isleaf_called, f, args...); // predicator object
+      //int depth = SFC::GetDepth(src_key);
+      SplitType split = OptInsp2<TSP>::ProxyCell::Pred(src_key, data, &isleaf_called, f, args...); // predicator object
 
       // Even if the flag is 'SplitLeft', which means only the target (local) cell is to be split,
       // the source cell may also be split because target.width() == source.width().
@@ -766,7 +776,7 @@ struct OptLET {
         continue;
       }
       
-      auto split = OptLET<TSP>::ProxyCell::Pred(trg_leaf, src_key, data, nullptr, f, args...);
+      auto split = OptInsp2<TSP>::ProxyCell::Pred(trg_leaf, src_key, data, nullptr, f, args...);
       
       switch(split) {
         case SplitType::SplitBoth:
@@ -861,6 +871,8 @@ struct OptLET {
                       KeySet &req_keys_attr, KeySet &req_keys_body,
                       UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
+    auto &data = root.data();
+    
     MPI_Barrier(MPI_COMM_WORLD);
     double beg = MPI_Wtime();
 
@@ -871,28 +883,11 @@ struct OptLET {
     req_keys_attr.insert(root.key());
     Traverse(root.key(), root.data(), req_keys_attr, req_keys_body, f, args...);
 
-#if 0
-    size_t num_attr_keys = req_keys_attr.size();
-    size_t num_body_keys = req_keys_body.size();
-
-    tapas::debug::BarrierExec([&](int rank, int) {
-        std::cout << "Rank " << rank << " : Traverse() added "
-                  << num_attr_keys << " keys, "
-                  << num_body_keys << " keys" << std::endl;
-      });
-#endif
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    double end = MPI_Wtime();
-    root.data().time_let_trav_main = end - beg;
-
-    beg = MPI_Wtime();
     // Construct a request list by traversing local parts of the global tree
     AddGapCells(root.data(), req_keys_attr, req_keys_body, f, args...);
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    end = MPI_Wtime();
-    root.data().time_let_trav_sub = end - beg;
+    double end = MPI_Wtime();
+    data.time_rec_.Record(data.timestep_, "Map2-LET-insp", end - beg);
   }
 
   /**
@@ -979,7 +974,7 @@ struct OptLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     et_comm = MPI_Wtime();
-    data.time_let_req_comm = et_comm - bt_comm;
+    data.time_rec_.Record(data.timestep_, "Map2-LET-req-comm", et_comm - bt_comm);
 
 #ifdef TAPAS_DEBUG_DUMP
     {
@@ -1001,7 +996,7 @@ struct OptLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     et_all = MPI_Wtime();
-    data.time_let_req_all = et_all - bt_all;
+    data.time_rec_.Record(data.timestep_, "Map2-LET-req", et_all - bt_all);
   }
 
   /**
@@ -1055,7 +1050,7 @@ struct OptLET {
     std::vector<CellAttr> attr_sendbuf;
     Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
 
-    data.time_let_res_comp1 = et - bt;
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et - bt);
 
     // ===== 2. communication =====
     // Send response keys and attributes
@@ -1070,7 +1065,7 @@ struct OptLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     et = MPI_Wtime();
-    data.time_let_res_attr_comm = et - bt;
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
 
     attr_keys_send.clear(); // no longer used
     attr_sendbuf.clear();
@@ -1137,7 +1132,7 @@ struct OptLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     et = MPI_Wtime();
-    data.time_let_res_body_comm = et - bt;
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
 
 #ifdef TAPAS_DEBUG_DUMP
     tapas::debug::BarrierExec([&](int, int) {
@@ -1167,7 +1162,7 @@ struct OptLET {
     
     MPI_Barrier(MPI_COMM_WORLD);
     et_all = MPI_Wtime();
-    data.time_let_res_all = et_all - bt_all;
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
   }
 
   /**
@@ -1230,7 +1225,7 @@ struct OptLET {
 
     MPI_Barrier(MPI_COMM_WORLD);
     double end = MPI_Wtime();
-    data->time_let_register = end - beg;
+    data->time_rec_.Record(data->timestep_, "Map2-LET-register", end - beg);
   }
 
   /**
@@ -1274,7 +1269,7 @@ struct OptLET {
 #endif
 
     double end = MPI_Wtime();
-    root.data().time_let_all = end - beg;
+    root.data().time_rec_.Record(root.data().timestep_, "Map2-LET-all", end - beg);
   }
 
   static void DebugDumpCells(Data &data) {
