@@ -348,6 +348,8 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
 #endif
   }
 
+  MPI_Barrier(MPI_COMM_WORLD);
+
   // Traversal::normalize()
   for (auto b = samples.begin(); b != samples.end(); b++) {
     b->TRG /= b->SRC;
