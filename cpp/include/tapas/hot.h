@@ -277,8 +277,8 @@ class Cell {
   friend struct OptLET<TSP>;
   using LET = OptLET<TSP>;
 #else
-  friend struct ExactLET<TSP>;
-  using LET = ExactLET<TSP>;
+  friend struct ExactInsp2<TSP>;
+  using Inspector2 = ExactInsp2<TSP>;
 #endif
 
   static const constexpr int Dim = TSP::Dim;
@@ -300,7 +300,7 @@ class Cell {
   using Body = BodyType;
   using BodyAttr = BodyAttrType;
   using Inspector1 = Insp1<TSP>;
-  using Mapper = typename TSP::template Mapper<CellType, Body, LET, Inspector1>;
+  using Mapper = typename TSP::template Mapper<CellType, Body, Inspector2, Inspector1>;
 
   using BodyIterator = iter::BodyIterator<Cell>;
   using SubCellIterator = iter::SubCellIterator<Cell>;
@@ -1357,7 +1357,7 @@ class Partitioner {
   }
 
   /**
-   * \brief Select cells to be sent as a response in LET::Exchange
+   * \brief Select cells to be sent as a response in Insp2::Exchange
    * The request lists are made conservatively, thus not all the requested cells exist in the sender process.
    * Check the requested list and replace non-existing cells with existing cells by the their finest anscestors.
    * If attribute of a cell is requested but the cell is actually a leaf,
@@ -1591,8 +1591,8 @@ struct HOT {
   template<class T>
   using Allocator = typename Vectormap::template um_allocator<T>;
   
-  template<class _CELL, class _BODY, class _LET, class _INSP1>
-  using Mapper = hot::GPUMapper<_CELL, _BODY, _LET, _INSP1>;
+  template<class _CELL, class _BODY, class _INSP2, class _INSP1>
+  using Mapper = hot::GPUMapper<_CELL, _BODY, _INSP2, _INSP1>;
   
 #else
   using Vectormap = tapas::Vectormap_CPU<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
@@ -1600,8 +1600,8 @@ struct HOT {
   template<class T>
   using Allocator = std::allocator<T>;
   
-  template<class _CELL, class _BODY, class _LET, class _INSP1>
-  using Mapper = hot::CPUMapper<_CELL, _BODY, _LET, _INSP1>;
+  template<class _CELL, class _BODY, class _INSP2, class _INSP1>
+  using Mapper = hot::CPUMapper<_CELL, _BODY, _INSP2, _INSP1>;
 #endif
 
   template <class _TSP> using Partitioner = hot::Partitioner<_TSP>;

@@ -20,11 +20,11 @@ template<class TSP> class Partitioner;
 /**
  * A set of static functions to construct LET (Locally Essential Tree)
  *
- * ExactLET puts no assumption on user's function but has more overhead instead.
+ * ExactInsp2 puts no assumption on user's function but has more overhead instead.
  * It emulates all the behavior of user's function.
  */
 template<class TSP>
-struct ExactLET {
+struct ExactInsp2 {
   // typedefs
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -120,7 +120,7 @@ struct ExactLET {
     list_attr_mutex.unlock();
 
     // Approx/Split branch
-    SplitType split = ExactLET<TSP>::ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
+    SplitType split = ExactInsp2<TSP>::ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
 
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
@@ -591,7 +591,7 @@ struct ExactLET {
   template<class UserFunct, class...Args>
   static void Exchange(CellType &root, UserFunct f, Args...args) {
     if (root.data().mpi_rank_ == 0) {
-      std::cout << "Using ExactLET" << std::endl;
+      std::cout << "Using Exact Inspector" << std::endl;
     }
     SCOREP_USER_REGION("LET-All", SCOREP_USER_REGION_TYPE_FUNCTION);
     double beg = MPI_Wtime();
