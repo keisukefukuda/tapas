@@ -279,6 +279,14 @@ if [[ -d "${MYTH_DIR:-}" ]]; then
     mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_mt
 fi
 
+# Build single-threaded, without-weighted-repartitioning version
+echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
+env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
+
+mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
+mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
+
+
 # Build single-threaded version
 echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
 env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
@@ -311,11 +319,11 @@ function tapasCheck() {
     for ncrit in ${NCRIT[@]}; do
     for dist in ${DIST[@]}; do
     for mutual in "" "_mutual"; do
-    for mt in "" "_mt"; do
+    for opt in "" "_mt" "_nw"; do
     for np in ${NP[@]}; do
         rm -f $TMPFILE; sleep 0.5s
 
-        BIN=$SRC_DIR/parallel_tapas${mutual}${mt}
+        BIN=$SRC_DIR/parallel_tapas${mutual}${opt}
 
         if [[ -x ${BIN} ]]; then
             # run Exact LET TapasFMM

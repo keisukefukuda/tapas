@@ -62,7 +62,7 @@ ifneq (,$(TAPAS_ONESIDE_LET))
 	MPICXX += -DTAPAS_ONESIDE_LET
 endif
 
-ifneq (,$(WEIGHT))
+ifneq (0,$(WEIGHT))
 	CXX += -DTAPAS_USE_WEIGHT
 	MPICXX += -DTAPAS_USE_WEIGHT
 endif
