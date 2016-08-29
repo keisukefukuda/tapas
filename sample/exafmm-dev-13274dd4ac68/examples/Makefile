@@ -44,6 +44,9 @@ endif
 #CXX += -DTAPAS_DEBUG_COMM_MATRIX
 #MPICXX += -DTAPAS_DEBUG_COMM_MATRIX
 
+#CXX += -DTAPAS_ONESIDE_LET
+#MPICXX += -DTAPAS_ONESIDE_LET
+
 # Test for tree construction
 tree: tree.o $(OBJECTS)
 	$(CXX) $? $(LFLAGS)

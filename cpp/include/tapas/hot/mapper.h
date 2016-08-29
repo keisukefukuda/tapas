@@ -61,7 +61,7 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 using clock = std::chrono::system_clock;
 
-template<class Cell, class Body, class LET>struct CPUMapper;
+template<class Cell, class Body, class LET, class Insp1> struct CPUMapper;
 
 
 /**
@@ -169,8 +169,8 @@ static void ProductMapImpl(Mapper &mapper,
 /**
  * \brief Overloaded version of ProductMapImpl for bodies x bodies.
  */
-template<class CELL, class BODY, class LET, class Funct, class...Args>
-static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
+template<class CELL, class BODY, class LET, class INSP1, class Funct, class...Args>
+static void ProductMapImpl(CPUMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
                            typename CELL::BodyIterator iter1,
                            int beg1, int end1,
                            typename CELL::BodyIterator iter2,
@@ -222,7 +222,7 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET> & /*mapper*/,
   }
 }
 
-template<class Cell, class Body, class LET>
+template<class Cell, class Body, class LET, class INSP1>
 struct CPUMapper {
   enum class Map1Dir {
     None,
@@ -237,6 +237,7 @@ struct CPUMapper {
   using KeyType = typename Cell::KeyType;
   using SFC = typename Cell::SFC;
   using Data = typename Cell::Data;
+  using Insp1 = INSP1;
 
   CPUMapper() : map1_dir_(Map1Dir::None), label_() { }
 
@@ -477,7 +478,7 @@ struct CPUMapper {
       }
       
       double find_bt = MPI_Wtime();
-      auto dir = LET::FindMap1Direction(c, f, args...);
+      auto dir = Insp1::FindMap1Direction(c, f, args...);
       double find_et = MPI_Wtime();
       data.time_rec_.Record(data.timestep_, "Map1-finddir", find_et - find_bt);
 
@@ -487,9 +488,9 @@ struct CPUMapper {
       // non-destructive function (like debug printer).
       
       switch(dir) {
-        case LET::MAP1_UP:    UpwardRoot<Funct, Args...>(f, iter, args...); break;
-        case LET::MAP1_DOWN:  DownwardRoot<Funct, Args...>(f, iter, args...); break;
-        case LET::MAP1_UNKNOWN: DownwardRoot<Funct, Args...>(f, iter, args...); break;
+        case Insp1::MAP1_UP:    UpwardRoot<Funct, Args...>(f, iter, args...); break;
+        case Insp1::MAP1_DOWN:  DownwardRoot<Funct, Args...>(f, iter, args...); break;
+        case Insp1::MAP1_UNKNOWN: DownwardRoot<Funct, Args...>(f, iter, args...); break;
         default:
           // This should not happen.
           assert(0);
@@ -639,7 +640,7 @@ struct CPUMapper {
 #include "tapas/vectormap.h"
 #include "tapas/vectormap_cuda.h"
 
-template<class Cell, class Body, class LET>
+template<class Cell, class Body, class LET, class Insp1>
 struct GPUMapper : CPUMapper<Cell, Body, LET> {
 
   using Base = CPUMapper<Cell, Body, LET>;

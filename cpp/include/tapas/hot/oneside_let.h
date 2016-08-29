@@ -36,8 +36,7 @@ struct OptLET {
   using KeySet = typename Cell<TSP>::SFC::KeySet;
   using BodyType = typename CellType::BodyType;
   using BodyAttrType = typename CellType::BodyAttrType;
-  using attr_type = typename CellType::attr_type; // alias for backward compatibility
-  using CellAttrType = attr_type;
+  using CellAttr = typename CellType::CellAttr;
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
@@ -61,10 +60,10 @@ struct OptLET {
 #endif
   }; // class ProxyBodyAttr
 
-  class ProxyAttr : public CellAttrType {
+  class ProxyAttr : public CellAttr {
    public:
-    ProxyAttr() : CellAttrType() { }
-    ProxyAttr(CellAttrType &rhs) : CellAttrType(rhs) { }
+    ProxyAttr() : CellAttr() { }
+    ProxyAttr(CellAttr &rhs) : CellAttr(rhs) { }
 
 #if 0
     template<class T>
@@ -228,8 +227,7 @@ struct OptLET {
     using KeyType = tapas::hot::OptLET<TSP>::KeyType;
     using SFC = tapas::hot::OptLET<TSP>::SFC;
 
-    using attr_type = ProxyAttr;
-    using CellAttrType = ProxyAttr;
+    using CellAttr = ProxyAttr;
     using BodyAttrType = ProxyBodyAttr;
     using BodyType = ProxyBody;
 
@@ -445,11 +443,11 @@ struct OptLET {
     /**
      * \fn ProxyCell::attr
      */
-    const attr_type &attr() const {
+    const CellAttr &attr() const {
       Touched();
       return attr_;
     }
-    attr_type &attr() {
+    CellAttr &attr() {
       Touched();
       return attr_;
     }
@@ -560,7 +558,7 @@ struct OptLET {
     CellType *cell_;
     std::vector<ProxyBody*> bodies_;
     std::vector<ProxyBodyAttr*> body_attrs_;
-    attr_type attr_;
+    CellAttr attr_;
     Mapper mapper_; // FIXME: create Mapper for every ProxyCell is not efficient.
   }; // end of class ProxyCell
 
@@ -1022,7 +1020,7 @@ struct OptLET {
   static void Response(Data &data,
                        std::vector<KeyType> &req_attr_keys, std::vector<int> &attr_src_ranks,
                        std::vector<KeyType> &req_leaf_keys, std::vector<int> &leaf_src_ranks,
-                       std::vector<CellAttrType> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
+                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
 
     SCOREP_USER_REGION("LET-Response", SCOREP_USER_REGION_TYPE_FUNCTION);
     // req_attr_keys : list of cell keys of which cell attributes are requested
@@ -1054,7 +1052,7 @@ struct OptLET {
     std::vector<KeyType> attr_keys_send = req_attr_keys; // copy (split senbuf and recvbuf)
     std::vector<int> attr_dest_ranks = attr_src_ranks;
     res_cell_attrs.clear();
-    std::vector<CellAttrType> attr_sendbuf;
+    std::vector<CellAttr> attr_sendbuf;
     Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
 
     data.time_let_res_comp1 = et - bt;
@@ -1178,7 +1176,7 @@ struct OptLET {
    */
   static void Register(Data *data,
                        const std::vector<KeyType> &res_cell_attr_keys,
-                       const std::vector<CellAttrType> &res_cell_attrs,
+                       const std::vector<CellAttr> &res_cell_attrs,
                        const std::vector<KeyType> &res_leaf_keys,
                        const std::vector<index_t> &res_nb) {
     SCOREP_USER_REGION("LET-Register", SCOREP_USER_REGION_TYPE_FUNCTION);
@@ -1263,7 +1261,7 @@ struct OptLET {
             res_cell_attr_keys, res_leaf_keys, attr_src, leaf_src);
 
     // Response
-    std::vector<CellAttrType> res_cell_attrs;
+    std::vector<CellAttr> res_cell_attrs;
     std::vector<BodyType> res_bodies;
     std::vector<index_t> res_nb; // number of bodies responded from remote processes
     Response(root.data(), res_cell_attr_keys, attr_src, res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);

@@ -45,6 +45,7 @@
 #include "tapas/hot/global_tree.h"
 #include "tapas/hot/report.h"
 #include "tapas/hot/mapper.h"
+#include "tapas/hot/insp1.h"
 
 #ifdef TAPAS_ONESIDE_LET
 # include "tapas/hot/oneside_let.h"
@@ -123,7 +124,6 @@ using tapas::mpi::MPI_DatatypeTraits;
 
 // fwd decl
 template<class TSP> class Cell;
-template<class TSP> class DummyCell;
 
 /**
  * @brief Remove redundunt elements in a std::vector. The vector must be sorted.
@@ -299,7 +299,8 @@ class Cell {
 
   using Body = BodyType;
   using BodyAttr = BodyAttrType;
-  using Mapper = typename TSP::template Mapper<CellType, Body, LET>;
+  using Inspector1 = Insp1<TSP>;
+  using Mapper = typename TSP::template Mapper<CellType, Body, LET, Inspector1>;
 
   using BodyIterator = iter::BodyIterator<Cell>;
   using SubCellIterator = iter::SubCellIterator<Cell>;
@@ -1586,12 +1587,21 @@ struct HOT {
 
 #ifdef __CUDACC__
   using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
-  template<class T> using Allocator = typename Vectormap::template um_allocator<T>;
-  template<class _CELL, class _BODY, class _LET>  using Mapper = hot::GPUMapper<_CELL, _BODY, _LET>;
+  
+  template<class T>
+  using Allocator = typename Vectormap::template um_allocator<T>;
+  
+  template<class _CELL, class _BODY, class _LET, class _INSP1>
+  using Mapper = hot::GPUMapper<_CELL, _BODY, _LET, _INSP1>;
+  
 #else
   using Vectormap = tapas::Vectormap_CPU<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
-  template<class T> using Allocator = std::allocator<T>;
-  template<class _CELL, class _BODY, class _LET>  using Mapper = hot::CPUMapper<_CELL, _BODY, _LET>;
+  
+  template<class T>
+  using Allocator = std::allocator<T>;
+  
+  template<class _CELL, class _BODY, class _LET, class _INSP1>
+  using Mapper = hot::CPUMapper<_CELL, _BODY, _LET, _INSP1>;
 #endif
 
   template <class _TSP> using Partitioner = hot::Partitioner<_TSP>;
@@ -1608,9 +1618,9 @@ struct Tapas {
   using CellAttr = typename Cell::CellAttr;
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
-  using ProxyCell = typename Cell::LET::ProxyCell;
-  using ProxyAttr = typename Cell::LET::ProxyAttr;
-  using ProxyBodyIterator = typename Cell::LET::ProxyBodyIterator;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP>;
+  using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
+  using ProxyBodyIterator = tapas::hot::proxy::ProxyBodyIterator<TSP>;
   using Data = typename Cell::Data;
 
   /**
