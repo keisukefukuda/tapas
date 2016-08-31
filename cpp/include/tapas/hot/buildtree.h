@@ -308,7 +308,7 @@ class SamplingOctree {
    * \brief Get sampling rate configuration
    */
   static double SamplingRate() {
-    double R = 0.01;
+    double R = 0.005;
 
 #ifdef TAPAS_SAMPLING_RATE
     R = (TAPAS_SAMPLING_RATE);
@@ -317,7 +317,7 @@ class SamplingOctree {
     if (getenv("TAPAS_SAMPLING_RATE")) {
       R = atof(getenv("TAPAS_SAMPLING_RATE"));
     }
-
+    
     TAPAS_ASSERT(0.0 < R && R < 1.0);
 
     return R;
