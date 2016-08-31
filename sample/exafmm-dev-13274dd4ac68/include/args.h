@@ -49,7 +49,7 @@ private:
     fprintf(stderr,
             "Usage: %s [options]\n"
             "Long option (short option)     : Description (Default value)\n"
-            " --numBodies (-n)              : Number of bodies (%d)\n"
+            " --numBodies (-n)              : Total number of bodies (%d)\n"
             " --ncrit (-c)                  : Number of bodies per leaf cell (%d)\n"
             " --nspawn (-s)                 : Threshold for stopping task creation during recursion (%d)\n"
             " --threads (-T)                : Number of threads (%d)\n"
