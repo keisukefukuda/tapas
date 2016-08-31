@@ -168,7 +168,6 @@ class SamplingOctree {
     region_ = Reg(new_min, new_max);
   }
 
-
   /**
    * \brief Split the finest-level keys into `mpi_size` groups. Used in the DD-process.
    *
@@ -210,6 +209,8 @@ class SamplingOctree {
     std::vector<double> proc_weights(mpi_size);
 
     for (int L = Ls; L < SFC::MaxDepth(); L++) {
+      std::cout << "--------------------" << std::endl;
+      std::cout << "L=" << L << std::endl;
       // Loop over [Ls, Ls+1, ...] until the load balancing seems good.
       
       const KeyType K0 = SFC::AppendDepth(0, L); // the first key in level L
@@ -226,33 +227,40 @@ class SamplingOctree {
       // Scan over the weight vector and find beginning keys.
       KeyType k = K0; // current key
       int ki = 0; // key index (to avoid overrun)
+      double took_weight = 0; // sum of weight that is already taken former processes [0, pi)
       
-      beg_keys[0] = K0; // The beginning key of the first process is always 0.
+      beg_keys[0] = K0; // The beginning key of the first process is always the first key of level L.
 
       for (int pi = 1; pi < mpi_size; pi++) {
+        // Target weight of process pi
+        double trg_w = (totalw - took_weight) / (mpi_size - pi + 1);
+        
+        //std::cout << "pi=" << (pi-1) << " target weight=" << trg_w << std::endl;
+        
         // pi = process index
         double w = 0;  // weight of the *previous* process
-
+        
         // Find the range of `k` from `body_keys` and add the range weight to `proc_weight`
+        //std::cout << "Finding range of [b, e) for P=" << pi << " ... ";
         index_t b = 0, e = 0;
-        for (; w < q; k = SFC::GetNext(k), ki++) {
+        for (; w < trg_w; k = SFC::GetNext(k), ki++) {
+          //std::cout << (int)w << ",  ";
           assert(ki < W); // something is wrong. ki should look over the range of (0, W]
           
           // Find the range of bodies that belongs to `k`
           SFC::FindRangeByKey(body_keys, k, b, e);
           
           // sum of the body weights in the range [b,e)
-          // std::cout << "k=" << SFC::Decode(k)
-          //           << " ki=" << ki << " range weight="
-          //           << accumulate(body_weights.begin() + b, body_weights.begin() + e, 0)
-          //           << std::endl;
           w += accumulate(body_weights.begin() + b, body_weights.begin() + e, 0);
         }
+        //std::cout << std::endl;
 
         // k is the key of the process
         beg_keys[pi] = k;
         // weight of the *previous* process
         proc_weights[pi-1] = w;
+        took_weight += w;
+        //std::cout << "pi=" << (pi-1) << " actual weight=" << proc_weights[pi-1] << std::endl;
         
         if (pi == mpi_size - 1) {
           // if pi is the last process, compute the weight of itself
@@ -263,17 +271,15 @@ class SamplingOctree {
       // compute the stddev of weights and check it's acceptable, increase L if not.
       double mean = std::accumulate(std::begin(proc_weights),
                                     std::end(proc_weights),
-                                    0);
-      double sigma = tapas::util::stddev(proc_weights);
+                                    0) / mpi_size;
+      double sigma = tapas::util::stddev(proc_weights); // standard deviation
       double ratio = sigma / mean;
+      
+#if 1 // debug outputs: to be removed.
 
-#if 0 // debug outputs: to be removed.
-      std::cout << "--------------------" << std::endl;
-      std::cout << "L = " << L << std::endl;
-
-      std::cout << "body weights = ";
-      for (auto w : body_weights) std::cout << (int)w << " ";
-      std::cout << std::endl;
+      // std::cout << "body weights = ";
+      // for (auto w : body_weights) std::cout << (int)w << " ";
+      // std::cout << std::endl;
         
       std::cout << "total weights = " << (int)totalw << std::endl;
       std::cout << "q = " << q << std::endl;
@@ -292,65 +298,10 @@ class SamplingOctree {
       std::cout << "Ratio = " << ratio << std::endl;
 #endif
 
-      if (ratio < 0.05) break;
+      if (ratio < 0.01 || L >= SFC::MaxDepth() - 1) break;
     }
 
     return beg_keys;
-
-#if 0
-    // The loop reached maximum depth.
-    // This situation should not happen in normal cases, but it means that sampled particles are too close
-    // to each other (maybe ALL the particle are at the same coordinate).
-    // Abort.
-    abort();
-
-    std::vector<double> wb(W); // weight of bodies each L-level key owns
-
-    KeyType kl = K;
-
-    // debug
-    std::cout << "Weights:" << std::endl;
-    for (auto w : weights) {
-      std::cout << (int)w << " ";
-    }
-    std::cout << std::endl;
-
-    // Calculate weight of each L-level key 
-    for (size_t i = 0; i < wb.size(); i++) {
-      index_t b, e;
-      SFC::FindRangeByKey(body_keys, kl, b, e);
-      wb[i] = accumulate(weights.begin() + b, weights.begin() + e, 0, std::plus<double>());
-      kl = SFC::GetNext(kl);
-    }
-
-    // debug
-    std::cout << "Weights of each L-level key" << std::endl;
-    for (auto w : wb) {
-      std::cout << (int)w << " ";
-    }
-    std::cout << std::endl;
-    
-    // sum(nb) must be equal to body_keys.size(), becuase the for loop above cover the entire domain
-    //TAPAS_ASSERT(std::accumulate(nb.begin(), nb.end(), 0) == (int)body_keys.size());
-
-    std::vector<double> wb_iscan(W); // inclusive scan (prefix sum) of wb vector
-
-    for (size_t i = 0; i < wb_iscan.size(); i++) {
-      // Future work: this operation can be parallelized by parallel scan?
-      wb_iscan[i] = wb[i] + (i > 0 ? wb_iscan[i-1] : 0.0);
-    }
-
-    // find domain boundaries:
-    // process i's beginning key is j-th key in level L, where j is the smallest index satisfying
-    //   nb_iscan[j] >= q * i
-    beg_keys[0] = SFC::AppendDepth(0, L);
-    for (int i = 1; i < mpi_size; i++) {
-      int j = std::upper_bound(wb_iscan.begin(), wb_iscan.end(), q*i) - wb_iscan.begin();
-      beg_keys[i] = SFC::GetNext(K, j);
-    }
-    
-    return beg_keys;
-#endif
   }
 
   /**
