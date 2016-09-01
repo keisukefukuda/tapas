@@ -88,6 +88,8 @@ struct SharedData {
   index_t nb_after;  // local bodies after tree construction  (actuall)
   index_t nleaves;   // number of leaves assigned to the local process
   index_t ncells;    // number of cells (note: some non-leaf cells are shared between processes)
+  index_t ncrit_;    // ncrit
+  double sample_rate_; // sampling rate
 
   int count_map1_; // How many times 2-parameter Map() is called so far within the current timestep
   int count_map2_; // How many times 2-parameter Map() is called so far within the current timestep

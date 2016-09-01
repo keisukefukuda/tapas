@@ -245,6 +245,19 @@ void Alltoall(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int count,
   Alltoall(sendbuf.data(), recvbuf.data(), count, comm);
 }
 
+template<typename T>
+void Reduce(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, MPI_Op op, int root, MPI_Comm comm) {
+  recvbuf.resize(sendbuf.size());
+  MPI_Reduce(void_cast(sendbuf.data()), void_cast(recvbuf.data()), sendbuf.size(),
+             MPI_DatatypeTraits<T>::type(), op, root, comm);
+}
+
+template<typename T>
+void Reduce(const T& sendval, T& recvval, MPI_Op op, int root, MPI_Comm comm) {
+  MPI_Reduce(void_cast(&sendval), void_cast(&recvval), 1,
+             MPI_DatatypeTraits<T>::type(), op, root, comm);
+}
+
 /**
  * \brief Perform MPI_Alltoallv
  * \tparam T data type

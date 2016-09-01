@@ -1511,6 +1511,8 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
   if (data == nullptr) {
     // First timestep
     data = new Data(comm);
+    data->ncrit_ = max_nb_;
+    data->sample_rate_ = SamplingOctree<TSP, SFC>::SamplingRate();
   } else {
     // if `data` is not NULL,
     // This is re-partitioning. Increase time step counter

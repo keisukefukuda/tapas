@@ -201,20 +201,26 @@ class SamplingOctree {
 
     // total weight
     const double totalw = std::accumulate(body_weights.begin(), body_weights.end(), 0);
-    const double q = totalw / mpi_size; // quota: each process should have roughly totalw/mpi_size weight
 
     // Beginning key of each process.
     // This is the target value of this function to be returned to the caller.
     std::vector<KeyType> beg_keys(mpi_size);
     std::vector<double> proc_weights(mpi_size);
 
-    for (int L = Ls; L < SFC::MaxDepth(); L++) {
-      std::cout << "--------------------" << std::endl;
-      std::cout << "L=" << L << std::endl;
+    for (int L = Ls; L < std::min(Ls + 5, SFC::MaxDepth()); L++) {
       // Loop over [Ls, Ls+1, ...] until the load balancing seems good.
+      
+      // The value 'Ls + 5' is hardcoded.
+      // If the value is too large, old-inspector takes longer
+      // (because the hypothetical global tree gets higher)
       
       const KeyType K0 = SFC::AppendDepth(0, L); // the first key in level L
       const int W = pow(B, L); // number of cells in level L
+
+      std::cout << "L=" << L << std::endl;
+      if (W <= mpi_size) {
+        std::cout << "W=" << W << ", mpi_size=" << mpi_size << std::endl;
+      }
       TAPAS_ASSERT(W > mpi_size); (void)W;
       
 #if 0 // debug print: to be removed
@@ -275,8 +281,11 @@ class SamplingOctree {
       double sigma = tapas::util::stddev(proc_weights); // standard deviation
       double ratio = sigma / mean;
       
-#if 1 // debug outputs: to be removed.
+#if 0 // debug outputs: to be removed.
+      const double q = totalw / mpi_size; // quota: each process should have roughly totalw/mpi_size weight
 
+      std::cout << "--------------------" << std::endl;
+      std::cout << "L=" << L << std::endl;
       // std::cout << "body weights = ";
       // for (auto w : body_weights) std::cout << (int)w << " ";
       // std::cout << std::endl;
@@ -295,10 +304,10 @@ class SamplingOctree {
         std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
       }
       
-      std::cout << "Ratio = " << ratio << std::endl;
 #endif
+      std::cout << "Ratio = " << ratio << std::endl;
 
-      if (ratio < 0.01 || L >= SFC::MaxDepth() - 1) break;
+      if (ratio < 0.01) break;
     }
 
     return beg_keys;
@@ -388,13 +397,8 @@ class SamplingOctree {
 
     proc_first_keys_.resize(data_->mpi_size_);
     
-    if (data_->mpi_rank_ == dd_proc_id) {
-      // in DD-process
-      if (!(SFC::GetDepth(sampled_keys[0]) == SFC::MAX_DEPTH)) {
-        std::cout << "SFC::GetDepth(sampled_keys[0])=" << SFC::GetDepth(sampled_keys[0]) << std::endl;
-        std::cout << "sampled_keys[0] = " << SFC::Decode(sampled_keys[0]) << std::endl;
-        std::cout << "SFC::MAX_DEPTH=" << SFC::MAX_DEPTH << std::endl;
-      }
+    if (data_->mpi_rank_ == dd_proc_id) { // in DD-process
+      // Sampled keys are body keys, so the depth must be SFC::MAX_DEPTH
       TAPAS_ASSERT(SFC::GetDepth(sampled_keys[0]) == SFC::MAX_DEPTH);
 
       proc_first_keys_ = PartitionSpace(sampled_keys, sampled_weights, data_->mpi_size_);
@@ -437,6 +441,7 @@ class SamplingOctree {
 
     double end = MPI_Wtime();
     data_->time_rec_.Record(data_->timestep_, "Tree-exchange", end - beg);
+    data_->time_rec_.Record(data_->timestep_, "Bodies", data_->local_bodies_.size());
   }
 
   /**
@@ -592,7 +597,29 @@ class SamplingOctree {
     std::vector<BodyType> recv_bodies;
     std::vector<int> src;
 
-    tapas::mpi::Alltoallv2(bodies, dest, recv_bodies, src, data_->mpi_type_body_, comm);
+    tapas::mpi::Alltoallv2(bodies, dest, recv_bodies, src, data_->mpi_type_body_, comm); // MPI_COMM_WORLD
+
+#if 1 // debug
+    // check if the total number of bodies
+
+    // Check the given `bodies`
+    int nb = bodies.size();
+    int nb_total = 0;
+    tapas::mpi::Reduce(nb, nb_total, MPI_SUM, 0, comm);
+
+    if (data_->mpi_rank_ == 0) {
+      assert(nb_total == (int)data_->nb_total);
+    }
+
+    // Check the resulting `recv_bodies`
+    nb = recv_bodies.size();
+    nb_total = 0;
+    tapas::mpi::Reduce(nb, nb_total, MPI_SUM, 0, comm);
+
+    if (data_->mpi_rank_ == 0) {
+      assert(nb_total == (int)data_->nb_total);
+    }
+#endif
 
     return recv_bodies;
   }

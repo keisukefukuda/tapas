@@ -17,13 +17,24 @@ namespace hot {
 
 template<class Data>
 void PrintParams(std::ofstream &ofs, const Data &data) {
+  time_t t = time(NULL);
+  struct tm tm = *localtime(&t);
+  char hostname [201];
+  gethostname(hostname, 200);
+  
   /*
    * 必要な情報：
-   * MPI: size
    * sim: nb, ncrit, dist, sampling rate, 
    * env: host (rank 0), date, time, 
    * 
    */
+  ofs << "# MPI size " << data.mpi_size_ << std::endl;
+  ofs << "# numBodies " << data.nb_total << std::endl;
+  ofs << "# ncrit " << data.ncrit_ << std::endl;
+  ofs << "# sampling rate " << data.sample_rate_ << std::endl;
+  ofs << "# date " << tm.tm_year + 1900 << "-" << tm.tm_mon + 1 << "-" << tm.tm_mday << " "
+      << tm.tm_hour << ":" << tm.tm_min << ":" << tm.tm_sec << std::endl;
+  ofs << "# rank 0 on " << hostname << std::endl;
 }
 
 template<class Data>
