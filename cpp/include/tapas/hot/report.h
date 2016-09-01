@@ -4,6 +4,7 @@
 #include <sys/unistd.h> // gethostname
 
 #include <ostream>
+#include <fstream>
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -13,6 +14,17 @@
 
 namespace tapas {
 namespace hot {
+
+template<class Data>
+void PrintParams(std::ofstream &ofs, const Data &data) {
+  /*
+   * 必要な情報：
+   * MPI: size
+   * sim: nb, ncrit, dist, sampling rate, 
+   * env: host (rank 0), date, time, 
+   * 
+   */
+}
 
 template<class Data>
 void Report(const Data &data) {
@@ -29,13 +41,20 @@ void Report(const Data &data) {
     report_fname = getenv("TAPAS_REPORT_FILENAME");
   }
 
+  // append .csv extension if necessary
   if (report_fname.find(".csv") == std::string::npos) {
     report_fname = report_fname + ".csv";
   }
 
-  // TODO: sampling rate
-  // NumBodies, NumLeaves, NumCells
-  data.time_rec_.Dump(report_fname);
+  std::ofstream ofs;
+  if (rank == 0) {
+    tapas::util::OpenFileStream(ofs, report_fname.c_str(), std::ios::out);
+    
+    // First, print configuration values of the simulation as comments in .csv file.
+    PrintParams(ofs, data);
+  }
+
+  data.time_rec_.Dump(ofs, rank, size);
 
 #if 0
   if (data.mpi_rank_ == 0) {

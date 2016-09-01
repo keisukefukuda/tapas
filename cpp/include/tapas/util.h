@@ -204,31 +204,19 @@ class TimeRec {
     table_[time_step][col] = val;
   }
 
-  void Dump(std::string fname) const {
-    std::ofstream ofs;
-    OpenFileStream(ofs, fname.c_str(), std::ios::out);
-    Dump(ofs);
-    ofs.close();
-  }
-
-  void Dump() const {
-    Dump(std::cout);
-  }
-
-  void Dump(std::ostream &os) const {
+  // Dump the CSV data to a file
+  // all data is written by rank 0 process and the `os` file handler may be invalid
+  // for other processes.
+  void Dump(std::ostream &os, int mpi_rank, int mpi_size) const {
     if (cols_.size() == 0) return;
     
     int col_width = GetMaxColWidth();
-
-    int rank = 0, size = 1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     int max_ts = table_.size();
 
     std::stringstream ss;
 
-    if (rank == 0) {
+    if (mpi_rank == 0) {
       WriteValue(ss, "TimeStep", col_width);
       WriteValue(ss, "Rank", col_width);
     
@@ -238,11 +226,12 @@ class TimeRec {
       ss << std::endl;
     }
 
+    // Construct partial CSV data in each process
     for (int ts = 0; ts < max_ts; ts++) {
       const auto &row_map = table_[ts];
 
       WriteValue(ss, ts, col_width);
-      WriteValue(ss, rank, col_width);
+      WriteValue(ss, mpi_rank, col_width);
 
       for (const std::string &col : cols_) {
         double val = (row_map.find(col) == row_map.end())
@@ -254,25 +243,32 @@ class TimeRec {
       ss << std::endl;
     }
 
-    std::vector<int> recvcounts(size);
-    std::vector<int> disps(size);
+    //// Gather the partial CSV data to rank 0
+
+    // gather length and construct displ
+    std::vector<int> recvcounts(mpi_size);
+    std::vector<int> disps(mpi_size);
 
     int len = ss.str().size();
     MPI_Gather(&len, 1, MPI_INT, &(recvcounts[0]), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    for (int i = 0; i < size; i++) {
+    for (int i = 0; i < mpi_size; i++) {
       disps[i] = i == 0 ? 0 : recvcounts[i-1] + disps[i-1];
     }
 
     int total_length = std::accumulate(recvcounts.begin(), recvcounts.end(), 0);
-    char *recv_buf = new char[total_length + 1];
+    char *recv_buf = (mpi_rank == 0) ? new char[total_length + 1] : nullptr;
 
+    // Gather CSV data
     char *send_buf = const_cast<char *>(ss.str().c_str());
     MPI_Gatherv(send_buf, ss.str().size(), MPI_BYTE,
                 &(recv_buf[0]),  &(recvcounts[0]), &(disps[0]), MPI_BYTE, 0, MPI_COMM_WORLD);
 
-    recv_buf[total_length] = '\0';
-    os << recv_buf;
+    if (mpi_rank == 0) {
+      recv_buf[total_length] = '\0';
+      os << recv_buf;
+    }
+
     delete[] recv_buf;
   }
 };
