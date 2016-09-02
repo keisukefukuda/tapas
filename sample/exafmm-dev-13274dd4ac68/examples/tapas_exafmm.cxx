@@ -640,6 +640,8 @@ int main(int argc, char ** argv) {
     logger::printPAPI();
     logger::stopDAG();
     
+    root->Report();
+    
     if (t == args.repeat - 1) { // Final Timesteps
       if (args.check) {
         const int numTargets = 10;
@@ -647,7 +649,6 @@ int main(int argc, char ** argv) {
         CheckResult(bodies, numTargets, cycle, args.images);
         logger::stopTimer("Total Direct");
       }
-      root->Report();
       TapasFMM::Destroy(root);
     } else {
       // Prepare for the next timestep
