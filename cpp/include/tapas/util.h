@@ -56,6 +56,10 @@ template<typename T> struct Caller<T, false> {
 
 } // namespace 
 
+/**
+ * \brief Returns a "label" of the given object. 
+ * If class T has a method "std::string label() const", then calls it. Otherwise, returns "".
+ */
 template<class T>
 struct GetLabel {
   template<typename U, std::string (U::*)() const> struct SFINAE {};
@@ -71,18 +75,6 @@ struct GetLabel {
     return HasFunc;
   }
 };
-
-struct Test1 {
-  // This class HAS a member function label().
-  std::string Label() const {
-    return "This is the label !!";
-  }
-};
-
-struct Test2 {
-  // This class does NOT have a member function label().
-};
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //

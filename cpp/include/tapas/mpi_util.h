@@ -552,7 +552,7 @@ void Gather(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int root, MP
   int rank = -1;
 
   MPI_Comm_rank(comm, &rank);
-  MPI_Comm_size(comm, &size);
+  //MPI_Comm_size(comm, &size);
 
   auto type = MPI_DatatypeTraits<T>::type();
   int count = MPI_DatatypeTraits<T>::count(sendbuf.size());
@@ -566,6 +566,53 @@ void Gather(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int root, MP
 
   int ret = ::MPI_Gather(void_cast(&sendbuf[0]), count, type,
                          void_cast(&recvbuf[0]), count, type, root, comm);
+
+  TAPAS_ASSERT(ret == MPI_SUCCESS); (void)ret;
+}
+
+template<class T>
+void Scatter(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int root, MPI_Comm comm) {
+  int size = -1;
+  int rank = -1;
+
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &size);
+
+  if (rank == root) {
+    assert((int)sendbuf.size() % size == 0);
+  }
+
+  int count = sendbuf.size() / size;
+
+  recvbuf.clear();
+  recvbuf.resize(count);
+
+  auto type = MPI_DatatypeTraits<T>::type();
+  int sendcount = MPI_DatatypeTraits<T>::count(count);
+
+  int ret = ::MPI_Scatter(void_cast(sendbuf.data()), sendcount, type,
+                          void_cast(recvbuf.data()), sendcount, type, root, comm);
+
+  TAPAS_ASSERT(ret == MPI_SUCCESS); (void)ret;
+}
+
+template<class T>
+void Scatter(const std::vector<T> &sendbuf, T &recvbuf, int root, MPI_Comm comm) {
+  int size = -1;
+  int rank = -1;
+
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &size);
+
+  if (rank == root) {
+    assert((int)sendbuf.size() == size);
+  }
+
+  auto type = MPI_DatatypeTraits<T>::type();
+  int sendcount = MPI_DatatypeTraits<T>::count(1);
+
+  int ret = ::MPI_Scatter(void_cast(sendbuf.data()), sendcount, type,
+                          void_cast(&recvbuf), sendcount, type, root, comm);
 
   TAPAS_ASSERT(ret == MPI_SUCCESS); (void)ret;
 }

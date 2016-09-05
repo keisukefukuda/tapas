@@ -188,6 +188,7 @@ class SamplingOctree {
    */
   static std::vector<KeyType> PartitionSpace(const std::vector<KeyType> &body_keys,
                                              const std::vector<double> &body_weights,
+                                             std::vector<double> &proc_weights,
                                              int mpi_size) {
 
     if (mpi_size == 1) {
@@ -205,7 +206,7 @@ class SamplingOctree {
     // Beginning key of each process.
     // This is the target value of this function to be returned to the caller.
     std::vector<KeyType> beg_keys(mpi_size);
-    std::vector<double> proc_weights(mpi_size);
+    proc_weights.resize(mpi_size);
 
     for (int L = Ls; L < std::min(Ls + 5, SFC::MaxDepth()); L++) {
       // Loop over [Ls, Ls+1, ...] until the load balancing seems good.
@@ -250,7 +251,6 @@ class SamplingOctree {
         //std::cout << "Finding range of [b, e) for P=" << pi << " ... ";
         index_t b = 0, e = 0;
         for (; w < trg_w; k = SFC::GetNext(k), ki++) {
-          //std::cout << (int)w << ",  ";
           assert(ki < W); // something is wrong. ki should look over the range of (0, W]
           
           // Find the range of bodies that belongs to `k`
@@ -261,15 +261,14 @@ class SamplingOctree {
         }
         //std::cout << std::endl;
 
-        // k is the key of the process
-        beg_keys[pi] = k;
-        // weight of the *previous* process
-        proc_weights[pi-1] = w;
+        
+        beg_keys[pi] = k;       // k is the key of the process
+        proc_weights[pi-1] = w; // weight of the *previous* process
         took_weight += w;
         //std::cout << "pi=" << (pi-1) << " actual weight=" << proc_weights[pi-1] << std::endl;
         
         if (pi == mpi_size - 1) {
-          // if pi is the last process, compute the weight of itself
+          // if `pi` is the last process, compute the weight of itself
           proc_weights[pi] = accumulate(body_weights.begin() + e, body_weights.end(), 0);
         }
       }
@@ -280,7 +279,7 @@ class SamplingOctree {
                                     0) / mpi_size;
       double sigma = tapas::util::stddev(proc_weights); // standard deviation
       double ratio = sigma / mean;
-      
+
 #if 0 // debug outputs: to be removed.
       const double q = totalw / mpi_size; // quota: each process should have roughly totalw/mpi_size weight
 
@@ -396,21 +395,29 @@ class SamplingOctree {
 #endif
 
     proc_first_keys_.resize(data_->mpi_size_);
-    
+    std::vector<double> proc_weights(data_->mpi_size_);
+
     if (data_->mpi_rank_ == dd_proc_id) { // in DD-process
       // Sampled keys are body keys, so the depth must be SFC::MAX_DEPTH
       TAPAS_ASSERT(SFC::GetDepth(sampled_keys[0]) == SFC::MAX_DEPTH);
 
-      proc_first_keys_ = PartitionSpace(sampled_keys, sampled_weights, data_->mpi_size_);
+      proc_first_keys_ = PartitionSpace(sampled_keys, sampled_weights, proc_weights, data_->mpi_size_);
       TAPAS_ASSERT((int)proc_first_keys_.size() == data_->mpi_size_);
     }
 
     // Each process's starting key is broadcast.
-    tapas::mpi::Bcast(proc_first_keys_, dd_proc_id, MPI_COMM_WORLD);
     TAPAS_ASSERT((int)proc_first_keys_.size() == data_->mpi_size_);
+    tapas::mpi::Bcast(proc_first_keys_, dd_proc_id, MPI_COMM_WORLD);
 
     double end = MPI_Wtime();
     data_->time_rec_.Record(data_->timestep_, "Tree-sample", end - beg);
+
+#ifdef TAPAS_DEBUG
+    // Output proc_weights for debugging/profiling purpose
+    double pw; // proc's weight
+    tapas::mpi::Scatter(proc_weights, pw, 0, data_->mpi_comm_);
+    data_->time_rec_.Record(data_->timestep_, "Weight", pw);
+#endif
   }
 
   /**
