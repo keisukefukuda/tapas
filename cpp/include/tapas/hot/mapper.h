@@ -641,15 +641,15 @@ struct CPUMapper {
 #include "tapas/vectormap_cuda.h"
 
 template<class Cell, class Body, class LET, class Insp1>
-struct GPUMapper : CPUMapper<Cell, Body, LET> {
+struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
 
-  using Base = CPUMapper<Cell, Body, LET>;
+  using Base = CPUMapper<Cell, Body, LET, Insp1>;
   using Data = typename Cell::Data;
   using Vectormap = tapas::Vectormap_CUDA_Packed<Cell::Dim,
                                                  typename Cell::FP,
                                                  typename Cell::Body,
                                                  typename Cell::BodyAttr,
-                                                 typename Cell::AttrType>;
+                                                 typename Cell::CellAttr>;
 
   Vectormap vmap_;
 
@@ -695,7 +695,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     }
   }
 
-  GPUMapper() : CPUMapper<Cell, Body, LET>() { }
+  GPUMapper() : CPUMapper<Cell, Body, LET, Insp1>() { }
 
   /**
    * \brief Specialization of Map() over body x body product for GPU
@@ -852,6 +852,15 @@ struct GPUMapper : CPUMapper<Cell, Body, LET> {
     Base::Map(f, c, args...);
   }
 
+  /**
+   * GPUMapper::Map (Bodies)
+   * Delegate to CPUMapper::Map
+   */
+  template<class Funct, class...Args>
+  inline void Map(Funct f, tapas::iterator::Bodies<Cell> bodies, Args...args) {
+    Base::Map(f, bodies, args...);
+  }
+  
   /**
    * GPUMapper::Map (subcelliterator)
    */

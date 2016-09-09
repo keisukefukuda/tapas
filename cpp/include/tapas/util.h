@@ -316,6 +316,35 @@ void TiedSort(std::vector<T> &a, std::vector<Args>&... args) {
   }
 }
 
+/**
+ * \brief Sort multiple vectors together, with the first vector as keys. (downgraded version)
+ * For some non-C++11-ready compileres (including nvcc)
+ */
+template<class T1, class T2>
+void TiedSort2(std::vector<T1> &keys, std::vector<T2>& a2) {
+  TAPAS_ASSERT(keys.size() == a2.size());
+  
+  using tt = struct {
+    T1 key;
+    T2 val;
+  };
+  std::vector<tt> vals(a2.size());
+
+  for (size_t i = 0; i < a2.size(); i++) {
+    vals[i].key = keys[i];
+    vals[i].val = a2[i];
+  }
+
+  std::sort(std::begin(vals), std::end(vals), [](const tt& a, const tt& b) {
+      return a.key < b.key;
+    });
+  
+  for (size_t i = 0; i < a2.size(); i++) {
+    keys[i] = vals[i].key;
+    a2[i] = vals[i].val;
+  }
+}
+
 
 
 } // namespace util

@@ -385,7 +385,11 @@ class SamplingOctree {
 #endif
 
     // Sort the body keys and corresponding weights
-    tapas::util::TiedSort(sampled_keys, sampled_weights);
+#ifdef __CUDACC__
+    tapas::util::TiedSort2<KeyType, double>(sampled_keys, sampled_weights);
+#else
+    tapas::util::TiedSort<KeyType, double>(sampled_keys, sampled_weights);
+#endif
 
 #ifdef TAPAS_DEBUG
     // check
