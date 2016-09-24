@@ -670,7 +670,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
 
   template<class Funct, class...Args>
   inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args...args) {
-    std::cout << "MapP2 (body)" << std::endl;
+    //std::cout << "MapP2 (body)" << std::endl;
 
     if (prod.size() > 0) {
       vmap_.map2(f, prod, args...);

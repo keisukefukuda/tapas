@@ -120,9 +120,9 @@ void SetGPU() {
   ss << rankinnode;
   setenv("CUDA_VISIBLE_DEVICES", ss.str().c_str(), 1);
 
-  std::cout << "rank " << rank << " (rank in node = " << rankinnode << ", "
-            << "rank of node = " << rankofnode << ") "
-            << "CUDA_VISIBLE_DEVICES=" << getenv("CUDA_VISIBLE_DEVICES") << std::endl;
+  // std::cout << "rank " << rank << " (rank in node = " << rankinnode << ", "
+  //           << "rank of node = " << rankofnode << ") "
+  //           << "CUDA_VISIBLE_DEVICES=" << getenv("CUDA_VISIBLE_DEVICES") << std::endl;
 
   // explicitly initialize CUDA runtime by calling dummy cudaMalloc().
   // Dummy CUDA API call to initialize the runtime (for performance measurement)
