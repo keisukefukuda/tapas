@@ -166,17 +166,72 @@ class TimeRec {
     return ss.str();
   }
 
+  enum class FileFormat {
+    CSV,
+    FWF,
+  };
 
+  //! \brief Write a value to a stream either in CSV or FWF format.
   template<class T>
-  static void WriteValue(std::ostream &os, T val, int width) {
+  static void WriteValue(std::ostream &os, T val, FileFormat fmt, char sep, bool last_col,  int width) {
     std::string s = Format(val);
-    int nsp = width - s.size();
-    if (nsp >= 0) {
-      for (int i = 0; i < nsp; i++) { os << " "; }
+
+    if (fmt == FileFormat::FWF) {
+      int nsp = width - s.size();
+      if (nsp >= 0) {
+        for (int i = 0; i < nsp; i++) { os << " "; }
+      }
     }
-    os << s;
+    
+    os << s; // value
+
+    if (fmt == FileFormat::CSV && !last_col) {
+      os << sep;
+    }
   }
   
+  /**
+   * \brief Read envvar 'TAPAS_REPORT_FORMAT' and returns either FileFormat::CSV or FileFormat::FWF.
+   *
+   * \param [out] fmt 
+   * \param [out] sep Separator character if FileFormat::CSV. The default value is ','
+   */
+  static void GetFileFormat(FileFormat &fmt, char &sep) {
+    const char *env_fmt = getenv("TAPAS_REPORT_FORMAT");
+
+    if (env_fmt != nullptr) {
+      std::string s = env_fmt;
+      std::transform(s.begin(), s.end(), s.begin(), ::tolower); // convert to lower case
+      
+      if (s == "fwf") {
+        fmt = FileFormat::FWF;
+        return;
+      }
+
+      // default value is "CSV"
+      if (s != "csv") {
+        std::cerr << "Warning: Unknown reporting file format from TAPAS_REPORT_FORMAT: '" << s << "'" << std::endl;
+      }
+
+      fmt = FileFormat::CSV;
+
+      const char *env_sep = getenv("TAPAS_REPORT_SEP");
+      if (env_sep != nullptr && strlen(env_sep) >= 1) {
+        sep = env_sep[0];
+
+        if (strlen(env_sep) > 1) {
+          std::cerr << "Warning: Separator must be a single character" << std::endl;
+        }
+      } else {
+        sep = ',';
+      }
+    } else {
+      fmt = FileFormat::CSV;
+      sep = ',';
+      return;
+    }
+  }
+
  public:
   TimeRec() : cols_(), table_() {}
   
@@ -196,8 +251,9 @@ class TimeRec {
     table_[time_step][col] = val;
   }
 
-  // Dump the CSV data to a file
-  // all data is written by rank 0 process and the `os` file handler may be invalid
+  //! \brief Dump the data to a file. File format is CSV or FWF depending on TAPAS_REPORT_FILE_FORMAT
+  //
+  // All data is written by rank 0 process and the `os` file handler is invalid
   // for other processes.
   void Dump(std::ostream &os, int mpi_rank, int mpi_size) const {
     if (cols_.size() == 0) return;
@@ -207,13 +263,17 @@ class TimeRec {
     int max_ts = table_.size();
 
     std::stringstream ss;
+    
+    FileFormat fmt;
+    char sep;
+    GetFileFormat(fmt, sep);
 
     if (mpi_rank == 0) {
-      WriteValue(ss, "TimeStep", col_width);
-      WriteValue(ss, "Rank", col_width);
-    
-      for (const std::string &col : cols_) {
-        WriteValue(ss, col, col_width);
+      WriteValue(ss, "TimeStep", fmt, sep, false, col_width);
+      WriteValue(ss, "Rank", fmt, sep, false, col_width);
+
+      for (size_t i = 0; i < cols_.size(); i++) {
+        WriteValue(ss, cols_[i], fmt, sep, i == cols_.size()-1, col_width);
       }
       ss << std::endl;
     }
@@ -222,22 +282,23 @@ class TimeRec {
     for (int ts = 0; ts < max_ts; ts++) {
       const auto &row_map = table_[ts];
 
-      WriteValue(ss, ts, col_width);
-      WriteValue(ss, mpi_rank, col_width);
+      WriteValue(ss, ts, fmt, sep, false, col_width);
+      WriteValue(ss, mpi_rank, fmt, sep, false, col_width);
 
-      for (const std::string &col : cols_) {
+      for (int i = 0; i < cols_.size(); i++) {
+        auto col = cols_[i];
         double val = (row_map.find(col) == row_map.end())
                      ? 0
                      : row_map.at(col);
         
-        WriteValue(ss, val, col_width);
+        WriteValue(ss, val, fmt, sep, i == cols_.size()-1, col_width);
       }
       ss << std::endl;
     }
 
     //// Gather the partial CSV data to rank 0
 
-    // gather length and construct displ
+    // gather lengths of lines and construct displ
     std::vector<int> recvcounts(mpi_size);
     std::vector<int> disps(mpi_size);
 
