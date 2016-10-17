@@ -202,11 +202,47 @@ class SamplingOctree {
 
     // total weight
     const double totalw = std::accumulate(body_weights.begin(), body_weights.end(), 0);
+    const double quota = totalw / mpi_size;
 
     // Beginning key of each process.
     // This is the target value of this function to be returned to the caller.
     std::vector<KeyType> beg_keys(mpi_size);
-    proc_weights.resize(mpi_size);
+    proc_weights.clear();
+    proc_weights.resize(mpi_size, 0);
+
+#if 0 // new code; suspended until the new inspector is implemented.
+    // new code
+
+    std::cout << "mpi_size = " << mpi_size << std::endl;
+    std::cout << "total weight = " << totalw << std::endl;
+    std::cout << "quota = " << quota << std::endl;
+
+    int bi = 0; // body index
+    int pi = 0; // proc index
+    beg_keys[pi] = 0;
+    for (pi = 0; pi < mpi_size - 1; pi++) { // pi = process index
+      while (proc_weights[pi] < quota) {
+        proc_weights[pi] += body_weights[bi];
+        beg_keys[pi + 1] = body_keys[bi];
+        bi++;
+      }
+    }
+    // pi == mpi_size - 1
+    beg_keys[pi] = body_keys[bi];
+    
+    while(bi < body_keys.size()) {
+      proc_weights[pi] += body_weights[bi++];
+    }
+
+    for (size_t i = 0; i < proc_weights.size(); i++) {
+      std::cout << proc_weights[i] << " " << beg_keys[i] << std::endl;
+    }
+
+    TAPAS_ASSERT(beg_keys[0] == 0);
+
+    return beg_keys;
+    
+#else // ----------- old code
 
     for (int L = Ls; L < SFC::MaxDepth(); L++) {
       //double t = MPI_Wtime();
@@ -318,6 +354,8 @@ class SamplingOctree {
         }
       }
     } // end for : if the load imbalance si less than 1%
+
+#endif // old code
 
     return beg_keys;
   }
