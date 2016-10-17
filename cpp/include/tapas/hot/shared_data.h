@@ -73,7 +73,11 @@ struct SharedData {
   std::vector<BodyAttrType> local_body_attrs_; //!< Local body attributes
   std::vector<BodyAttrType> let_body_attrs_; //!< Local body attributes
 
+#ifdef TAPAS_USE_WEIGHT
+  std::vector<double> local_body_weight_br_;
+  std::vector<double> local_body_weight_lf_;
   std::vector<double> local_body_weights_; //!< Local body's weights
+#endif
 
   std::vector<KeyType>  local_body_keys_; //!< SFC keys of local bodies
 

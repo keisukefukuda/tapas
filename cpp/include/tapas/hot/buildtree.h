@@ -208,7 +208,8 @@ class SamplingOctree {
     std::vector<KeyType> beg_keys(mpi_size);
     proc_weights.resize(mpi_size);
 
-    for (int L = Ls; L < std::min(Ls + 5, SFC::MaxDepth()); L++) {
+    for (int L = Ls; L < SFC::MaxDepth(); L++) {
+      // L = SFC::MaxDepth() - 1; // debug
       // Loop over [Ls, Ls+1, ...] until the load balancing seems good.
       
       // The value 'Ls + 5' is hardcoded.
@@ -216,11 +217,12 @@ class SamplingOctree {
       // (because the hypothetical global tree gets higher)
       
       const KeyType K0 = SFC::AppendDepth(0, L); // the first key in level L
-      const int W = pow(B, L); // number of cells in level L
+      const long W = pow(B, L); // number of cells in level L
+      TAPAS_ASSERT(W > 0); // detect overflow
 
       std::cout << "L=" << L << std::endl;
       if (W <= mpi_size) {
-        std::cout << "W=" << W << ", mpi_size=" << mpi_size << std::endl;
+        std::cerr << "W=" << W << ", mpi_size=" << mpi_size << std::endl;
       }
       TAPAS_ASSERT(W > mpi_size); (void)W;
       
@@ -306,8 +308,15 @@ class SamplingOctree {
 #endif
       std::cout << "Ratio = " << ratio << std::endl;
 
-      if (ratio < 0.01) break;
-    }
+      if (ratio < 0.005) break;
+
+      // to be removed.
+      else {
+        if (L == SFC::MaxDepth() - 1) {
+          std::cerr << "Failed to find smaller L. using the max L = " << L << std::endl;
+        }
+      }
+    } // end for : if the load imbalance si less than 1%
 
     return beg_keys;
   }
@@ -415,13 +424,6 @@ class SamplingOctree {
 
     double end = MPI_Wtime();
     data_->time_rec_.Record(data_->timestep_, "Tree-sample", end - beg);
-
-#ifdef TAPAS_DEBUG
-    // Output proc_weights for debugging/profiling purpose
-    double pw; // proc's weight
-    tapas::mpi::Scatter(proc_weights, pw, 0, data_->mpi_comm_);
-    data_->time_rec_.Record(data_->timestep_, "Weight", pw);
-#endif
   }
 
   /**

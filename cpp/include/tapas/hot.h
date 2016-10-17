@@ -255,13 +255,13 @@ class Cell {
     
    public:
     inline CellAttrWrapper &operator=(const CellAttrWrapper& rhs) {
-      c_.WeightUp();
+      c_.WeightBr();
       ((CellAttr&)*this) = (const CellAttr&)rhs;
       return *this;
     }
 
     inline CellAttrWrapper &operator=(const CellAttr &rhs) {
-      c_.WeightUp();
+      c_.WeightBr();
       ((CellAttr&)*this) = rhs;
       return *this;
     }
@@ -334,7 +334,8 @@ class Cell {
       , center_((region_.max() + region_.min()) / 2)
 #ifdef TAPAS_USE_WEIGHT
       , attr_(*this) // pass this pointer to CellAttrWrapper's ctor (CellAttrWrapper is to manage weights)
-      , weight_(1.0)
+      , weight_lf_(1.0)
+      , weight_br_(1.0)
 #endif
   {
 #ifndef TAPAS_USE_WEIGHT
@@ -356,9 +357,12 @@ class Cell {
 
  public:
   KeyType key() const { return key_; }
-  double Weight() const { return weight_; }
-  void WeightUp(double inc = 1.0) { weight_ += inc; }
-
+  
+  double WeightLf() const { return weight_lf_; }
+  double WeightLf(double w = 1.0) { weight_lf_ += w; return weight_lf_; }
+  double WeightBr() const { return weight_br_; }
+  double WeightBr(double w = 1.0) { weight_br_ += w; return weight_br_; }
+  
   template <class T> bool operator==(const T &) const { return false; }
   bool operator==(const Cell &c) const;
   bool operator<(const Cell &c) const;
@@ -612,7 +616,8 @@ class Cell {
   CellAttr attr_;
 #endif
 
-  double weight_;
+  double weight_lf_; // computing weight from leaf-leaf or leaf-branch computations
+  double weight_br_; // computing weight from branch-branch computations
 
   void CheckBodyIndex(index_t idx) const;
 }; // class Cell
@@ -1092,6 +1097,8 @@ static void DestroyCells(Cell<TSP> *root) throw() {
   }
 }
 
+#ifdef TAPAS_USE_WEIGHT
+
 namespace {
 
 // A recursive subroutine for PropagateWeight() function.
@@ -1104,7 +1111,12 @@ void PropagateFunc(Cell *cell, typename Cell::Data &data) {
     // Put the leaf's weight on each body
     for (size_t bi = 0; bi < cell->nb(); bi++) {
       size_t bidx = cell->body_offset() + bi;
-      data.local_body_weights_[bidx] = cell->Weight();
+      double wbr = cell->WeightBr();
+      double wlf = cell->WeightLf();
+      //double alpha = 0.1;
+      data.local_body_weight_br_[bidx] = wbr;
+      data.local_body_weight_lf_[bidx] = wlf;
+      data.local_body_weights_[bidx] = wbr + 0.014296 * wlf; // 0.014296 is for Spherical kernel.
     }
   } else {
     // Add the parent's weight to the children
@@ -1112,22 +1124,22 @@ void PropagateFunc(Cell *cell, typename Cell::Data &data) {
       if (data.ht_.count(ck) > 0) {
         // the children (with key ck) is local
         Cell *child = data.ht_[ck];
-        child->WeightUp(cell->Weight());
+        child->WeightBr(cell->WeightBr());
         PropagateFunc(child, data);
       }
     }
   }
 }
 
-} // namespace
-
-#ifdef TAPAS_USE_WEIGHT
+} // anon namespace
 
 template<class Cell>
 void PropagateWeight(Cell *root) {
   using Data = typename Cell::Data;
   Data &data = root->data();
 
+  data.local_body_weight_br_.resize(data.local_bodies_.size(), 1);
+  data.local_body_weight_lf_.resize(data.local_bodies_.size(), 1);
   data.local_body_weights_.resize(data.local_bodies_.size(), 1);
 
   PropagateFunc(data.ht_[0], data);
@@ -1652,7 +1664,27 @@ struct Tapas {
     DestroyCells(root);
 
     std::vector<Body> bodies = std::move(data->local_bodies_);
+
+#ifdef TAPAS_USE_WEIGHT
     std::vector<double> weights = std::move(data->local_body_weights_);
+
+    // Write local_body_weight_br and local_body_weight_lf to the performance report
+    double wbr_sum = std::accumulate(data->local_body_weight_br_.begin(),
+                                     data->local_body_weight_br_.end(),
+                                     0);
+    double wlf_sum = std::accumulate(data->local_body_weight_lf_.begin(),
+                                     data->local_body_weight_lf_.end(),
+                                     0);
+
+    double w_sum = std::accumulate(weights.begin(), weights.end(), 0);
+
+    data->time_rec_.Record(data->timestep_, "Weight-BR", wbr_sum);
+    data->time_rec_.Record(data->timestep_, "Weight-LF", wlf_sum);
+    data->time_rec_.Record(data->timestep_, "Weight", w_sum);
+    
+#else
+    std::vector<double> weights = std::vector<double>(data->local_bodies_.size(), 1.0);
+#endif
 
     data->ht_.clear();
     data->ht_let_.clear();
@@ -1669,7 +1701,11 @@ struct Tapas {
     data->let_body_attrs_.clear();
     data->local_body_keys_.clear();
     data->proc_first_keys_.clear();
+#ifdef TAPAS_USE_WEIGHT
     data->local_body_weights_.clear();
+    data->local_body_weight_br_.clear();
+    data->local_body_weight_lf_.clear();
+#endif
 
     Partitioner part(max_nb);
     return part.Partition(data, bodies.data(), weights.data(), bodies.size(), data->mpi_comm_);

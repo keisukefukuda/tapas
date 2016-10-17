@@ -186,9 +186,9 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
   CELL &c1 = iter1.cell();
   CELL &c2 = iter2.cell();
 
-  c1.WeightUp();
+  c1.WeightLf((end1 - beg1) * (end2 - beg2));
   if (mutual) {
-    c2.WeightUp();
+    c2.WeightLf((end1 - beg1) * (end2 - beg2));
   }
   
   //auto data = c1.data_ptr();

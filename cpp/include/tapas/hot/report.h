@@ -22,12 +22,6 @@ void PrintParams(std::ofstream &ofs, const Data &data) {
   char hostname [201];
   gethostname(hostname, 200);
   
-  /*
-   * 必要な情報：
-   * sim: nb, ncrit, dist, sampling rate, 
-   * env: host (rank 0), date, time, 
-   * 
-   */
   ofs << "# MPI size " << data.mpi_size_ << std::endl;
   ofs << "# numBodies " << data.nb_total << std::endl;
   ofs << "# ncrit " << data.ncrit_ << std::endl;
