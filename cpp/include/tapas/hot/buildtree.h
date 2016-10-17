@@ -209,7 +209,8 @@ class SamplingOctree {
     proc_weights.resize(mpi_size);
 
     for (int L = Ls; L < SFC::MaxDepth(); L++) {
-      // L = SFC::MaxDepth() - 1; // debug
+      //double t = MPI_Wtime();
+      //L = SFC::MaxDepth() - 1; // debug
       // Loop over [Ls, Ls+1, ...] until the load balancing seems good.
       
       // The value 'Ls + 5' is hardcoded.
@@ -308,7 +309,7 @@ class SamplingOctree {
 #endif
       std::cout << "Ratio = " << ratio << std::endl;
 
-      if (ratio < 0.005) break;
+      if (ratio < 0.05) break;
 
       // to be removed.
       else {
