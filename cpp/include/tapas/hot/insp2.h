@@ -42,6 +42,23 @@ class Insp2 {
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<TSP>;
 
   /**
+   * \brief Do inspection between a target (local) root a source (remote) root
+   */
+  template<class UserFunct, class...Args>
+  static void DoInspect(Data &data, KeyType trg_key, KeyType src_key,
+                      KeySet &req_keys_attr, KeySet &req_keys_body,
+                      UserFunct f, Args...args) {
+    std::cout << "*** DoInspect() : trg_key = " << trg_key << ", src_key = " << src_key << std::endl;
+    const int max_level = data.max_level_;
+
+    std::map<int, int> level_map; // target level -> source level
+    // level_map is a map from target level (LS) to corresponding source levels (LS) so that
+    //   if D(target cell of level LS, ghost cell of LS) is 'approximate' then
+    //     
+    // 
+  }
+
+  /**
    * \brief Inspector for Map-2. Traverse hypothetical global tree and 
    *        construct a cell list to be exchanged between processes.
    */
@@ -59,9 +76,8 @@ class Insp2 {
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
 
-    //MPI_Finalize();
-    //exit(0);
-
+    // construct v_map, a map from source level to the most conservative target level
+    
     //double end = MPI_Wtime();
     //data.time_rec_.Record(data.timestep_, "Map2-LET-insp", end - beg);
   }
