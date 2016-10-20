@@ -9,46 +9,6 @@
 
 namespace tapas {
 
-template<typename VEC>
-bool Separated(const VEC &xmax, const VEC &xmin, const VEC &ymax, const VEC &ymin) {
-  const constexpr int Dim = VEC::Dim;
-
-  bool separated = false;
-
- for (int d = 0; d < Dim; d++) {
-    separated |= (xmax[d] <= ymin[d] || ymax[d] <= xmin[d]);
-  }
-
-  return separated;
-}
-
-template<typename Region>
-bool Separated(const Region &x, const Region &y) {
-  const constexpr int Dim = Region::Dim;
-
-  bool separated = false;
-
-  for (int d = 0; d < Dim; d++) {
-    separated |= (x.max(d) <= y.min(d) || y.max(d) <= x.min(d));
-  }
-
-  return separated;
-}
-
-template<typename Iter, typename Region>
-bool Separated(Iter beg, Iter end, Region &y) {
-  using value_type = typename std::iterator_traits<Iter>::value_type;
-  static_assert(std::is_same<typename std::remove_const<value_type>::type, typename std::remove_const<Region>::type>::value,
-                "Inconsistent Types");
-
-  bool r = true;
-  for (Iter iter = beg; iter != end; iter++) {
-    r = r && Separated(*iter, y);
-  }
-
-  return r;
-}
-
 // Returns if X includes Y
 template<typename VEC>
 bool Includes(VEC &xmax, VEC &xmin, VEC &ymax, VEC &ymin) {
