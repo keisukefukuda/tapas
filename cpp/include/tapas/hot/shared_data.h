@@ -40,7 +40,7 @@ struct SharedData {
 
   CellHashTable ht_gtree_; // Hsah table of the global tree.
   KeySet        gleaves_;  // set of global leaves, which are a part of ht_gtree_.keys and ht_.keys
-  KeySet        lroots_;   // set of local roots. It must be a subset of gleaves_. gleaves_ is "Allgatherv-ed" lroots.
+  KeySet        lroots_;   // set of local roots. It must be a subset of gleaves_. gleaves_ is allgatherv()-ed lroots.
   std::mutex    ht_mtx_;   //!< mutex to protect ht_
   KeySet        let_used_key_;
   std::unordered_map<KeyType, CellAttr> local_upw_results_; // used in Upward Map
