@@ -1,5 +1,5 @@
 .PHONY : all clean
-targets = test_set test_morton_key test_allgatherv test_gatherv test_alltoallv test_cpptricks test_geometry
+targets = test_set test_morton_key test_allgatherv test_gatherv test_alltoallv test_cpptricks test_geometry test_ghost_cell
 
 all: $(targets)
 

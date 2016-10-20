@@ -1,5 +1,5 @@
-#ifndef TAPAS_INSP1_H_
-#define TAPAS_INSP1_H_
+#ifndef TAPAS_HOT_INSP1_H_
+#define TAPAS_HOT_INSP1_H_
 
 #include <tapas/hot/proxy/proxy_cell.h>
 
@@ -8,6 +8,9 @@ namespace hot {
 
 template<class TSP> class Cell;
 
+/**
+ * \brief Inspector implementation for Map-1
+ */ 
 template<class TSP>
 struct Insp1 {
   // type aliases
@@ -82,6 +85,6 @@ struct Insp1 {
 } // namespace hot
 } // namespace tapas
 
-#endif // TAPAS_INSP1_H_
+#endif // TAPAS_HOT_INSP1_H_
 
 

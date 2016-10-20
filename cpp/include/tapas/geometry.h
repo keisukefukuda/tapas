@@ -81,56 +81,6 @@ struct Distance<_DIM, CenterClass, _FP> {
   static inline FP Calc(const Cell &c1, const Cell &c2) {
     return (c1.center() - c2.center()).norm();
   }
-
-  static inline FP CalcApprox(const Reg &bb, const Reg &src) {
-    const Reg *beg = &bb, *end = beg + 1;
-    return CalcApprox(beg, end, src);
-  }
-
-  /**
-   * \brief Calculate distance between a target cell and source cell, where
-   *        the target cell is a pseudo-cell (or region of the local process)
-   * \param beg Begin iterator of Container<Reg>
-   * \param beg End iterator of Container<Reg>
-   * \param src Source region
-   */
-  template<typename Iter>
-  static inline FP CalcApprox(Iter beg, Iter end, const Reg &src) {
-    // Iter::value_type == Reg
-    using value_type = typename std::remove_const<typename std::iterator_traits<Iter>::value_type>::type;
-    static_assert(std::is_same<value_type, Reg>::value, "Inconsistent Types");
-
-    Vec<Dim, FP> trg_ctr, src_ctr;
-    double norm = std::numeric_limits<FP>::max(); // minimum norm between BB and src
-
-    for (auto iter = beg; iter != end; iter++) {
-      const Reg &trg = *iter;
-      for (int d = 0; d < Dim; d++) {
-        FP Rt = trg.width(d);
-        FP Rs = src.width(d);
-        FP sctr = src_ctr[d] = src.center(d);
-
-        if (Rs >= Rt) {
-          //trg_ctr[d] = trg.center(d);
-          if (trg.center(d) >= src.center(d)) {
-            trg_ctr[d] = std::max(trg.center(d) + Rt/2 - Rs/2, sctr);
-          } else {
-            trg_ctr[d] = std::min(trg.center(d) - Rt/2 + Rs/2, sctr);
-          }
-        } else if (sctr < trg.min(d) + Rs/2) {
-          trg_ctr[d] = trg.min(d) + Rs/2;
-        } else if (sctr > trg.max(d) - Rs/2) {
-          trg_ctr[d] = trg.max(d) - Rs/2;
-        } else {
-          trg_ctr[d] = src_ctr[d];
-        }
-      }
-
-      norm = std::min((src_ctr - trg_ctr).norm(), norm);
-    }
-
-    return norm;
-  }
 };
 
 } // namespace tapas
