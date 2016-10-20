@@ -3,7 +3,7 @@ targets = test_set test_morton_key test_allgatherv test_gatherv test_alltoallv t
 
 all: $(targets)
 
-CXXFLAGS := -std=c++11 -Wall -Wextra -I../include -Wno-sign-compare -DUSE_MPI -Werror -g
+CXXFLAGS := -std=c++14 -Wall -Wextra -I../include -Wno-sign-compare -DUSE_MPI -Werror -g
 MPICXX ?= mpicxx -cxx=$(CXX)
 
 $(targets): % : %.cpp

@@ -56,22 +56,31 @@ class GhostCell {
       FP a = r1.max(dim) - w1/2, b = r1.min(dim) + w1/2;
       FP c = r2.max(dim) - w2/2, d = r2.min(dim) + w2/2;
 
+      std::cout << "Dim " << dim << " a = " << a << std::endl;
+      std::cout << "Dim " << dim << " b = " << b << std::endl;
+      std::cout << "Dim " << dim << " c = " << c << std::endl;
+      std::cout << "Dim " << dim << " d = " << d << std::endl;
+
       TAPAS_ASSERT(a >= b);
       TAPAS_ASSERT(c >= d);
 
       // if the two ranges overlap, then the shortest distance of r1 and r2 is 0.
       bool overlp = false; // overlapped
 
-      if (a <= c && d <= b) overlp = true; // r2 is included in r1
-      if (c <= a && b <= d) overlp = true; // r1 is included in r2
-      if (a <= c && c <= b) overlp = true;
-      if (a <= d && d <= b) overlp = true;
+      if (b <= d && c <= a) overlp = true; // r2 is included in r1
+      if (d <= b && a <= c) overlp = true; // r1 is included in r2
+      if (b <= c && c <= a) overlp = true;
+      if (b <= d && d <= a) overlp = true;
+
+      std::cout << "Dim " << dim << " overlap = " << overlp << std::endl;
 
       if (overlp) {
         dist[dim] = 0;
       } else {
         dist[dim] = std::min(fabs(a-d), fabs(c-b));
       }
+      std::cout << "Dim " << dim << " dist = " << dist[dim] << std::endl;
+      std::cout << std::endl;
     }
     return dist.norm();
   }

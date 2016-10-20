@@ -23,7 +23,7 @@
       test_app::succ_cnt++;                       \
     } else {                                      \
       std::stringstream ss;                       \
-      ss << "ASSERT_EQUAL failed in "             \
+      ss << "ASSERT_EQ failed in "                \
          << __FILE__ << ":" << __LINE__ << " "    \
          << __PRETTY_FUNCTION__                   \
          << std::endl;                            \
@@ -37,6 +37,28 @@
     }                                             \
   } while(0)
 
+#define ASSERT_CLOSE(should, actual) do {         \
+    double s_ = should;                           \
+    double a_ = actual;                           \
+    if (fabs(s_ - a_) < 1e-6) {                   \
+      test_app::succ_cnt++;                       \
+    } else {                                      \
+      std::stringstream ss;                       \
+      ss << "ASSERT_CLOSE failed in "             \
+         << __FILE__ << ":" << __LINE__ << " "    \
+         << __PRETTY_FUNCTION__                   \
+         << std::endl;                            \
+      ss << "\tshould = '" << #should << "' (= "  \
+         << tapas::test::ToString(s_) << "), "    \
+         << "\tactual = '" << #actual << "' (= "  \
+         << tapas::test::ToString(a_) << ").";    \
+      ss << std::endl;                            \
+      test_app::fail_log.push_back(ss.str());     \
+      test_app::fail_cnt++;                       \
+    }                                             \
+  } while(0)
+
+
 #define ASSERT_TRUE(exp) do {                         \
     auto e_ = exp;                                    \
     if (e_) {                                         \
@@ -47,7 +69,7 @@
          << __FILE__ << ":" << __LINE__ << " "        \
          << __PRETTY_FUNCTION__ << "." << std::endl;  \
       ss << "\tactual = '" << #exp << "' (= "         \
-         << tapas::test::ToString(exp) << ").";       \
+         << tapas::test::ToString(e_) << ").";       \
       ss << std::endl;                                \
       test_app::fail_log.push_back(ss.str());         \
       test_app::fail_cnt++;                           \
