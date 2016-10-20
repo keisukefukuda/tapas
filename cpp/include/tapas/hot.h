@@ -823,20 +823,6 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  // const constexpr int RANK = 0;
-  // if (data.mpi_rank_ == RANK) {
-  //   std::cout << "M2M: in ExchangeGlobalLeaves:" << std::endl;
-  //   std::cout << "M2M: -----------------------------" << std::endl;
-  //   for (size_t i = 0; i < keys_recv.size(); i++) {
-  //     std::cout << "M2M: "
-  //               << keys_recv[i]
-  //               << " M=" << ""
-  //               << attr_recv[i].M << ""
-  //               << std::endl;
-  //   }
-  //   std::cout << "M2M: -----------------------------" << std::endl;
-  // }
-
   MPI_Barrier(MPI_COMM_WORLD);
 
   for (size_t i = 0; i < keys_recv.size(); i++) {
@@ -845,15 +831,6 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
     TAPAS_ASSERT(gtree.count(key) == 1);
     gtree[key]->attr() = attr_recv[i];
     data.local_upw_results_[key] = attr_recv[i];
-
-    // if (key == 4035225266123964417 && data.mpi_rank_ == RANK) {
-    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "key= " << key << std::endl;
-    //   std::cout << "debug: gtree.count(key) = " << gtree.count(key) << std::endl;
-    //   std::cout << "debug: ht.count(key) = " << data.ht_.count(key) << std::endl;
-    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << attr_recv[i].M << std::endl;
-    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "M= " << gtree[key]->attr().M << std::endl;
-    //   std::cout << "debug: ExchangeGlobalLeafAttrs(): " << "&M= " << &(gtree[key]->attr().M) << std::endl;
-    // }
   }
 
   TAPAS_ASSERT(keys_recv.size() == attr_recv.size());
