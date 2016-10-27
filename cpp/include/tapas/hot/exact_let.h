@@ -612,13 +612,15 @@ struct ExactInsp2 {
 
     Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 
-    {
-      // Call insp2::Inspect
-      KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
-      KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
-      
-      Insp2<TSP>::Inspect(root, req_cell_attr_keys2, req_leaf_keys2, f, args...);
-    }
+    tapas::debug::BarrierExec([&](int, int) {
+        {
+          // Call insp2::Inspect
+          KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
+          KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
+          
+          Insp2<TSP>::Inspect(root, req_cell_attr_keys2, req_leaf_keys2, f, args...);
+        }
+      });
 
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested

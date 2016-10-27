@@ -40,10 +40,11 @@ bool Close(V1 a, V1 b, const char *file, int line) {
 }
 
 template<int Dim, class FP>
-auto make_cell(std::initializer_list<FP> min, std::initializer_list<FP> max, FP width) {
+auto make_cell(std::initializer_list<FP> min, std::initializer_list<FP> max, const tapas::Vec<Dim, FP>& width) {
   using R = tapas::Region<Dim, FP>;
   using G = tapas::hot::GhostCell<R>;
-  return G(R(tapas::Vec<Dim, FP>(min), tapas::Vec<Dim, FP>(max)), width);
+  return G(R(tapas::Vec<Dim, FP>(min), tapas::Vec<Dim, FP>(max)),
+           width);
 }
 
 void Test_Distance_Center_1d() {

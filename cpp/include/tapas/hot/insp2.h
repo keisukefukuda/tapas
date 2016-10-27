@@ -1,6 +1,7 @@
 #ifndef TAPAS_HOT_INSP2_H_
 #define TAPAS_HOT_INSP2_H_
 
+#include <unordered_map>
 
 #include <tapas/debug_util.h>
 #include <tapas/geometry.h>
@@ -36,6 +37,7 @@ class Insp2 {
   using Reg = Region<Dim, FP>;
 
   using GCell = GhostCell<Region<Dim,FP>>;
+  //using GCell = GhostCell<Region<Dim,FP>, Mapper>;
 
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP>;
@@ -48,14 +50,36 @@ class Insp2 {
   static void DoInspect(Data &data, KeyType trg_key, KeyType src_key,
                       KeySet &req_keys_attr, KeySet &req_keys_body,
                       UserFunct f, Args...args) {
-    std::cout << "*** DoInspect() : trg_key = " << trg_key << ", src_key = " << src_key << std::endl;
-    const int max_level = data.max_level_;
+    const int max_depth = data.max_depth_;
 
-    std::map<int, int> level_map; // target level -> source level
-    // level_map is a map from target level (LS) to corresponding source levels (LS) so that
-    //   if D(target cell of level LS, ghost cell of LS) is 'approximate' then
-    //     
-    // 
+    int src_depth = SFC::GetDepth(src_key);
+    int trg_depth = SFC::GetDepth(trg_key);
+
+    std::cout << "*** DoInspect() : trg_key = " << trg_key << "(" << trg_depth << "), "
+              << "src_key = " << src_key << "(" << src_depth << "), "
+              << "max_depth = " << max_depth
+              << std::endl;
+
+    Reg src_reg = SFC::CalcRegion(src_key, data.region_);
+    Reg trg_reg = SFC::CalcRegion(trg_key, data.region_);
+
+    std::cout << "Root width = " << data.region_.width() << std::endl;
+
+    for (int sd = src_depth; sd <= max_depth; sd++) {
+      for (int td = trg_depth; td <= max_depth; td++) {
+        auto sw = data.region_.width(); // n-dim dimension width of the source ghost cell
+        auto tw = data.region_.width(); // n-dim dimension width of the target ghost cell
+        for (int d = 0; d < sd; d++) { sw /= 2; }
+        for (int d = 0; d < td; d++) { tw /= 2; }
+
+        GCell src_gc = GCell(src_reg, sw);
+        GCell trg_gc = GCell(src_reg, sw);
+        
+        //f(trg_gc, src_gc, args...);
+      }
+    }
+    
+    std::unordered_map<int, int> level_map; // Source level -> target level
   }
 
   /**
@@ -75,6 +99,16 @@ class Insp2 {
 
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
+
+    std::cout << tapas::mpi::Rank() << " Insp2::Inspect" << std::endl;
+
+    for (KeyType src_key : data.gleaves_) {
+      for (KeyType trg_key : data.lroots_) {
+        if (src_key != trg_key) {
+          DoInspect(data, trg_key, src_key, req_keys_attr, req_keys_body, f, args...);
+        }
+      }
+    }
 
     // construct v_map, a map from source level to the most conservative target level
     
