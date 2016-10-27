@@ -222,15 +222,6 @@ class ProxyCell {
     return *children_[nch];
   }
 
-  inline ProxyCell &parent() {
-    TAPAS_ASSERT(key_ != 0);
-    if (parent_ == nullptr) {
-      parent_ = new ProxyCell(SFC::Parent(key_), data_);
-    }
-
-    return *parent_;
-  }
-    
   inline size_t nsubcells() const {
     Split();
     return IsLeaf_real() ? 0 : (1 << TSP::Dim);
