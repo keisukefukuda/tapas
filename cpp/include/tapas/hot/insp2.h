@@ -39,9 +39,9 @@ class Insp2 {
   using GCell = GhostCell<Region<Dim,FP>>;
   //using GCell = GhostCell<Region<Dim,FP>, Mapper>;
 
-  using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP>;
-  using ProxyMapper = tapas::hot::proxy::ProxyMapper<TSP>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy>;
+  using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
+  using ProxyMapper = tapas::hot::proxy::ProxyMapper<ProxyCell>;
 
   /**
    * \brief Do inspection between a target (local) root a source (remote) root
@@ -55,16 +55,16 @@ class Insp2 {
     int src_depth = SFC::GetDepth(src_key);
     int trg_depth = SFC::GetDepth(trg_key);
 
-    std::cout << "*** DoInspect() : trg_key = " << trg_key << "(" << trg_depth << "), "
-              << "src_key = " << src_key << "(" << src_depth << "), "
-              << "max_depth = " << max_depth
-              << std::endl;
+    // std::cout << "*** DoInspect() : trg_key = " << trg_key << "(" << trg_depth << "), "
+    //           << "src_key = " << src_key << "(" << src_depth << "), "
+    //           << "max_depth = " << max_depth
+    //           << std::endl;
 
     Reg src_reg = SFC::CalcRegion(src_key, data.region_);
     Reg trg_reg = SFC::CalcRegion(trg_key, data.region_);
 
-    std::cout << "Root width = " << data.region_.width() << std::endl;
-
+    // std::cout << "Root width = " << data.region_.width() << std::endl;
+    
     for (int sd = src_depth; sd <= max_depth; sd++) {
       for (int td = trg_depth; td <= max_depth; td++) {
         auto sw = data.region_.width(); // n-dim dimension width of the source ghost cell
@@ -100,8 +100,8 @@ class Insp2 {
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
 
-    std::cout << tapas::mpi::Rank() << " Insp2::Inspect" << std::endl;
-
+    // std::cout << tapas::mpi::Rank() << " Insp2::Inspect" << std::endl;
+    
     for (KeyType src_key : data.gleaves_) {
       for (KeyType trg_key : data.lroots_) {
         if (src_key != trg_key) {

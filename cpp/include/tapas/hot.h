@@ -1612,9 +1612,9 @@ struct Tapas {
   using CellAttr = typename Cell::CellAttr;
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP>;
-  using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
-  using ProxyBodyIterator = tapas::hot::proxy::ProxyBodyIterator<TSP>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy>;
+  using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
+  using ProxyBodyIterator = tapas::hot::proxy::ProxyBodyIterator<ProxyCell>;
   using Data = typename Cell::Data;
 
   /**

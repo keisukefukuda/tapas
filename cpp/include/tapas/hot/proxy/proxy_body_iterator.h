@@ -7,33 +7,32 @@ namespace tapas {
 namespace hot {
 namespace proxy {
 
-template<class TSP> struct ProxyCell;
-
 /**
  * \brief Iterator class for ProxyBody.
  *
  * Iterators are to be removed by design refactoring. 
  * Iterators imply "iterating for loop" but we don't want users to use for loops over Cells/Bodies.
  */
-template<class TSP>
+template<class PROXY_CELL>
 class ProxyBodyIterator {
  public:
-  using CellType = ProxyCell<TSP>;
-  using CellAttr = ProxyBodyAttr<TSP>;
+  using TSP = typename PROXY_CELL::TSP;
+  using CellType = PROXY_CELL;
+  using CellAttr = ProxyBodyAttr<PROXY_CELL>;
   using Body = typename TSP::Body;
-  using value_type = ProxyBodyIterator<TSP>;
+  using value_type = ProxyBodyIterator<PROXY_CELL>;
   //using Mapper = typename CellType::Mapper;
-  using Mapper = ProxyMapper<TSP>;
+  using Mapper = ProxyMapper<PROXY_CELL>;
 
  private:
-  ProxyCell<TSP> *c_;
+  PROXY_CELL *c_;
   index_t idx_;
   Mapper mapper_;
 
  public:
   static const constexpr int kThreadSpawnThreshold = 100;
 
-  ProxyBodyIterator(ProxyCell<TSP> *c) : c_(c), idx_(0), mapper_() { }
+  ProxyBodyIterator(PROXY_CELL *c) : c_(c), idx_(0), mapper_() { }
 
   ProxyBodyIterator &operator*() {
     return *this;
@@ -46,7 +45,7 @@ class ProxyBodyIterator {
 
   inline int index() const { return idx_; }
 
-  ProxyCell<TSP> &cell() const {
+  PROXY_CELL &cell() const {
     return *c_;
   }
 
@@ -81,14 +80,14 @@ class ProxyBodyIterator {
   /**
    * \fn ProxyBody &ProxyBodyIterator::operator++()
    */
-  const ProxyBody<TSP> &operator++() {
+  const ProxyBody<PROXY_CELL> &operator++() {
     return c_->body(++idx_);
   }
 
   /**
    * \fn ProxyBody &ProxyBodyIterator::operator++(int)
    */
-  const ProxyBody<TSP> &operator++(int) {
+  const ProxyBody<PROXY_CELL> &operator++(int) {
     return c_->body(idx_++);
   }
 
@@ -132,7 +131,7 @@ class ProxyBodyIterator {
     return reinterpret_cast<const Body*>(&(c_->body(idx_)));
   }
 
-  const ProxyBodyAttr<TSP> &attr() const {
+  const ProxyBodyAttr<PROXY_CELL> &attr() const {
     return c_->body_attr(idx_);
   }
 

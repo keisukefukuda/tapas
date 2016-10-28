@@ -8,60 +8,60 @@ namespace tapas {
 namespace hot {
 namespace proxy {
 
-template<class TSP> class ProxyBodyIterator;
+template<class PROXY_CELL> class ProxyBodyIterator;
 
 /**
  * @brief A dummy class of Mapper
  */
-template<class TSP>
+template<class PROXY_CELL>
 struct ProxyMapper {
   ProxyMapper() { }
   
   // body
   template<class Funct, class...Args>
-  inline void Map(Funct, ProxyBodyIterator<TSP> &, Args...) {
+  inline void Map(Funct, ProxyBodyIterator<PROXY_CELL> &, Args...) {
     // empty
   }
 
   // body x body
   template<class Funct, class ...Args>
-  inline void Map(Funct, ProxyBodyIterator<TSP>, ProxyBodyIterator<TSP>, Args...) {
+  inline void Map(Funct, ProxyBodyIterator<PROXY_CELL>, ProxyBodyIterator<PROXY_CELL>, Args...) {
     // empty
   }
 
   // body iter x body
   template<class Funct, class ...Args>
-  inline void Map(Funct, ProxyBodyIterator<TSP>, ProxyBody<TSP> &, Args...) {
+  inline void Map(Funct, ProxyBodyIterator<PROXY_CELL>, ProxyBody<PROXY_CELL> &, Args...) {
     // empty
   }
 
   // cell x cell
   template<class Funct, class ...Args>
-  inline void Map(Funct, ProxyCell<TSP> &, ProxyCell<TSP> &, Args...) {
+  inline void Map(Funct, PROXY_CELL &, PROXY_CELL &, Args...) {
     // empty
   }
 
   // subcell iter X cell iter
   template <class Funct, class...Args>
-  inline void Map(Funct, SubCellIterator<ProxyCell<TSP>> &, CellIterator<ProxyCell<TSP>> &, Args...) {
+  inline void Map(Funct, SubCellIterator<PROXY_CELL> &, CellIterator<PROXY_CELL> &, Args...) {
     // empty
   }
 
   // cell iter X subcell iter
   template <class Funct, class...Args>
-  inline void Map(Funct, CellIterator<ProxyCell<TSP>> &, SubCellIterator<ProxyCell<TSP>> &, Args...) {
+  inline void Map(Funct, CellIterator<PROXY_CELL> &, SubCellIterator<PROXY_CELL> &, Args...) {
     // empty
   }
 
   // subcell iter X subcell iter
   template <class Funct, class...Args>
-  inline void Map(Funct, SubCellIterator<ProxyCell<TSP>> &, SubCellIterator<ProxyCell<TSP>> &, Args...) {
+  inline void Map(Funct, SubCellIterator<PROXY_CELL> &, SubCellIterator<PROXY_CELL> &, Args...) {
     // empty
   }
 
   // subcell iter X subcell iter
   template <class Funct, class...Args>
-  inline void Map(Funct, SubCellIterator<ProxyCell<TSP>> &, Args...) {
+  inline void Map(Funct, SubCellIterator<PROXY_CELL> &, Args...) {
     // empty
   }
 

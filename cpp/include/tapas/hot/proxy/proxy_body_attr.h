@@ -5,9 +5,10 @@ namespace tapas {
 namespace hot {
 namespace proxy {
 
-template<class TSP>
-class ProxyBodyAttr : public TSP::BodyAttr {
+template<class PROXY_CELL>
+class ProxyBodyAttr : public PROXY_CELL::TSP::BodyAttr {
 
+  using TSP = typename PROXY_CELL::TSP;
   using BodyAttr = typename TSP::BodyAttr;
  public:
   ProxyBodyAttr(BodyAttr &rhs) : BodyAttr(rhs) {

@@ -2,6 +2,7 @@
 #define TAPAS_HOT_INSP1_H_
 
 #include <tapas/hot/proxy/proxy_cell.h>
+#include <tapas/hot/proxy/full_traverse_policy.h>
 
 namespace tapas {
 namespace hot {
@@ -28,7 +29,7 @@ struct Insp1 {
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy>;
 
   /**
    * Direction of Map-1 (Upward/Downward)
@@ -53,7 +54,7 @@ struct Insp1 {
   template<class UserFunct, class...Args>
   static int PredDir1(Key key, const Data &data, UserFunct f, Args...args) {
     int clock = 1;
-    ProxyCell parent(key, data, &clock);
+    ProxyCell parent(data, &clock, key);
 
     ProxyCell &child = parent.subcell(0);
 

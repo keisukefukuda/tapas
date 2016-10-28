@@ -5,16 +5,15 @@ namespace tapas {
 namespace hot {
 namespace proxy {
 
-template<class TSP> class ProxyCell;
+template<class TSP, template<class T> class POLICY> class ProxyCell;
 
 /**
  * \brief Proxy class for user-specified CellAttr.
  */
-template<class TSP>
-class ProxyAttr : public TSP::CellAttr {
-  friend ProxyCell<TSP>;
-
-  using CellAttr = typename TSP::CellAttr;
+template<class PROXY_CELL>
+class ProxyAttr : public PROXY_CELL::TSP::CellAttr {
+  friend PROXY_CELL;
+  using CellAttr = typename PROXY_CELL::TSP::CellAttr; // real cell attributes
     
  protected:
   ProxyAttr &operator=(const ProxyAttr &rhs) {
@@ -24,12 +23,12 @@ class ProxyAttr : public TSP::CellAttr {
   }
     
  public:
-  ProxyAttr(ProxyCell<TSP> *cell) : CellAttr(), cell_(cell) { }
-  ProxyAttr(ProxyCell<TSP> *cell, CellAttr &rhs) : CellAttr(rhs), cell_(cell) { }
+  ProxyAttr(PROXY_CELL *cell) : CellAttr(), cell_(cell) { }
+  ProxyAttr(PROXY_CELL *cell, CellAttr &rhs) : CellAttr(rhs), cell_(cell) { }
 
   //ProxyAttr(const ProxyAttr &) = delete;
     
-  ProxyCell<TSP> &cell() const { return *cell_; }
+  PROXY_CELL &cell() const { return *cell_; }
 
   inline void operator=(const CellAttr&) const {
     //std::cout << "ProxyAttr::operator=() is called for cell [" << cell_->key() << "]" << std::endl;
@@ -45,7 +44,7 @@ class ProxyAttr : public TSP::CellAttr {
   }
 
  private:
-  ProxyCell<TSP> *cell_;
+  PROXY_CELL *cell_;
 }; // class ProxyAttr
 
 

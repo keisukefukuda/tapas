@@ -53,7 +53,7 @@ struct ExactInsp2 {
   //using ProxyBody = tapas::hot::proxy::ProxyBody<TSP>;
   //using ProxyBodyAttr = tapas::hot::proxy::ProxyBodyAttr<TSP>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<TSP>;
 
   // Note for UserFunct template parameter:

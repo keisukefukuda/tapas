@@ -4,10 +4,10 @@
 /**
  * \brief Proxy class for user-specified Body class
  */
-template<class TSP>
-class ProxyBody : public TSP::Body {
-  using Body = typename TSP::Body;
-  using BodyAttr = typename TSP::BodyAttr;
+template<class PROXY_CELL>
+class ProxyBody : public PROXY_CELL::TSP::Body {
+  using Body = typename PROXY_CELL::TSP::Body;
+  using BodyAttr = typename PROXY_CELL::TSP::BodyAttr;
   
  public:
   ProxyBody(BodyAttr &rhs) : Body(rhs) {
