@@ -32,6 +32,6 @@ struct Vectormap_CPU;
 
 #endif /*__CUDACC__*/
 
-}
+} // namespace tapas
 
 #endif /*TAPAS_VECTORMAP_H_*/

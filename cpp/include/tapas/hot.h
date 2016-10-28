@@ -31,21 +31,27 @@
 #include <unistd.h>
 #include <mpi.h>
 
-#include "tapas/cell.h"
 #include "tapas/bitarith.h"
-#include "tapas/logging.h"
+#include "tapas/cell.h"
 #include "tapas/debug_util.h"
+#include "tapas/geometry.h"
+#include "tapas/iterator.h"
+#include "tapas/logging.h"
+#include "tapas/mpi_util.h"
 #include "tapas/sfc_morton.h"
 #include "tapas/threading/default.h"
-#include "tapas/mpi_util.h"
-#include "tapas/geometry.h"
 
-#include "tapas/hot/shared_data.h"
 #include "tapas/hot/buildtree.h"
 #include "tapas/hot/global_tree.h"
-#include "tapas/hot/report.h"
-#include "tapas/hot/mapper.h"
 #include "tapas/hot/insp1.h"
+#include "tapas/hot/mapper.h"
+#include "tapas/hot/report.h"
+#include "tapas/hot/shared_data.h"
+
+#ifdef __CUDACC__
+#else
+# include "tapas/vectormap.h"
+#endif
 
 #ifdef TAPAS_ONESIDE_LET
 # include "tapas/hot/oneside_let.h"
@@ -1589,6 +1595,7 @@ struct HOT {
   using Mapper = hot::GPUMapper<_CELL, _BODY, _INSP2, _INSP1>;
   
 #else
+  
   using Vectormap = tapas::Vectormap_CPU<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
   
   template<class T>
@@ -1733,7 +1740,7 @@ struct Tapas {
   }
 
   template <class Funct, class ...Args>
-  static inline void Map(Funct f, tapas::iterator::BodyIterator<Cell> iter, Args...args) {
+  static inline void Map(Funct f, BodyIterator iter, Args...args) {
     iter.cell().mapper().Map(f, iter, args...);
   }
 

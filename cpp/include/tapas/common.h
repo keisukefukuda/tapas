@@ -153,15 +153,15 @@ std::string demangle_function_name(const std::string& mangled) {
 #ifdef TAPAS_DEBUG
 #define TAPAS_ASSERT(c) do {                                            \
     if(!(c)) {                                                          \
-      auto bt = tapas::get_backtrace10();                               \
+      auto bt = ::tapas::get_backtrace10();                             \
       std::cerr << "Tapas: Assertion failed: '" << #c << "' == 0"       \
                 << " at " << __FILE__ << ":" << __LINE__                \
                 << std::endl;                                           \
       std::cerr << "Backtrace:" << std::endl;                           \
       for (auto &&it : bt) {                                            \
-        std::string mangled_func_name = tapas::cut_function_name_part(it); \
+        std::string mangled_func_name = ::tapas::cut_function_name_part(it); \
         std::cout << ((!mangled_func_name.empty())                      \
-                      ? tapas::demangle_function_name(mangled_func_name) \
+                      ? ::tapas::demangle_function_name(mangled_func_name) \
                       : "???")                                          \
                   << ": " << it << std::endl;                           \
                                                                         \

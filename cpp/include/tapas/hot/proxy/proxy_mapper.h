@@ -1,6 +1,8 @@
 #ifndef TAPAS_HOT_PROXY_PROXY_BODY_MAPPER_H_
 #define TAPAS_HOT_PROXY_PROXY_BODY_MAPPER_H_
 
+#include "tapas/geometry.h"
+#include "tapas/iterator.h"
 #include "tapas/hot/proxy/proxy_cell.h"
 #include "tapas/hot/proxy/proxy_body.h"
 

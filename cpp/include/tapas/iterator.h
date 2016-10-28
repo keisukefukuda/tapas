@@ -5,7 +5,6 @@
 #include "tapas/cell.h"
 
 namespace tapas {
-
 namespace iterator {
 
 /**
@@ -409,12 +408,6 @@ class ProductIterator<ITER, void> {
   }
 }; // class ProductIterator
 
-// template <class T1, class T2>
-// ProductIterator<T1, T2> Product(T1 t1, T2 t2) {
-//   return ProductIterator<T1, T2>(t1, t2);
-// }
-
-
 } // namespace iterator
 
 namespace {
@@ -457,24 +450,6 @@ ProductIterator<IterType>
 Product(IterType iter1, IterType iter2) {
   return ProductIterator<IterType>(iter1, iter2);
 }
-
-#if 0 /* to be deleted. */
-
-template <class CELL>
-ProductIterator<BodyIterator<CELL>>
-Product(BodyIterator<CELL> c1, BodyIterator<CELL> c2) {
-  return ProductIterator<BodyIterator<CELL>>(c1, c2);
-}
-
-// cell, cell
-template <class Cell>
-ProductIterator<CellIterator<Cell>, CellIterator<Cell>>
-Product(Cell &c1, Cell &c2) {
-  typedef CellIterator<Cell> CellIterType;
-  return ProductIterator<CellIterType, CellIterType>(CellIterType(c1), CellIterType(c2));
-}
-
-#endif /* to be deleted */
 
 // template <class T1, class Cell>
 // ProductIterator<T1, CellIterator<Cell>>

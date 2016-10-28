@@ -2,8 +2,10 @@
 #define TAPAS_HOT_DATA_H_
 
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include <tapas/util.h>
 
@@ -25,7 +27,7 @@ struct SharedData {
   using KeyType = typename SFC::KeyType;
   using Reg = Region<Dim, FP>;
   using CellType = Cell<TSP>;
-  using CellHashTable = typename std::unordered_map<KeyType, CellType*>;
+  using CellHashTable = std::unordered_map<KeyType, CellType*>;
   using KeySet = std::unordered_set<KeyType>;
   using CellAttr = typename TSP::CellAttr;
   using BodyType = typename TSP::Body;
