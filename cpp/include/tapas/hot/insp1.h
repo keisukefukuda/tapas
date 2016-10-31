@@ -29,7 +29,7 @@ struct Insp1 {
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
 
   /**
    * Direction of Map-1 (Upward/Downward)

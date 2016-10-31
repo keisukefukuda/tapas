@@ -3,11 +3,12 @@
 
 #include <unordered_map>
 
+
 #include <tapas/debug_util.h>
 #include <tapas/geometry.h>
-#include <tapas/hot/ghost_cell.h>
 #include <tapas/hot/let_common.h>
 #include <tapas/hot/mapper.h>
+#include <tapas/hot/proxy/oneside_traverse_policy.h>
 #include <tapas/hot/proxy/proxy_cell.h>
 #include <tapas/iterator.h>
 
@@ -31,15 +32,15 @@ class Insp2 {
   using KeySet = typename Cell<TSP>::SFC::KeySet;
   using BodyType = typename CellType::BodyType;
   using BodyAttrType = typename CellType::BodyAttrType;
-  
+
   using CellAttr = typename CellType::CellAttr;
   using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
-  using GCell = GhostCell<Region<Dim,FP>>;
-  //using GCell = GhostCell<Region<Dim,FP>, Mapper>;
+  using TravPolicy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
+  //using GCell = tapas::hot::ProxyCell<TSP, Policy>;
 
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<ProxyCell>;
 
@@ -63,8 +64,6 @@ class Insp2 {
     Reg src_reg = SFC::CalcRegion(src_key, data.region_);
     Reg trg_reg = SFC::CalcRegion(trg_key, data.region_);
 
-    // std::cout << "Root width = " << data.region_.width() << std::endl;
-    
     for (int sd = src_depth; sd <= max_depth; sd++) {
       for (int td = trg_depth; td <= max_depth; td++) {
         auto sw = data.region_.width(); // n-dim dimension width of the source ghost cell
@@ -72,8 +71,10 @@ class Insp2 {
         for (int d = 0; d < sd; d++) { sw /= 2; }
         for (int d = 0; d < td; d++) { tw /= 2; }
 
-        GCell src_gc = GCell(src_reg, sw);
-        GCell trg_gc = GCell(src_reg, sw);
+        //std::cout << "Source " << sd << "  Target " << td << std::endl;
+
+        //GCell src_gc = GCell(src_reg, sw);
+        //GCell trg_gc = GCell(src_reg, sw);
         
         //f(trg_gc, src_gc, args...);
       }

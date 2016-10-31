@@ -5,8 +5,6 @@ namespace tapas {
 namespace hot {
 namespace proxy {
 
-template<class TSP, template<class T> class POLICY> class ProxyCell;
-
 /**
  * \brief Proxy class for user-specified CellAttr.
  */

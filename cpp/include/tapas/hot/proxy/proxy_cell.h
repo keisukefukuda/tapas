@@ -20,11 +20,11 @@ template<class PROXY_CELL> struct ProxyMapper;
 /**
  * ProxyCell
  */
-template<class _TSP, template<class T> class POLICY>
-class ProxyCell : public POLICY<_TSP> {
+template<class _TSP, class _POLICY>
+class ProxyCell : public _POLICY {
   friend ProxyAttr<ProxyCell>;
 
-  using Base = POLICY<_TSP>;
+  using Base = _POLICY;
 
  public:
   using TSP = _TSP;
@@ -34,7 +34,7 @@ class ProxyCell : public POLICY<_TSP> {
   
   using CellType = Cell<TSP>;
   using CellAttr = ProxyAttr<ProxyCell>;
-  using Policy = POLICY<TSP>;
+  using Policy = _POLICY;
   
   using BodyAttrType = ProxyBodyAttr<ProxyCell>;
   using BodyType = ProxyBody<ProxyCell>;

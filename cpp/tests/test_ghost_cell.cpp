@@ -16,7 +16,6 @@
 #include <tapas/hot.h>
 #include <tapas/hot/proxy/proxy_cell.h>
 #include <tapas/hot/proxy/oneside_traverse_policy.h>
-#include <tapas/hot/ghost_cell.h>
 
 SETUP_TEST;
 
