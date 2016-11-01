@@ -45,6 +45,7 @@ bool Close(V1 a, V1 b, const char *file, int line) {
 }
 
 struct Data {
+  using CellType = int;
   int max_depth_;
 };
 

@@ -285,7 +285,7 @@ class TimeRec {
       WriteValue(ss, ts, fmt, sep, false, col_width);
       WriteValue(ss, mpi_rank, fmt, sep, false, col_width);
 
-      for (int i = 0; i < cols_.size(); i++) {
+      for (size_t i = 0; i < cols_.size(); i++) {
         auto col = cols_[i];
         double val = (row_map.find(col) == row_map.end())
                      ? 0

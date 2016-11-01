@@ -202,7 +202,6 @@ class SamplingOctree {
 
     // total weight
     const double totalw = std::accumulate(body_weights.begin(), body_weights.end(), 0);
-    const double quota = totalw / mpi_size;
 
     // Beginning key of each process.
     // This is the target value of this function to be returned to the caller.
@@ -211,6 +210,7 @@ class SamplingOctree {
     proc_weights.resize(mpi_size, 0);
 
 #if 0 // new code; suspended until the new inspector is implemented.
+    const double quota = totalw / mpi_size;
     // new code
 
     std::cout << "mpi_size = " << mpi_size << std::endl;
@@ -243,7 +243,7 @@ class SamplingOctree {
     return beg_keys;
     
 #else // ----------- old code
-
+    
     for (int L = Ls; L < SFC::MaxDepth(); L++) {
       //double t = MPI_Wtime();
       //L = SFC::MaxDepth() - 1; // debug

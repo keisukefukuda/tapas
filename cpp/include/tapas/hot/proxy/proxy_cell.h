@@ -72,8 +72,6 @@ class ProxyCell : public _POLICY {
     }
   }
 
-  ProxyCell(const ProxyCell &rhs) = delete;
-
   inline ProxyCell &cell() { return *this; }
   inline const ProxyCell &cell() const { return *this; }
 
@@ -286,7 +284,11 @@ class ProxyCell : public _POLICY {
     }
   }
 
+ public:
+  ProxyCell(const ProxyCell &rhs);
+  
  private:
+  
   const Data &data_;
 
   mutable int marked_touched_;

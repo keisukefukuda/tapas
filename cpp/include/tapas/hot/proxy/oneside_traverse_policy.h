@@ -19,6 +19,7 @@ class OnesideTraversePolicy {
   using FP = _FP;
   using VecT = Vec<Dim, FP>;
   using Reg = tapas::Region<Dim, FP>;
+  using CellType = typename Data::CellType;
   
   OnesideTraversePolicy(const Data &data, Reg region, VecT width, int depth)
       : region_(region)
@@ -60,6 +61,8 @@ class OnesideTraversePolicy {
   void Init() {
     is_leaf_ = (depth_ >= data_.max_depth_);
   }
+
+  CellType *RealCell() const { return nullptr; }
 
  public:
 
@@ -122,12 +125,6 @@ class OnesideTraversePolicy {
   inline bool IsLeaf() const {
     return is_leaf_;
   }
-
-#if 0
-  inline index_t local_nb() {
-    return 0; 
-  }
-#endif
 
   inline index_t nb() const {
     return 0;

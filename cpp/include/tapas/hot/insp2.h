@@ -38,7 +38,7 @@ class Insp2 {
   using Reg = Region<Dim, FP>;
 
   using TravPolicy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
-  //using GCell = tapas::hot::ProxyCell<TSP, Policy>;
+  using GCell = tapas::hot::proxy::ProxyCell<TSP, TravPolicy>;
 
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
@@ -49,8 +49,8 @@ class Insp2 {
    */
   template<class UserFunct, class...Args>
   static void DoInspect(Data &data, KeyType trg_key, KeyType src_key,
-                      KeySet &req_keys_attr, KeySet &req_keys_body,
-                      UserFunct f, Args...args) {
+                        KeySet &/*req_keys_attr*/, KeySet &/*req_keys_body*/,
+                        UserFunct /*f*/, Args.../*args*/) {
     const int max_depth = data.max_depth_;
 
     int src_depth = SFC::GetDepth(src_key);
@@ -71,14 +71,16 @@ class Insp2 {
         for (int d = 0; d < sd; d++) { sw /= 2; }
         for (int d = 0; d < td; d++) { tw /= 2; }
 
-        //std::cout << "Source " << sd << "  Target " << td << std::endl;
+        //std::cout << sd << "-" << td << " ";
 
-        //GCell src_gc = GCell(src_reg, sw);
-        //GCell trg_gc = GCell(src_reg, sw);
+        GCell src_gc = GCell(data, nullptr, src_reg, sw, sd);
+        GCell trg_gc = GCell(data, nullptr, src_reg, tw, td);
         
         //f(trg_gc, src_gc, args...);
+
       }
     }
+    //std::cout << std::endl;
     
     std::unordered_map<int, int> level_map; // Source level -> target level
   }
