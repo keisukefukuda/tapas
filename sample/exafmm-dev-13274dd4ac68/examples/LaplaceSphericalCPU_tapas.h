@@ -228,7 +228,7 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   CellAttr attr_j = Cj.attr();
 
   vec3 dX;
-  asn(dX, Ci.center() - Cj.center());
+  asn(dX, Ci.dX(Cj, tapas::CenterClass()));
   dX -= Xperiodic;
 
   real_t rho, alpha, beta;

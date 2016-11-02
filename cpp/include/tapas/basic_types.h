@@ -50,6 +50,10 @@ class Region {
 #endif
   }
 
+  inline bool operator==(const Region& rhs) const {
+    return min_ == rhs.min_ && max_ == rhs.max_;
+  }
+
   inline Vec<Dim, FP> &min() {
     return min_;
   }

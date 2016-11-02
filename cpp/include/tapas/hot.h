@@ -583,7 +583,20 @@ class Cell {
   const Mapper &mapper() const { return data_->mapper; }
 
   inline FP Distance(const Cell &rhs, tapas::CenterClass) const {
-    return tapas::Distance<Dim, tapas::CenterClass, FP>::Calc(*this, rhs);
+    return dX(rhs, tapas::CenterClass()).norm();
+  }
+
+  inline Vec dX(const Cell &rhs, tapas::CenterClass) const {
+    return center() - rhs.center();
+  }
+
+  inline FP Distance(const Body &b, tapas::CenterClass) const {
+    return dX(b, tapas::CenterClass()).norm();
+  }
+
+  inline Vec dX(const Body &b, tapas::CenterClass) const {
+    Vec body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    return center() - body_pos;
   }
 
   //inline FP Distance(Cell &rhs, tapas::Edge) {
@@ -1617,12 +1630,14 @@ struct Tapas {
   using Region = tapas::Region<Dim, FP>;
   using Cell = hot::Cell<TSP>;
   using CellAttr = typename Cell::CellAttr;
+  using Data = typename Cell::Data;
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
+  using ProxyCell2 = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
   using ProxyBodyIterator = tapas::hot::proxy::ProxyBodyIterator<ProxyCell>;
-  using Data = typename Cell::Data;
+  using ProxyBodyIterator2 = tapas::hot::proxy::ProxyBodyIterator<ProxyCell2>;
 
   /**
    * @brief Partition and build an octree of the target space.
@@ -1746,6 +1761,11 @@ struct Tapas {
 
   template <class Funct, class ...Args>
   static inline void Map(Funct f, ProxyBodyIterator iter, Args...args) {
+    iter.cell().mapper().Map(f, iter, args...);
+  }
+
+  template <class Funct, class ...Args>
+  static inline void Map(Funct f, ProxyBodyIterator2 iter, Args...args) {
     iter.cell().mapper().Map(f, iter, args...);
   }
 

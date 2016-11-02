@@ -57,6 +57,14 @@ class Vec {
     return sum;
   }
 
+  bool operator==(const Vec& rhs) const {
+    bool b = true;
+    for (int i = 0; i < Dim; i++) {
+      b = b && (x_[i] == rhs.x_[i]);
+    }
+    return b;
+  }
+
   FP &operator[](int i) {
     return x_[i];
   }

@@ -18,7 +18,27 @@ namespace proxy {
 template<class PROXY_CELL> struct ProxyMapper;
 
 /**
- * ProxyCell
+ * \brief ProxyCell
+ * \tparam _TSP Tapas static params
+ * \tparam _POLICY Abstraction of the coordination/distance system of the cell (see below)
+ *
+ * ProxyCell class provides features for inspectors. ProxyCell objects mimic ordinary 
+ * Cell objects but behaves differently.
+ * First, recursive Map() calls to its children or bodies are not actually recursive.
+ * Instead, Map() calls are hooked and recorded to determine if the cell is split or not
+ * (i.e. the two cells are 'far' or 'near').
+ * Also, writes/updates to cell attributes are inactivated by overloading operator=().
+ * 
+ * About the Policy class
+ * In Tapas and especially its LET construction system, distances between cells are abstracted.
+ *
+ * For example, the OneSideTraversePolicy used in one-side LET inspector has only a region, width, 
+ * and level of the pseudo cell but no concrete coordinate of a cell. 
+ * A distance between such pseudo cells are the shortest distance between the two regions.
+ * 
+ * Some functions including dX() and Distance() are delegated to the policy class.
+ * dX() and Distance() are always provided , but some other functions such as center() are optional.
+ * 
  */
 template<class _TSP, class _POLICY>
 class ProxyCell : public _POLICY {
@@ -115,23 +135,35 @@ class ProxyCell : public _POLICY {
     }
   }
 
-  /**
-   * \fn Vec ProxyCell::center()
-   */
-  inline Vec center() const {
-    Touched();
-    return this->Base::center();
-  }
-
   inline int depth() const {
     return this->Base::depth();
   }
 
   /**
-   * \brief Distance Function
+   * \brief Cell-cell Distance Function
    */
   inline FP Distance(const ProxyCell &rhs, tapas::CenterClass) const {
     return this->Base::Distance((Base&)rhs, tapas::CenterClass());
+  }
+
+  /**
+   * \brief Cell-cell Distance Function
+   */
+  inline Vec dX(const ProxyCell &rhs, tapas::CenterClass) const {
+    return this->Base::dX((Base&)rhs, tapas::CenterClass());
+  }
+
+  /**
+   * \brief Cell-body Distance Function
+   */
+  inline FP Distance(const BodyType &b, tapas::CenterClass) const {
+    Vec body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    return this->Base::Distance(body_pos, tapas::CenterClass());
+  }
+
+  inline Vec dX(const BodyType &b, tapas::CenterClass) const {
+    Vec body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    return this->Base::dX(body_pos, tapas::CenterClass()).norm();
   }
 
   /**
@@ -285,7 +317,7 @@ class ProxyCell : public _POLICY {
   }
 
  public:
-  ProxyCell(const ProxyCell &rhs);
+  //ProxyCell(const ProxyCell &rhs);
   
  private:
   

@@ -43,6 +43,7 @@ class FullTraversePolicy {
       , is_local_(false)
       , real_cell_(nullptr)
   {
+    (void)data;
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
   }
@@ -84,16 +85,20 @@ class FullTraversePolicy {
     CellType::CalcRegion(key_, data_.region_);
   }
 
-  inline Vec center() const {
-    return Cell<TSP>::CalcCenter(key_, data_.region_);
-  }
-
-  inline int depth() const {
-    return SFC::GetDepth(key_);
-  }
-
   inline FP Distance(const FullTraversePolicy& rhs, tapas::CenterClass) const {
-    return (center() - rhs.center()).norm();
+    return dX(rhs, tapas::CenterClass()).norm();
+  }
+
+  inline Vec dX(const FullTraversePolicy& rhs, tapas::CenterClass) const {
+    return center() - rhs.center();
+  }
+
+  inline FP Distance(const Vec& body_pos, tapas::CenterClass) const {
+    return dX(body_pos, tapas::CenterClass()).norm();
+  }
+
+  inline Vec dX(const Vec& body_pos, tapas::CenterClass) const {
+    return center() - body_pos;
   }
 
   inline FP width(int d) const {
@@ -127,6 +132,14 @@ class FullTraversePolicy {
   }
 
   KeyType key() const { return key_; } // being public for debugging purpose
+
+  inline Vec center() const {
+    return Cell<TSP>::CalcCenter(key_, data_.region_);
+  }
+
+  inline int depth() const {
+    return SFC::GetDepth(key_);
+  }
 
  protected:
   KeyType key_;

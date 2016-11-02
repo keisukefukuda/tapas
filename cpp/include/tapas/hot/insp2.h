@@ -50,7 +50,7 @@ class Insp2 {
   template<class UserFunct, class...Args>
   static void DoInspect(Data &data, KeyType trg_key, KeyType src_key,
                         KeySet &/*req_keys_attr*/, KeySet &/*req_keys_body*/,
-                        UserFunct /*f*/, Args.../*args*/) {
+                        UserFunct f, Args...args) {
     const int max_depth = data.max_depth_;
 
     int src_depth = SFC::GetDepth(src_key);
@@ -73,11 +73,34 @@ class Insp2 {
 
         //std::cout << sd << "-" << td << " ";
 
-        GCell src_gc = GCell(data, nullptr, src_reg, sw, sd);
-        GCell trg_gc = GCell(data, nullptr, src_reg, tw, td);
-        
-        //f(trg_gc, src_gc, args...);
+#if 0
+        for (int d = 0; d < Dim; d++) {
+          double df = sw[d] - src_reg.width(d);
+          df = df * df;
+          if (df > 1e-15) {
+            std::cerr << "Source Error" << std::endl;
+            std::cerr << "\tdim = " << d << std::endl;
+            std::cerr << "\tr = [" << src_reg.max(d) << " , " << src_reg.min(d) << "]"
+                      << " = " << src_reg.width(d) << std::endl;
+            std::cerr << "\tw = " << sw << std::endl;
+          }
+          
+          df = tw[d] - trg_reg.width(d);
+          df = df * df;
+          if (df > 1e-15) {
+            std::cerr << "Target Error" << std::endl;
+            std::cerr << "\tdim = " << d << std::endl;
+            std::cerr << "\tr = [" << trg_reg.max(d) << " , " << trg_reg.min(d) << "]"
+                      << " = " << trg_reg.width(d) << std::endl;
+            std::cerr << "\tw = " << tw << std::endl;
+          }
+        }
+#endif
 
+        GCell src_gc = GCell(data, nullptr, src_reg, sw, sd);
+        GCell trg_gc = GCell(data, nullptr, trg_reg, tw, td);
+
+        f(trg_gc, src_gc, args...);
       }
     }
     //std::cout << std::endl;

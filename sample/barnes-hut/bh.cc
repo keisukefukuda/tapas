@@ -211,8 +211,8 @@ struct interact {
       assert(c1.nb() == 1);
     
       // use apploximation
-      const float4 &p1 = c1.body(0);
-      real_t d = std::sqrt(distR2(c2.center(), p1));
+      //const float4 &p1 = c1.body(0);
+      real_t d = std::sqrt(c2.Distance(c1.body(0), tapas::Center)); //std::sqrt(distR2(c2.center(), p1));
       //real_t d = std::sqrt(distR2(c2.attr(), p1));
       real_t s = c2.width(0);
     

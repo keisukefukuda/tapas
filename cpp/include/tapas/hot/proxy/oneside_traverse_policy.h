@@ -25,8 +25,8 @@ class OnesideTraversePolicy {
       : region_(region)
       , width_(width)
       , data_(data)
-      , depth_(depth)
       , is_leaf_(false)
+      , depth_(depth)
   {
     Init();
   }
@@ -53,19 +53,43 @@ class OnesideTraversePolicy {
     Init();
   }
 
+  OnesideTraversePolicy Child(int) const {
+    return OnesideTraversePolicy(data_, region_, width_/2, depth_+1);
+  }
+
   bool operator==(const OnesideTraversePolicy& rhs) {
-    return (&data_ == &rhs.data_) && (width_ == rhs.width_) && (region_ == rhs.region_);
+    return (&data_  == &rhs.data_)
+        && (width_  == rhs.width_)
+        && (region_ == rhs.region_)
+        && (depth_  == rhs.depth_);
   }
 
  protected:
   void Init() {
     is_leaf_ = (depth_ >= data_.max_depth_);
+
+#ifdef TAPAS_DEBUG
+    for (int d = 0; d < Dim; d++) {
+      if (width_[d] > region_.width(d)) {
+        double diff = width_[d] - region_.width(d);
+        diff = diff * diff;
+        if (diff > 1e-15) {
+          std::cerr << "Dim = " << d << std::endl;
+          std::cerr << "\twidth = " << width_[d] << std::endl;
+          std::cerr << "\tregion = [" << region_.max()[d] << ", " << region_.min()[d] << "]"
+                    << " = " << (region_.max()[d] - region_.min()[d])
+                    << std::endl;
+          std::cerr << "\tdiff = " << std::scientific << diff << std::endl;
+        }
+        TAPAS_ASSERT(diff < 1e-15);
+      }
+    }
+#endif
   }
 
   CellType *RealCell() const { return nullptr; }
 
  public:
-
   // inline Reg region() const {
     
   // }
@@ -78,9 +102,9 @@ class OnesideTraversePolicy {
     return depth_;
   }
 
-  inline FP Distance(const OnesideTraversePolicy& rhs, tapas::CenterClass) const {
+  inline VecT dX(const OnesideTraversePolicy &rhs, tapas::CenterClass) const {
     const Reg &r1 = region_, &r2 = rhs.region_;
-    VecT dist = {0.0};
+    VecT dX = {0.0};
     
     for (int dim = 0; dim < Dim; dim++) {
       // range of movement of the center points.
@@ -93,7 +117,22 @@ class OnesideTraversePolicy {
       // std::cout << "Dim " << dim << " b = " << b << std::endl;
       // std::cout << "Dim " << dim << " c = " << c << std::endl;
       // std::cout << "Dim " << dim << " d = " << d << std::endl;
-      
+
+      if (a < b && ((double)a-b)*(a-b) < 1e-12) {
+        a = b;
+      }
+      if (c < d && ((double)c-d)*(c-d) < 1e-12) {
+        c = d;
+      }
+
+      if (a < b) {
+        std::cerr << "dim = " << dim << std::endl;
+        std::cerr << "r1 = [" << r1.max()[dim] << " , " << r2.min()[dim] << "]" << std::endl;
+        std::cerr << "w1 = " << w1 << std::endl;
+        std::cerr << "a = " << a << std::endl;
+        std::cerr << "b = " << b << std::endl;
+      }
+
       TAPAS_ASSERT(a >= b);
       TAPAS_ASSERT(c >= d);
 
@@ -108,14 +147,29 @@ class OnesideTraversePolicy {
       //std::cout << "Dim " << dim << " overlap = " << overlp << std::endl;
 
       if (overlp) {
-        dist[dim] = 0;
+        dX[dim] = 0;
       } else {
-        dist[dim] = std::min(fabs(a-d), fabs(c-b));
+        dX[dim] = std::min(fabs(a-d), fabs(c-b));
       }
-      //std::cout << "Dim " << dim << " dist = " << dist[dim] << std::endl;
+      //std::cout << "Dim " << dim << " dX = " << dX[dim] << std::endl;
       //std::cout << std::endl;
     }
-    return dist.norm();
+
+    return dX;
+  }
+
+  inline FP Distance(const OnesideTraversePolicy& rhs, tapas::CenterClass) const {
+    return dX(rhs, tapas::CenterClass()).norm();
+  }
+
+  inline FP Distance(const VecT& body_pos, tapas::CenterClass) const {
+    return dX(body_pos, tapas::CenterClass()).norm();
+  }
+
+  inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
+    // todo
+    (void) body_pos;
+    return 0;
   }
 
   inline FP width(int d) const {
@@ -130,10 +184,6 @@ class OnesideTraversePolicy {
     return 0;
   }
 
-  OnesideTraversePolicy Child(int nth) const {
-    return OnesideTraversePolicy(data_, width_/2);
-  }
-
  public:
   inline bool IsRoot() const { // being public for debugging
     return depth_ == 0;
@@ -143,8 +193,8 @@ class OnesideTraversePolicy {
   Reg region_;
   VecT width_;
   const Data &data_;
-  int depth_;
   bool is_leaf_;
+  int depth_;
 };
 
 } // namespace proxy
