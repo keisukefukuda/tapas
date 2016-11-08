@@ -112,12 +112,8 @@ class ProxyCell : public _POLICY {
     return (const Base&)*this < (const Base&)rhs;
   }
 
-  // Check if cells are split or not in 2-parameter Map
   template<class UserFunct, class...Args>
-  static SplitType PredSplit2(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
-    ProxyCell trg_cell(data, nullptr, trg_key);
-    ProxyCell src_cell(data, nullptr, src_key);
-
+  static SplitType PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
 
     if (trg_cell.marked_split_ && src_cell.marked_split_) {
@@ -133,6 +129,15 @@ class ProxyCell : public _POLICY {
     } else {
       return SplitType::Approx;
     }
+  }
+
+  // Check if cells are split or not in 2-parameter Map
+  template<class UserFunct, class...Args>
+  static SplitType PredSplit2(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
+    ProxyCell trg_cell(data, nullptr, trg_key);
+    ProxyCell src_cell(data, nullptr, src_key);
+
+    return PredSplit2(trg_cell, src_cell, f, args...);
   }
 
   inline int depth() const {
