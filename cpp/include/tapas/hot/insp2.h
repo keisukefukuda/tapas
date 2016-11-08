@@ -82,6 +82,69 @@ class Insp2 {
     return table;
   }
 
+  static void DumpTable(const std::vector<SplitType> &table, int nrow, int ncol) {
+    // debug dump
+    std::cout << " ";
+    for (int i = 0; i < ncol; i++) {
+      std::cout << i;
+    }
+    std::cout << std::endl;
+    
+    for (int i = 0; i < nrow; i++) {
+      std::cout << i;
+      for (int j = 0; j < ncol; j++) {
+        SplitType split = table[i * ncol + j];
+        switch(split) {
+          case SplitType::SplitBoth:
+            std::cout << "\\";
+            break;
+          case SplitType::SplitLeft:
+            std::cout << "|";
+            break;
+          case SplitType::SplitRight:
+            std::cout << "-";
+            break;
+          case SplitType::Approx:
+          case SplitType::Body:
+            std::cout << "*";
+            break;
+          default:
+            std::cout << "?";
+            break;
+        }
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+  /**
+   * \brief Traverse the soruce tree and collect 
+   */
+  template<class UserFunct, class...Args>
+  static void TraverseSource(Data &data, std::vector<SplitType> &table,
+                             KeySet &req_keys_attr, KeySet &req_keys_body,
+                             KeyType trg_root_key, // key of the root of the target local tree
+                             KeyType src_root_key, // key of the root of the source local tree
+                             KeyType src_key,
+                             UserFunct f, Args...args) {
+    int src_root_depth = SFC::GetDepth(src_root_key);
+    int trg_root_depth = SFC::GetDepth(trg_root_key);
+    int src_depth = SFC::GetDepth(src_key);
+    int ncol = data.max_depth_ - src_root_depth + 1;
+    int nrow = data.max_depth_ - trg_root_depth + 1;
+
+    std::cout << "----------------------------------" << std::endl;
+    std::cout << "trg root = " << SFC::Decode(trg_root_key) << std::endl;
+    std::cout << "src root = " << SFC::Decode(src_root_key) << std::endl;
+    std::cout << "src key  = " << SFC::Decode(src_key) << std::endl;
+    std::cout << "nrow = " << nrow << ", ncol = " << ncol << std::endl;
+    
+    DumpTable(table, nrow, ncol);
+
+    return;
+  }
+
   /**
    * \brief Inspector for Map-2. Traverse hypothetical global tree and 
    *        construct a cell list to be exchanged between processes.
@@ -116,36 +179,9 @@ class Insp2 {
 
               TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow));
 
+              TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
 #if 0
-              // debug dump
-              std::cout << std::endl;
-              std::cout << "src = [" << src_depth << ", " << max_depth << "]" << std::endl;
-              std::cout << "trg = [" << trg_depth << ", " << max_depth << "]" << std::endl;
-              for (int i = 0; i < nrow; i++) {
-                for (int j = 0; j < ncol; j++) {
-                  SplitType split = table[i * ncol + j];
-                  switch(split) {
-                    case SplitType::SplitBoth:
-                      std::cout << "＼";
-                      break;
-                    case SplitType::SplitLeft:
-                      std::cout << "↓";
-                      break;
-                    case SplitType::SplitRight:
-                      std::cout << "→";
-                      break;
-                    case SplitType::Approx:
-                    case SplitType::Body:
-                      std::cout << "・";
-                      break;
-                    default:
-                      std::cout << "？";
-                      break;
-                  }
-                }
-                std::cout << std::endl;
-              }
-              std::cout << std::endl;
+              DumpTable(table, nrow, ncol);
 #endif
             }
           }
