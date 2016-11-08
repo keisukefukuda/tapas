@@ -44,6 +44,15 @@ class Insp2 {
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<ProxyCell>;
 
+  /**
+   * \brief Do inspection between a single pair of target (local) root and source (remote) root
+   *
+   * \param data Data
+   * \param src_key Key of a local rootof the source (remote) process
+   * \param trg_key Key of a local root of the target (local) process
+   * \param f The user function
+   * \param args Arguments to the user function
+   */
   template<class UserFunct, class...Args>
   static std::vector<SplitType> BuildTable(Data &data, KeyType src_key, KeyType trg_key, UserFunct f, Args...args) {
     const int max_depth = data.max_depth_;
@@ -74,65 +83,6 @@ class Insp2 {
   }
 
   /**
-   * \brief Do inspection between a pair of target (local) root and source (remote) root
-   *
-   * \param data Data
-   * \param trg_key Key of a local root of the target (local) process
-   * \param src_key Key of a local rootof the source (remote) process
-   * \param req_keys_attr A set of keys of which attributes are to be requested to remote processes
-   * \param req_keys_body A set of keys of which bodies are to be requested to remote processes
-   */
-  template<class UserFunct, class...Args>
-  static void DoInspect(Data &data, KeyType trg_key, KeyType src_key,
-                        KeySet &/*req_keys_attr*/, KeySet &/*req_keys_body*/,
-                        UserFunct f, Args...args) {
-    const int max_depth = data.max_depth_;
-    const int src_depth = SFC::GetDepth(src_key);
-    const int trg_depth = SFC::GetDepth(trg_key);
-
-    int ncol = max_depth - src_depth + 1;
-    int nrow = max_depth - trg_depth + 1;
-    
-    std::vector<SplitType> table = BuildTable(data, src_key, trg_key, f, args...);
-
-    TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow));
-
-#if 0
-    // debug dump
-    std::cout << std::endl;
-    std::cout << "src = [" << src_depth << ", " << max_depth << "]" << std::endl;
-    std::cout << "trg = [" << trg_depth << ", " << max_depth << "]" << std::endl;
-    for (int i = 0; i < nrow; i++) {
-      for (int j = 0; j < ncol; j++) {
-        SplitType split = table[i * ncol + j];
-        switch(split) {
-          case SplitType::SplitBoth:
-            std::cout << "＼";
-            break;
-          case SplitType::SplitLeft:
-            std::cout << "↓";
-            break;
-          case SplitType::SplitRight:
-            std::cout << "→";
-            break;
-          case SplitType::Approx:
-          case SplitType::Body:
-            std::cout << "・";
-            break;
-          default:
-            std::cout << "？";
-            break;
-        }
-      }
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
-#endif
-
-    // ここから、Source側Traversalを行う
-  }
-
-  /**
    * \brief Inspector for Map-2. Traverse hypothetical global tree and 
    *        construct a cell list to be exchanged between processes.
    */
@@ -150,16 +100,56 @@ class Insp2 {
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
 
-    // std::cout << tapas::mpi::Rank() << " Insp2::Inspect" << std::endl;
-
     tapas::debug::BarrierExec([&](int,int) {
-    for (KeyType src_key : data.gleaves_) {
-      for (KeyType trg_key : data.lroots_) {
-        if (src_key != trg_key) {
-          DoInspect(data, trg_key, src_key, req_keys_attr, req_keys_body, f, args...);
+        // Repeat over all pairs target and source local trees
+        for (KeyType src_key : data.gleaves_) {
+          for (KeyType trg_key : data.lroots_) {
+            if (src_key != trg_key) {
+              const int max_depth = data.max_depth_;
+              const int src_depth = SFC::GetDepth(src_key);
+              const int trg_depth = SFC::GetDepth(trg_key);
+
+              int ncol = max_depth - src_depth + 1;
+              int nrow = max_depth - trg_depth + 1;
+    
+              std::vector<SplitType> table = BuildTable(data, src_key, trg_key, f, args...);
+
+              TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow));
+
+#if 0
+              // debug dump
+              std::cout << std::endl;
+              std::cout << "src = [" << src_depth << ", " << max_depth << "]" << std::endl;
+              std::cout << "trg = [" << trg_depth << ", " << max_depth << "]" << std::endl;
+              for (int i = 0; i < nrow; i++) {
+                for (int j = 0; j < ncol; j++) {
+                  SplitType split = table[i * ncol + j];
+                  switch(split) {
+                    case SplitType::SplitBoth:
+                      std::cout << "＼";
+                      break;
+                    case SplitType::SplitLeft:
+                      std::cout << "↓";
+                      break;
+                    case SplitType::SplitRight:
+                      std::cout << "→";
+                      break;
+                    case SplitType::Approx:
+                    case SplitType::Body:
+                      std::cout << "・";
+                      break;
+                    default:
+                      std::cout << "？";
+                      break;
+                  }
+                }
+                std::cout << std::endl;
+              }
+              std::cout << std::endl;
+#endif
+            }
+          }
         }
-      }
-    }
       });
 
     // construct v_map, a map from source level to the most conservative target level
