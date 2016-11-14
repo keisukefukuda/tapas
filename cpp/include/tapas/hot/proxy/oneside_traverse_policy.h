@@ -178,6 +178,10 @@ class OnesideTraversePolicy {
     return width_[d];
   }
 
+  inline VecT width() const {
+    return width_;
+  }
+
   inline bool IsLeaf() const {
     return is_leaf_;
   }

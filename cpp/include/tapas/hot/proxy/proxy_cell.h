@@ -180,6 +180,14 @@ class ProxyCell : public _POLICY {
   }
 
   /**
+   * \fn FP ProxyCell::width() const
+   */
+  inline Vec width() const {
+    Touched();
+    return this->Base::width();
+  }
+
+  /**
    * \fn bool ProxyCell::IsLeaf() const
    */
   inline bool IsLeaf() const {

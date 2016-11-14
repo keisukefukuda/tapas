@@ -206,12 +206,18 @@ struct FMM_DTT {
   inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
     if (!Cell::Inspector
         && tapas::mpi::Rank() == 0
-        && Ci.key() == 36028797018963971
-        && Cj.key() == 2305843009213693954
+        && Ci.key() == 1630303065108119555
+        && Cj.key() == 3650167497983787012
         ) {
-      std::cout << "FMM_DTT: " << Ci.key() << " - " << Cj.key() << std::endl;
-      std::cout << "Ci : " << Cell::SFC::Decode(Ci.key()) << std::endl;
-      std::cout << "Cj : " << Cell::SFC::Decode(Cj.key()) << std::endl;
+      std::cout << "FMM_DTT: "
+                << Ci.key() << "<" << Cell::SFC::GetDepth(Ci.key()) << ">" << " - "
+                << Cj.key() << "<" << Cell::SFC::GetDepth(Cj.key()) << ">"
+                << std::endl;
+      std::cout << "Ci : " << Cell::SFC::Decode(Ci.key()) << " " << Ci.key() << (Ci.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
+      std::cout << "Cj : " << Cell::SFC::Decode(Cj.key()) << " " << Cj.key() << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
+      std::cout << "Ci.R = " << Ci.width() << std::endl;
+      std::cout << "Cj.R = " << Cj.width() << std::endl;
+      std::cout << "Distance2 : " << Ci.Distance(Cj, tapas::Center) << std::endl;
     }
     //real_t R2 = (Ci.center() - Cj.center()).norm();
     real_t R2 = Ci.Distance(Cj, tapas::Center);

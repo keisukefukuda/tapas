@@ -39,6 +39,7 @@ struct SharedData {
 
   CellHashTable ht_;
   CellHashTable ht_let_;
+  std::unordered_map<KeyType, int> min_leaf_level_; // minimum level of leaf under a certain local root
 
   CellHashTable ht_gtree_; // Hsah table of the global tree.
   KeySet        gleaves_;  // set of global leaves, which are a part of ht_gtree_.keys and ht_.keys
@@ -68,7 +69,7 @@ struct SharedData {
 
   std::vector<KeyType> leaf_keys_; //!< SFC keys of (all) leaves
   std::vector<index_t> leaf_nb_;   //!< Number of bodies in each leaf cell
-  std::vector<int>     leaf_owners_; //!< Owner process of leaf[i]
+  std::vector<int>     leaf_owners_; //!< Owner process of leaf[i] (to be deleted)
 
   std::vector<BodyType> local_bodies_; //!< Bodies that belong to the local process
   std::vector<BodyType> let_bodies_; //!< Bodies sent from remote processes

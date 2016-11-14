@@ -105,6 +105,10 @@ class FullTraversePolicy {
     return Cell<TSP>::CalcRegion(key_, data_.region_).width(d);
   }
 
+  inline Vec width() const {
+    return Cell<TSP>::CalcRegion(key_, data_.region_).width();
+  }
+
   inline bool IsLeaf() const {
     if (is_local_) return real_cell_->IsLeaf();
     else           return data_.max_depth_ <= SFC::GetDepth(key_);

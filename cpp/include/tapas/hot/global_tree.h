@@ -55,6 +55,13 @@ class GlobalTree {
 
     FindLocalRoots(0, ltree, lroots);
 
+    // construct minimum depth map for each local roots
+    // (used in one-side LET inspector)
+    for (KeyType lr : lroots) {
+      FindMinLeafLevel(lr, lr, data.ht_, data.min_leaf_level_);
+      std::cout << "min leaf level: " << SFC::Decode(lr) << " : " << data.min_leaf_level_[lr] << std::endl;
+    }
+
     // Exchange global leaves using Allgatherv
     ExchangeGlobalLeafKeys(lroots, gleaves);
 
@@ -89,6 +96,21 @@ class GlobalTree {
     return b && c != nullptr && c->IsLocalSubtree();
   }
 
+  static void FindMinLeafLevel(KeyType local_root, KeyType key,
+                               const std::unordered_map<KeyType, CellType*>& ht,
+                               std::unordered_map<KeyType, int>& min_leaf_level) {
+    if (ht.count(key) > 0) {
+      if (ht.at(key)->IsLeaf()) {
+        int cur_min_dep = min_leaf_level.count(local_root) > 0 ? min_leaf_level[local_root] : 99999;
+        min_leaf_level[local_root] = std::min(cur_min_dep, SFC::GetDepth(key));
+      } else {
+        for (KeyType ch : SFC::GetChildren(key)) {
+          FindMinLeafLevel(local_root, ch, ht, min_leaf_level);
+        }
+      }
+    }
+  }
+  
   static void FindLocalRoots(KeyType key, const HashTable &ht, KeySet &lroots) {
     TAPAS_ASSERT(ht.count(key) == 1);
 

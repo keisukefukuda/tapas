@@ -135,7 +135,8 @@ class Insp2 {
     int ncols = data.max_depth_ - src_root_depth + 1;
     int nrows = data.max_depth_ - trg_root_depth + 1;
 
-    bool debug = trg_root_key == SFC::Parent(SFC::Parent(36028797018963971)) && src_key == 2305843009213693954;
+    bool debug = (trg_root_key == SFC::Parent(SFC::Parent(1630303065108119555)))
+                 && (src_key == 3650167497983787012);
     if (debug) {
       std::cout << "In TraverseSource trg_root_key=" << SFC::Decode(trg_root_key) << " = " << trg_root_key << std::endl;
       std::cout << "In TraverseSource src_root_key=" << SFC::Decode(src_root_key) << " = " << src_root_key << std::endl;
@@ -184,6 +185,9 @@ class Insp2 {
 
         if (debug) {
           std::cout << "Real check: trg_depth=" << trg_depth << ", src_depth=" << src_depth << ", result=" << split << std::endl;
+          std::cout << "Ci.R = " << trg_gc.width() << std::endl;
+          std::cout << "Cj.R = " << src_gc.width() << std::endl;
+          std::cout << "Distance2 : " << trg_gc.Distance(src_gc, tapas::Center) << std::endl;
         }
         
         if (split == SplitType::SplitRight || split == SplitType::SplitBoth) {
@@ -237,9 +241,9 @@ class Insp2 {
     // Repeat over all pairs target and source local trees
     for (KeyType src_key : data.gleaves_) {
       if (data.ht_.count(src_key) == 0) {
-        if (src_key == 2305843009213693953) {
+        if (src_key == 3458764513820540929) {
           std::cout << "==========" << std::endl;
-          std::cout << "In rank " << tapas::mpi::Rank() << " : Looking at " << 2305843009213693953 << "'s subtree." << std::endl;
+          std::cout << "In rank " << tapas::mpi::Rank() << " : Looking at " << 3458764513820540929 << "'s subtree." << std::endl;
         }
         for (KeyType trg_key : data.lroots_) {
           if (src_key != trg_key) {
@@ -253,7 +257,7 @@ class Insp2 {
             std::vector<SplitType> table = BuildTable(data, src_key, trg_key, f, args...);
 
 #if 1
-            if (src_key == 2305843009213693953 && trg_key == SFC::Parent(SFC::Parent(36028797018963971))) {
+            if (src_key == 3458764513820540929 && trg_key == SFC::Parent(SFC::Parent(1630303065108119555))) {
               DumpTable(table, nrow, ncol);
             }
 #endif
@@ -262,7 +266,7 @@ class Insp2 {
 
             // If table[0] is "approximate", We don't need to traverse the source local tree.
             // (NOTE: all local roots are leaves of the global tree, thus all local roots are shared
-            // among all processes)
+            // among all processes, no need to transfer)
             if (table[0] == SplitType::Approx) {
               continue;
             }
@@ -270,7 +274,7 @@ class Insp2 {
             TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
           }
         }
-        if (src_key == 2305843009213693953) {
+        if (src_key == 3458764513820540929) {
           std::cout << "==========" << std::endl;
         }
       }
