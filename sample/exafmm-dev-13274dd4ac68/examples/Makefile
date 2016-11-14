@@ -14,12 +14,12 @@ LFLAGS	+= -DDIRECT # Compare with direct summation
 MODE ?= release
 ifeq ($(MODE),debug)
 	OPT = -O0
-	DEBUG = -DTAPAS_DEBUG=1 -g -gdwarf-2
+	DEBUG = -DTAPAS_DEBUG=1 -g -fno-inline -O0
 	LOG = -DTAPAS_LOG_LEVEL=1
 	LFLAGS += -DASSERT # Turns on asserttions (otherwise define an empty macro function)
 else ifeq ($(MODE),debug2)
 	OPT = -O0
-	DEBUG = -DTAPAS_DEBUG=1 -DTAPAS_DEBUG_DUMP -g -gdwarf-2
+	DEBUG = -DTAPAS_DEBUG=1 -DTAPAS_DEBUG_DUMP -g
 	LOG = -DTAPAS_LOG_LEVEL=1
 	LFLAGS += -DASSERT # Turns on asserttions (otherwise define an empty macro function)
 else
@@ -65,13 +65,13 @@ tapas: parallel_tapas parallel_tapas_mutual
 
 # NOTE: Single node HOT code is no longer maintained.
 serial_tapas: .ALWAYS $(OBJECTS) #tapas_exafmm.cxx $(OBJECTS)
-	$(CXX) $(DEBUG) $(LOG) tapas_exafmm.cxx $(OBJECTS) $(LFLAGS) -o $@
+	$(CXX) $(DEBUG) $(OPT) $(LOG) tapas_exafmm.cxx $(OBJECTS) $(LFLAGS) -o $@
 
 parallel_tapas: tapas_exafmm.cxx
-	$(MPICXX) $(DEBUG) $(LOG) -DUSE_MPI tapas_exafmm.cxx $(LFLAGS) -o $@
+	$(MPICXX) $(DEBUG) $(OPT) $(LOG) -DUSE_MPI tapas_exafmm.cxx $(LFLAGS) -o $@
 
 parallel_tapas_mutual: tapas_exafmm.cxx
-	$(MPICXX) $(DEBUG) $(LOG) -DUSE_MPI -DFMM_MUTUAL tapas_exafmm.cxx $(LFLAGS) -o $@
+	$(MPICXX) $(DEBUG) $(OPT) $(LOG) -DUSE_MPI -DFMM_MUTUAL tapas_exafmm.cxx $(LFLAGS) -o $@
 
 # Checking O(N) complexity
 complexity: serial.o $(OBJECTS)

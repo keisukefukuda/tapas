@@ -546,7 +546,7 @@ struct ExactInsp2 {
     for (size_t i = 0; i < res_cell_attr_keys.size(); i++) {
       KeyType k = res_cell_attr_keys[i];
       TAPAS_ASSERT(data->ht_.count(k) == 0); // Received cell must not exit in local hash.
-
+      
       Cell<TSP> *c = nullptr;
 
       if (data->ht_gtree_.count(k) > 0) {
@@ -610,18 +610,33 @@ struct ExactInsp2 {
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
-
     tapas::debug::BarrierExec([&](int, int) {
         {
-          // Call insp2::Inspect
+          // Call exact inspector ::Inspect
+          Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+
+          // Call one-side insp2::Inspect
           KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
           KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
-          
+
+          std::cout << "Using Oneside Inspector" << std::endl;
           Insp2<TSP>::Inspect(root, req_cell_attr_keys2, req_leaf_keys2, f, args...);
+
+#if 0
+          std::cout << "req_cell_attr_keys.size() = " << req_cell_attr_keys.size() << std::endl;
+          std::cout << "req_cell_leaf_keys.size() = " << req_leaf_keys.size() << std::endl;
+          std::cout << "req_cell_attr_keys2.size() = " << req_cell_attr_keys2.size() << std::endl;
+          std::cout << "req_cell_leaf_keys2.size() = " << req_leaf_keys2.size() << std::endl;
+#endif
+
+          req_cell_attr_keys.clear();
+          req_leaf_keys.clear();
+          req_cell_attr_keys = req_cell_attr_keys2;
+          req_leaf_keys = req_leaf_keys2;
         }
       });
 
+    // We need to convert the sets to vectors
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested
 

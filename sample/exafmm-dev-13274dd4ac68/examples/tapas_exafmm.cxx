@@ -204,6 +204,15 @@ struct FMM_DTT {
 
   template<class Cell>
   inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
+    if (!Cell::Inspector
+        && tapas::mpi::Rank() == 0
+        && Ci.key() == 36028797018963971
+        && Cj.key() == 2305843009213693954
+        ) {
+      std::cout << "FMM_DTT: " << Ci.key() << " - " << Cj.key() << std::endl;
+      std::cout << "Ci : " << Cell::SFC::Decode(Ci.key()) << std::endl;
+      std::cout << "Cj : " << Cell::SFC::Decode(Cj.key()) << std::endl;
+    }
     //real_t R2 = (Ci.center() - Cj.center()).norm();
     real_t R2 = Ci.Distance(Cj, tapas::Center);
     vec3 Xperiodic = 0; // dummy; periodic is not ported

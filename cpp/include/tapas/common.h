@@ -54,7 +54,6 @@
 # define TAPAS_DEBUG // default
 #endif // TAPAS_DEBUG
 
-
 // for debug
 #include <iomanip>
 #include <unistd.h>
@@ -68,6 +67,10 @@
 
 #ifdef USE_MPI
 #include <mpi.h>
+#endif
+
+#ifdef TAPAS_DEBUG
+# include "backward.hpp"
 #endif
 
 namespace {
@@ -103,9 +106,8 @@ inline void Exit(int status, const char *file, const char *func, int line) {
 #ifdef TAPAS_DEBUG
 
 // Get backtrace information as strings
-std::vector<std::string> get_backtrace10() {
-  const int trace_size = 10;
-  void* trace[trace_size];
+std::vector<std::string> get_backtrace(int trace_size=10) {
+  void** trace = new void*[trace_size];
   int size = backtrace(trace, trace_size);
 
   char** symbols = backtrace_symbols(trace, size);
@@ -113,6 +115,7 @@ std::vector<std::string> get_backtrace10() {
   std::vector<string> result(symbols, symbols + size);
 
   free(symbols);
+  delete[] trace;
 
   return result;
 }
@@ -153,7 +156,7 @@ std::string demangle_function_name(const std::string& mangled) {
 #ifdef TAPAS_DEBUG
 #define TAPAS_ASSERT(c) do {                                            \
     if(!(c)) {                                                          \
-      auto bt = ::tapas::get_backtrace10();                             \
+      auto bt = ::tapas::get_backtrace(10);                             \
       std::cerr << "Tapas: Assertion failed: '" << #c << "' == 0"       \
                 << " at " << __FILE__ << ":" << __LINE__                \
                 << std::endl;                                           \
@@ -164,8 +167,12 @@ std::string demangle_function_name(const std::string& mangled) {
                       ? ::tapas::demangle_function_name(mangled_func_name) \
                       : "???")                                          \
                   << ": " << it << std::endl;                           \
-                                                                        \
       }                                                                 \
+      backward::StackTrace st;                                          \
+      st.load_here(10);                                                 \
+      backward::Printer p;                                              \
+      p.object=true; p.color=true; p.address=true;                      \
+      p.print(st, stderr);                                              \
       abort();                                                          \
     }                                                                   \
                                                                         \

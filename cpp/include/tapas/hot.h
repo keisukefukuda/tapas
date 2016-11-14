@@ -1004,7 +1004,7 @@ Cell<TSP> &Cell<TSP>::subcell(int idx) {
       ss << std::endl;
     }
 
-    TAPAS_LOG_ERROR() << ss.str(); abort();
+    TAPAS_LOG_ERROR() << ss.str();
     TAPAS_ASSERT(c != nullptr);
   }
 #endif // TAPAS_DEBUG
