@@ -193,7 +193,9 @@ class Insp2 {
         std::cout << "Table[r=" << r << ", c=" << c << "] = " << table[r * ncols + c] << std::endl;
       }
       
-      if (sp == SplitType::SplitRight || sp == SplitType::SplitBoth) {
+      if (sp == SplitType::SplitRight
+          || sp == SplitType::SplitBoth
+          || sp == SplitType::SplitRightILL) {
         // We found the source cell (closest ghost source cell) is split.
         // We need to check if the real cell (src_key) is split.
         // The real cell is farther from the target cell than the ghost cell,
@@ -208,6 +210,10 @@ class Insp2 {
         
         GCell trg_gc = GCell(data, nullptr, trg_reg, trg_width, trg_depth);
         GCell src_gc = GCell(data, nullptr, src_reg, src_reg.width(), src_depth);
+
+        if (sp == SplitType::SplitRightILL) {
+          trg_gc.SetIsLeaf(true);
+        }
 
         SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
 
@@ -225,7 +231,7 @@ class Insp2 {
           // source side is still split.
           cnt++;
         }
-      }
+      } 
     }
     //std::cout << "There are(is) " << cnt << " split." << std::endl;
     if (debug) {
