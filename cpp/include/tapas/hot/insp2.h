@@ -76,7 +76,35 @@ class Insp2 {
         GCell trg_gc = GCell(data, nullptr, trg_reg, tw, td);
 
         SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
-        table[(td - trg_depth) * ncol + (sd - src_depth)] = split;
+        int idx = (td - trg_depth) * ncol + (sd - src_depth);
+        table[idx] = split;
+
+        // We here use a ghost cell for the target cell and assume that
+        // the target ghost cell is not a leaf.
+        // Thus, there is possibility that the source cell is split
+        // even if the `split` value above is not SplitRight if the target cell is a leaf.
+        if (table[idx] != SplitType::SplitRight && table[idx] != SplitType::SplitBoth
+            && td >= data.min_leaf_level_[trg_key]) {
+          trg_gc.ClearFlags();
+          trg_gc.SetIsLeaf(true); // re-use the target Ghost Cell, but now a leaf
+
+          if (trg_key == 1152921504606846977 && src_key == 3458764513820540929) {
+            setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
+            std::cout << std::endl;
+          }
+          SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
+          if (trg_key == 1152921504606846977 && src_key == 3458764513820540929) {
+            unsetenv("TAPAS_DEBUG_INSPECTOR");
+            std::cout << "Re-checking " << td << ", " << sd << " : " << table[idx] << " -> " << split << std::endl;
+          }
+
+          TAPAS_ASSERT(split != SplitType::SplitBoth); // because left cell (target) is a leaf.
+          TAPAS_ASSERT(split != SplitType::SplitLeft);
+
+          if (split == SplitType::SplitRight) {
+            table[idx] = SplitType::SplitRightILL;
+          }
+        }
       }
     }
 
@@ -104,6 +132,9 @@ class Insp2 {
             break;
           case SplitType::SplitRight:
             std::cout << "-";
+            break;
+          case SplitType::SplitRightILL:
+            std::cout << "+";
             break;
           case SplitType::Approx:
           case SplitType::Body:

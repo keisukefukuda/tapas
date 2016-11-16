@@ -104,6 +104,10 @@ class OnesideTraversePolicy {
     return depth_;
   }
 
+  inline void SetIsLeaf(bool b) {
+    is_leaf_ = b;
+  }
+
   inline VecT dX(const OnesideTraversePolicy &rhs, tapas::CenterClass) const {
     const Reg &r1 = region_, &r2 = rhs.region_;
     VecT dX = {0.0};

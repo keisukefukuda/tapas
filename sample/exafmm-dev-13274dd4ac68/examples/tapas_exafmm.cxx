@@ -204,21 +204,6 @@ struct FMM_DTT {
 
   template<class Cell>
   inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
-    if (!Cell::Inspector
-        && tapas::mpi::Rank() == 0
-        && Ci.key() == 1630303065108119555
-        && Cj.key() == 3650167497983787012
-        ) {
-      std::cout << "FMM_DTT: "
-                << Ci.key() << "<" << Cell::SFC::GetDepth(Ci.key()) << ">" << " - "
-                << Cj.key() << "<" << Cell::SFC::GetDepth(Cj.key()) << ">"
-                << std::endl;
-      std::cout << "Ci : " << Cell::SFC::Decode(Ci.key()) << " " << Ci.key() << (Ci.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
-      std::cout << "Cj : " << Cell::SFC::Decode(Cj.key()) << " " << Cj.key() << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
-      std::cout << "Ci.R = " << Ci.width() << std::endl;
-      std::cout << "Cj.R = " << Cj.width() << std::endl;
-      std::cout << "Distance2 : " << Ci.Distance(Cj, tapas::Center) << std::endl;
-    }
     //real_t R2 = (Ci.center() - Cj.center()).norm();
     real_t R2 = Ci.Distance(Cj, tapas::Center);
     vec3 Xperiodic = 0; // dummy; periodic is not ported
@@ -234,6 +219,22 @@ struct FMM_DTT {
     Ri = (Ri / 2 * 1.00001) / theta;
     Rj = (Rj / 2 * 1.00001) / theta;
 
+    if (getenv("TAPAS_DEBUG_INSPECTOR") && tapas::mpi::Rank() == 0) {
+      if (Cell::Inspector && tapas::mpi::Rank() == 0) {
+        std::cout << "FMM_DTT: " << std::endl;
+        std::cout << "Ci : depth " << Ci.depth() << (Ci.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
+        std::cout << "Cj : depth " << Cj.depth() << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
+        if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
+          std::cout << " => M2L" << std::endl;
+        } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
+          std::cout << " => P2P" << std::endl;
+        } 
+        //std::cout << "Ci.R = " << Ci.width() << std::endl;
+        //std::cout << "Cj.R = " << Cj.width() << std::endl;
+        //std::cout << "Distance2 : " << Ci.Distance(Cj, tapas::Center) << std::endl;
+      }
+    }
+    
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
       // if (!Cell::Inspector) M2L(Ci, Cj, Xperiodic, mutual);
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
@@ -251,6 +252,17 @@ struct FMM_DTT {
   template<class Cell>
   inline void tapas_splitCell(Cell &Ci, _CONST Cell &Cj, real_t Ri, real_t Rj, real_t theta) {
     (void) Ri; (void) Rj;
+    
+    if (getenv("TAPAS_DEBUG_INSPECTOR") && tapas::mpi::Rank() == 0) {
+      if (Cj.IsLeaf()) {
+        std::cout << " => Split Left" << std::endl;
+      } else if (Ci.IsLeaf()) {
+        std::cout << " => Split Right" << std::endl;
+      } else {
+        std::cout << " => Split Both (two-side)" << std::endl;
+      }
+    }
+    
     if (Cj.IsLeaf()) {
       assert(!Ci.IsLeaf());                                   //  Make sure Ci is not leaf
       //for (C_iter ci=Ci0+Ci->ICHILD; ci!=Ci0+Ci->ICHILD+Ci->NCHILD; ci++) {// Loop over Ci's children

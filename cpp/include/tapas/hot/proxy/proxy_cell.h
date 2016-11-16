@@ -92,6 +92,13 @@ class ProxyCell : public _POLICY {
     }
   }
 
+  void ClearFlags() {
+    marked_touched_ = false;
+    marked_split_ = false;
+    marked_body_ = false;
+    marked_modified_ = false;
+  }
+  
   inline ProxyCell &cell() { return *this; }
   inline const ProxyCell &cell() const { return *this; }
 
@@ -115,6 +122,21 @@ class ProxyCell : public _POLICY {
   template<class UserFunct, class...Args>
   static SplitType PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
+
+    if (getenv("TAPAS_DEBUG_INSPECTOR")) {
+      if (trg_cell.marked_split_ && src_cell.marked_split_) {
+        std::cout << "PredSplit2: " << "both marked split" << std::endl;
+      } else if (trg_cell.marked_split_) {
+        std::cout << "PredSplit2: " << "only trg marked split." << std::endl;
+      } else if (src_cell.marked_split_) {
+        std::cout << "PredSplit2: " << "only src marked split." << std::endl;
+      } else if (src_cell.marked_body_) {
+        std::cout << "PredSplit2: " << "src is marked body" << std::endl;
+      } else if (!src_cell.marked_touched_) {
+        std::cout << "PredSplit2: " << "src cell is not touched." << std::endl;
+      } else {
+      }
+    }
 
     if (trg_cell.marked_split_ && src_cell.marked_split_) {
       return SplitType::SplitBoth;
@@ -194,7 +216,7 @@ class ProxyCell : public _POLICY {
     Touched();
     return this->Base::IsLeaf();
   }
-
+  
   inline index_t nb() {
     TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
     Touched();
