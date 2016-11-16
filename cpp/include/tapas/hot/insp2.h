@@ -56,6 +56,7 @@ class Insp2 {
    */
   template<class UserFunct, class...Args>
   static std::vector<SplitType> BuildTable(Data &data, KeyType src_key, KeyType trg_key, UserFunct f, Args...args) {
+    std::cout << "\tBuildTable: started." << std::endl;
     const int max_depth = data.max_depth_;
     const int src_depth = SFC::GetDepth(src_key);
     const int trg_depth = SFC::GetDepth(trg_key);
@@ -66,6 +67,11 @@ class Insp2 {
     const int ncol = max_depth - src_depth + 1;
     const int nrow = max_depth - trg_depth + 1;
     std::vector<SplitType> table(ncol * nrow);
+
+    std::cout << "\tBuildTable: max_depth = " << max_depth << std::endl;
+    std::cout << "\tBuildTable: src_depth = " << src_depth << std::endl;
+    std::cout << "\tBuildTable: trg_depth = " << trg_depth << std::endl;
+    std::cout << "\tBuildTable: ncol,nrow = " << ncol << "," << nrow << std::endl;
     
     for (int sd = src_depth; sd <= max_depth; sd++) {
       for (int td = trg_depth; td <= max_depth; td++) {
@@ -88,15 +94,7 @@ class Insp2 {
           trg_gc.ClearFlags();
           trg_gc.SetIsLeaf(true); // re-use the target Ghost Cell, but now a leaf
 
-          if (trg_key == 1152921504606846977 && src_key == 3458764513820540929) {
-            setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
-            std::cout << std::endl;
-          }
           SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
-          if (trg_key == 1152921504606846977 && src_key == 3458764513820540929) {
-            unsetenv("TAPAS_DEBUG_INSPECTOR");
-            std::cout << "Re-checking " << td << ", " << sd << " : " << table[idx] << " -> " << split << std::endl;
-          }
 
           TAPAS_ASSERT(split != SplitType::SplitBoth); // because left cell (target) is a leaf.
           TAPAS_ASSERT(split != SplitType::SplitLeft);
@@ -166,20 +164,12 @@ class Insp2 {
     int ncols = data.max_depth_ - src_root_depth + 1;
     int nrows = data.max_depth_ - trg_root_depth + 1;
 
-    bool debug = (trg_root_key == SFC::Parent(SFC::Parent(1630303065108119555)))
-                 && (src_key == 3650167497983787012);
-    if (debug) {
-      std::cout << "In TraverseSource trg_root_key=" << SFC::Decode(trg_root_key) << " = " << trg_root_key << std::endl;
-      std::cout << "In TraverseSource src_root_key=" << SFC::Decode(src_root_key) << " = " << src_root_key << std::endl;
-      std::cout << "In TraverseSource src_key     =" << SFC::Decode(src_key)  << " = " << src_key << std::endl;
-    }
-    
-    // std::cout << "----------------------------------" << std::endl;
-    // std::cout << "trg root = " << SFC::Decode(trg_root_key) << std::endl;
-    // std::cout << "src root = " << SFC::Decode(src_root_key) << std::endl;
-    // std::cout << "src key  = " << SFC::Decode(src_key) << std::endl;
-    // std::cout << "src depth = " << src_depth << std::endl;
-    // std::cout << "nrows = " << nrows << ", ncols = " << ncols << std::endl;
+    std::cout << "\tTraverseSource: max depth = " << data.max_depth_ << std::endl;
+    std::cout << "\tTraverseSource: trg root = " << SFC::Decode(trg_root_key) << std::endl;
+    std::cout << "\tTraverseSource: src root = " << SFC::Decode(src_root_key) << std::endl;
+    std::cout << "\tTraverseSource: src key  = " << SFC::Decode(src_key) << std::endl;
+    std::cout << "\tTraverseSource: src depth = " << src_depth << std::endl;
+    std::cout << "\tTraverseSource: nrows = " << nrows << ", ncols = " << ncols << std::endl;
     
     //DumpTable(table, nrows, ncols);
 
@@ -189,10 +179,6 @@ class Insp2 {
     int cnt = 0;
     for (int r = 0; r < nrows; r++) {
       auto sp = table[r * ncols + c];
-      if (debug) {
-        std::cout << "Table[r=" << r << ", c=" << c << "] = " << table[r * ncols + c] << std::endl;
-      }
-      
       if (sp == SplitType::SplitRight
           || sp == SplitType::SplitBoth
           || sp == SplitType::SplitRightILL) {
@@ -220,25 +206,15 @@ class Insp2 {
         //std::cout << ((split == SplitType::SplitRight || split == SplitType::SplitBoth) ? "Split" : "NOT Split!!");
         //std::cout << std::endl;
 
-        if (debug) {
-          std::cout << "Real check: trg_depth=" << trg_depth << ", src_depth=" << src_depth << ", result=" << split << std::endl;
-          std::cout << "Ci.R = " << trg_gc.width() << std::endl;
-          std::cout << "Cj.R = " << src_gc.width() << std::endl;
-          std::cout << "Distance2 : " << trg_gc.Distance(src_gc, tapas::Center) << std::endl;
-        }
-        
         if (split == SplitType::SplitRight || split == SplitType::SplitBoth) {
           // source side is still split.
           cnt++;
         }
       } 
     }
-    //std::cout << "There are(is) " << cnt << " split." << std::endl;
-    if (debug) {
-      std::cout << "So, cnt=" << cnt << std::endl;
-    }
 
     req_keys_attr.insert(src_key);
+    
     if (cnt == 0 && data.ht_.count(src_key) == 0) {
       if (src_depth == data.max_depth_) {
         //if (debug) std::cout << "Body" << std::endl;
@@ -276,28 +252,24 @@ class Insp2 {
     req_keys_attr.insert(root.key());
 
     // Repeat over all pairs target and source local trees
+    std::cout << "data.gleaves_.size() = " << data.gleaves_.size() << std::endl;
+    std::cout << "data.lroots_.size()  = " << data.lroots_.size() << std::endl;
+    
     for (KeyType src_key : data.gleaves_) {
       if (data.ht_.count(src_key) == 0) {
-        if (src_key == 3458764513820540929) {
-          std::cout << "==========" << std::endl;
-          std::cout << "In rank " << tapas::mpi::Rank() << " : Looking at " << 3458764513820540929 << "'s subtree." << std::endl;
-        }
         for (KeyType trg_key : data.lroots_) {
           if (src_key != trg_key) {
+            double bt = MPI_Wtime();
             const int max_depth = data.max_depth_;
             const int src_depth = SFC::GetDepth(src_key);
             const int trg_depth = SFC::GetDepth(trg_key);
 
             int ncol = max_depth - src_depth + 1;
             int nrow = max_depth - trg_depth + 1;
-    
+
             std::vector<SplitType> table = BuildTable(data, src_key, trg_key, f, args...);
 
-#if 1
-            if (src_key == 3458764513820540929 && trg_key == SFC::Parent(SFC::Parent(1630303065108119555))) {
-              DumpTable(table, nrow, ncol);
-            }
-#endif
+            //DumpTable(table, nrow, ncol);
             
             TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow));
 
@@ -308,11 +280,10 @@ class Insp2 {
               continue;
             }
 
+            double et = MPI_Wtime();
+            std::cout << "Inner-most loop took " << std::scientific << (et-bt) << std::endl;
             TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
           }
-        }
-        if (src_key == 3458764513820540929) {
-          std::cout << "==========" << std::endl;
         }
       }
     }
