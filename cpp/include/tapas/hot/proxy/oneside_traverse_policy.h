@@ -19,7 +19,13 @@ class OnesideTraversePolicy {
   using FP = _FP;
   using VecT = Vec<Dim, FP>;
   using Reg = tapas::Region<Dim, FP>;
+  
   using CellType = typename Data::CellType;
+  using RealBody = typename Data::BodyType;
+  using RealBodyAttr = typename Data::BodyAttrType;
+
+  using Body = ProxyBody<RealBody, RealBodyAttr>;
+  using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   OnesideTraversePolicy(const Data &data, Reg region, VecT width, int depth)
       : region_(region)
@@ -27,6 +33,8 @@ class OnesideTraversePolicy {
       , data_(data)
       , is_leaf_(false)
       , depth_(depth)
+      , bodies_()
+      , body_attrs_()
   {
     Init();
   }
@@ -37,6 +45,8 @@ class OnesideTraversePolicy {
       , data_(data)
       , is_leaf_(false)
       , depth_(rhs.depth_)
+      , bodies_()
+      , body_attrs_()
   {
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
@@ -48,6 +58,8 @@ class OnesideTraversePolicy {
       , data_(data)
       , is_leaf_(false)
       , depth_(rhs.depth_)
+      , bodies_()
+      , body_attrs_()
   {
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
@@ -65,7 +77,7 @@ class OnesideTraversePolicy {
   }
 
   // for debugging purpose
-  //typename CellType::KeyType key() const { return 0; } 
+  typename CellType::KeyType key() const { return 0; } 
 
  protected:
   void Init() {
@@ -192,13 +204,43 @@ class OnesideTraversePolicy {
   }
 
   inline index_t nb() const {
-    return 0;
+    // always returns 1 in the current design
+    return 1;
   }
 
+  void InitBodies() {
+    if (nb() > 0) {
+      auto num_bodies = nb();
+      if (bodies_.size() != num_bodies) {
+        bodies_.resize(num_bodies);
+        body_attrs_.resize(num_bodies);
+        memset((void*)bodies_.data(), 0, sizeof(bodies_[0]) * bodies_.size());
+        memset((void*)body_attrs_.data(), 0, sizeof(body_attrs_[0]) * body_attrs_.size());
+      }
+    }
+  }
+
+  const Body &body(index_t idx) {
+    if (bodies_.size() != nb()) {
+      InitBodies();
+    }
+    
+    TAPAS_ASSERT(idx < (index_t)bodies_.size());
+    return bodies_[idx];
+  }
+
+  BodyAttr &body_attr(index_t idx) {
+    if (body_attrs_.size() != nb()) {
+      InitBodies();
+    }
+    return body_attrs_[idx];
+  }
+  
  public:
   inline bool IsRoot() const { // being public for debugging
     return depth_ == 0;
   }
+
 
  protected:
   Reg region_;
@@ -206,6 +248,8 @@ class OnesideTraversePolicy {
   const Data &data_;
   bool is_leaf_;
   int depth_;
+  std::vector<Body> bodies_; // a vector of proxy body
+  std::vector<BodyAttr> body_attrs_; // a vector of proxy body attr
 };
 
 } // namespace proxy

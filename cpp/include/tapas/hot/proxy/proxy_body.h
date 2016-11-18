@@ -4,14 +4,15 @@
 /**
  * \brief Proxy class for user-specified Body class
  */
-template<class PROXY_CELL>
-class ProxyBody : public PROXY_CELL::TSP::Body {
-  using Body = typename PROXY_CELL::TSP::Body;
-  using BodyAttr = typename PROXY_CELL::TSP::BodyAttr;
+template<class BODY_TYPE, class BODY_ATTR_TYPE>
+class ProxyBody : public BODY_TYPE {
+  using Body = BODY_TYPE;
+  using BodyAttr = BODY_ATTR_TYPE;
   
  public:
-  ProxyBody(BodyAttr &rhs) : Body(rhs) {
-  }
+  ProxyBody(BodyAttr &rhs) : Body(rhs) { }
+
+  ProxyBody() : Body() { }
 };
 
 #endif // TAPAS_PROXY_BODY_H_

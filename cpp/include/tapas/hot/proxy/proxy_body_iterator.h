@@ -17,9 +17,14 @@ template<class PROXY_CELL>
 class ProxyBodyIterator {
  public:
   using TSP = typename PROXY_CELL::TSP;
+  
   using CellType = PROXY_CELL;
-  using CellAttr = ProxyBodyAttr<PROXY_CELL>;
-  using Body = typename TSP::Body;
+  using CellAttr = ProxyBodyAttr<typename TSP::Body, typename TSP::BodyAttr>;
+  using RealBody = typename TSP::Body;
+  using RealBodyAttr = typename TSP::BodyAttr;
+  using Body = RealBody;
+  using BodyAttr = RealBodyAttr;
+  
   using value_type = ProxyBodyIterator<PROXY_CELL>;
   //using Mapper = typename CellType::Mapper;
   using Mapper = ProxyMapper<PROXY_CELL>;
@@ -80,14 +85,14 @@ class ProxyBodyIterator {
   /**
    * \fn ProxyBody &ProxyBodyIterator::operator++()
    */
-  const ProxyBody<PROXY_CELL> &operator++() {
+  const ProxyBody<Body, BodyAttr> &operator++() {
     return c_->body(++idx_);
   }
 
   /**
    * \fn ProxyBody &ProxyBodyIterator::operator++(int)
    */
-  const ProxyBody<PROXY_CELL> &operator++(int) {
+  const ProxyBody<Body, BodyAttr> &operator++(int) {
     return c_->body(idx_++);
   }
 
@@ -131,7 +136,7 @@ class ProxyBodyIterator {
     return reinterpret_cast<const Body*>(&(c_->body(idx_)));
   }
 
-  const ProxyBodyAttr<PROXY_CELL> &attr() const {
+  const ProxyBodyAttr<Body, BodyAttr> &attr() const {
     return c_->body_attr(idx_);
   }
 

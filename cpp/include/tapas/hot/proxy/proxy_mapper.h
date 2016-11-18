@@ -17,6 +17,9 @@ template<class PROXY_CELL> class ProxyBodyIterator;
  */
 template<class PROXY_CELL>
 struct ProxyMapper {
+  using Body = typename PROXY_CELL::Body; // proxy body
+  using BodyAttr = typename PROXY_CELL::BodyAttr; // proxy attr type
+  
   ProxyMapper() { }
   
   // body
@@ -33,7 +36,7 @@ struct ProxyMapper {
 
   // body iter x body
   template<class Funct, class ...Args>
-  inline void Map(Funct, ProxyBodyIterator<PROXY_CELL>, ProxyBody<PROXY_CELL> &, Args...) {
+  inline void Map(Funct, ProxyBodyIterator<PROXY_CELL>, Body &, Args...) {
     // empty
   }
 
