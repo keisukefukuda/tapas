@@ -630,6 +630,40 @@ class SamplingOctree {
     }
   }
 
+  void ListShallowLeaves() {
+    std::vector<KeyType> sendbuf, recvbuf;
+    for (KeyType k : data_->lroots_) {
+      FindShallowLeaves(k, k, sendbuf); // List up `only child` cells for branch pruning in LET construction phase.
+    }
+
+    tapas::mpi::Allgatherv(sendbuf, recvbuf, data_->mpi_comm_);
+
+    for (KeyType k : recvbuf) {
+      data_->shallow_leaves_.insert(k);
+    }
+  }
+  
+  void FindShallowLeaves(KeyType k, KeyType localroot, std::vector<KeyType> &set) {
+    auto &h = data_->ht_;
+
+    if (h.count(k) == 0) {
+      return;
+    }
+    if (SFC::GetDepth(k) > SFC::GetDepth(localroot) + 2) {
+      return;
+    }
+
+    if (h[k]->IsLeaf()) {
+      set.push_back(k);
+    } else {
+      for (KeyType chk : SFC::GetChildren(k)) {
+        FindShallowLeaves(chk, localroot, set);
+      }
+    }
+  }
+
+
+
   std::vector<BodyType> ExchangeBodies(std::vector<BodyType> bodies,
                                        const std::vector<KeyType> proc_first_keys,
                                        const Reg &reg, MPI_Comm comm) {

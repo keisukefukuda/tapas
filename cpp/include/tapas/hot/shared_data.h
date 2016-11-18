@@ -44,6 +44,7 @@ struct SharedData {
   CellHashTable ht_gtree_; // Hsah table of the global tree.
   KeySet        gleaves_;  // set of global leaves, which are a part of ht_gtree_.keys and ht_.keys
   KeySet        lroots_;   // set of local roots. It must be a subset of gleaves_. gleaves_ is allgatherv()-ed lroots.
+  KeySet        shallow_leaves_; // a set of shallow leaves, which is used for branch pruning.
   std::mutex    ht_mtx_;   //!< mutex to protect ht_
   KeySet        let_used_key_;
   std::unordered_map<KeyType, CellAttr> local_upw_results_; // used in Upward Map
@@ -103,7 +104,7 @@ struct SharedData {
   int timestep_;
   std::string cur_kernel_label_; // label of the currently-running kernel (used in the profile report)
   tapas::util::TimeRec time_rec_;
-
+  
   std::unordered_map<int, int> let_func_count_;
 
 #ifdef USE_MPI

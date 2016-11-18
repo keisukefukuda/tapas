@@ -1497,6 +1497,7 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
   return Partition(data, b, nullptr, num_bodies, comm);
 }
 
+
 /**
  * @brief Partition the simulation space and build SFC key based octree
  * @tparam TSP Tapas static params
@@ -1558,12 +1559,16 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
   }
 #endif
 
+  stree.ListShallowLeaves();
+
   // Initialize the mapper class (mainly for GPU)
   data->mapper_.Setup();
 
   // return the root cell (root key is always 0)
   return data->ht_[0];
 }
+
+
 
 } // namespace hot
 

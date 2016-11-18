@@ -64,7 +64,8 @@ class OnesideTraversePolicy {
         && (depth_  == rhs.depth_);
   }
 
-  typename CellType::KeyType key() const { return 0; }
+  // for debugging purpose
+  //typename CellType::KeyType key() const { return 0; } 
 
  protected:
   void Init() {

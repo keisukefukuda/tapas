@@ -56,7 +56,7 @@ class Insp2 {
    */
   template<class UserFunct, class...Args>
   static std::vector<SplitType> BuildTable(Data &data, KeyType src_key, KeyType trg_key, UserFunct f, Args...args) {
-    std::cout << "\tBuildTable: started." << std::endl;
+    //std::cout << "\tBuildTable:started." << std::endl;
     const int max_depth = data.max_depth_;
     const int src_depth = SFC::GetDepth(src_key);
     const int trg_depth = SFC::GetDepth(trg_key);
@@ -68,11 +68,11 @@ class Insp2 {
     const int nrow = max_depth - trg_depth + 1;
     std::vector<SplitType> table(ncol * nrow);
 
-    std::cout << "\tBuildTable: max_depth = " << max_depth << std::endl;
-    std::cout << "\tBuildTable: src_depth = " << src_depth << std::endl;
-    std::cout << "\tBuildTable: trg_depth = " << trg_depth << std::endl;
-    std::cout << "\tBuildTable: ncol,nrow = " << ncol << "," << nrow << std::endl;
-    
+    // std::cout << "\tBuildTable: max_depth = " << max_depth << std::endl;
+    // std::cout << "\tBuildTable: src_depth = " << src_depth << std::endl;
+    // std::cout << "\tBuildTable: trg_depth = " << trg_depth << std::endl;
+    // std::cout << "\tBuildTable: ncol,nrow = " << ncol << "," << nrow << std::endl;
+
     for (int sd = src_depth; sd <= max_depth; sd++) {
       for (int td = trg_depth; td <= max_depth; td++) {
         auto sw = data.region_.width() / pow(2, sd); // n-dim dimensional width of the source ghost cell
@@ -158,18 +158,24 @@ class Insp2 {
                              KeyType src_root_key, // key of the root of the source local tree
                              KeyType src_key,
                              UserFunct f, Args...args) {
+    if (data.shallow_leaves_.count(src_key) > 0) {
+      req_keys_body.insert(src_key);
+      //std::cout << "Pruned " << SFC::Decode(src_key) << std::endl;
+      return;
+    }
+    
     int src_root_depth = SFC::GetDepth(src_root_key);
     int trg_root_depth = SFC::GetDepth(trg_root_key);
     int src_depth = SFC::GetDepth(src_key);
     int ncols = data.max_depth_ - src_root_depth + 1;
     int nrows = data.max_depth_ - trg_root_depth + 1;
 
-    std::cout << "\tTraverseSource: max depth = " << data.max_depth_ << std::endl;
-    std::cout << "\tTraverseSource: trg root = " << SFC::Decode(trg_root_key) << std::endl;
-    std::cout << "\tTraverseSource: src root = " << SFC::Decode(src_root_key) << std::endl;
-    std::cout << "\tTraverseSource: src key  = " << SFC::Decode(src_key) << std::endl;
-    std::cout << "\tTraverseSource: src depth = " << src_depth << std::endl;
-    std::cout << "\tTraverseSource: nrows = " << nrows << ", ncols = " << ncols << std::endl;
+    // std::cout << "\tTraverseSource: max depth = " << data.max_depth_ << std::endl;
+    // std::cout << "\tTraverseSource: trg root = " << SFC::Decode(trg_root_key) << std::endl;
+    // std::cout << "\tTraverseSource: src root = " << SFC::Decode(src_root_key) << std::endl;
+    // std::cout << "\tTraverseSource: src key  = " << SFC::Decode(src_key) << std::endl;
+    // std::cout << "\tTraverseSource: src depth = " << src_depth << std::endl;
+    // std::cout << "\tTraverseSource: nrows = " << nrows << ", ncols = " << ncols << std::endl;
     
     //DumpTable(table, nrows, ncols);
 
@@ -281,7 +287,7 @@ class Insp2 {
             }
 
             double et = MPI_Wtime();
-            std::cout << "Inner-most loop took " << std::scientific << (et-bt) << std::endl;
+            //std::cout << "Inner-most loop took " << std::scientific << (et-bt) << std::endl;
             TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
           }
         }
