@@ -573,13 +573,14 @@ class Cell {
   }
   const Mapper &mapper() const { return data_->mapper; }
 
-  inline FP Distance(const Cell &rhs, tapas::CenterClass) const {
-    return tapas::Distance<Dim, tapas::CenterClass, FP>::Calc(*this, rhs);
+  inline FP Distance2(const Cell &rhs, tapas::CenterClass) const {
+    return (center() - rhs.center()).norm();
   }
 
-  //inline FP Distance(Cell &rhs, tapas::Edge) {
-  //  return tapas::Distance<tapas::Edge, FP>::Calc(*this, rhs);
-  //}
+  inline FP Distance2(const Body &b, tapas::CenterClass) const {
+    Vec pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b));
+    return (center() - pos).norm();
+  }
 
  protected:
   // utility/accessor functions
@@ -1625,6 +1626,7 @@ template<class _TSP>
 struct Tapas {
   using TSP = _TSP;
   static const constexpr int Dim = TSP::Dim;
+  static const constexpr size_t BodyCoordOffset = TSP::BodyCoordOffset;
   using FP = typename TSP::FP;
   using Partitioner = typename TSP::template Partitioner<TSP>;
   using Region = tapas::Region<Dim, FP>;
@@ -1778,6 +1780,27 @@ struct Tapas {
     //std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;
     cell.MarkModified();
     // nop.
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const CellType &c1, const CellType &c2, DistanceType t) {
+    return c1.Distance2(c2, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const CellType &c1, const Body &b, DistanceType t) {
+    return c1.Distance2(b, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const Body &b, const CellType &c1, DistanceType t) {
+    return c1.Distance2(b, t);
+  }
+
+  static inline FP Distance2(const Body &b1, const Body &b2) {
+    Vec<Dim, FP> pos1 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b1));
+    Vec<Dim, FP> pos2 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b2));
+    return (pos1 - pos2).norm();
   }
 
 #ifdef __CUDACC__

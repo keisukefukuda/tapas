@@ -205,7 +205,7 @@ struct FMM_DTT {
   template<class Cell>
   inline void operator()(Cell &Ci, _CONST Cell &Cj, real_t theta) {
     //real_t R2 = (Ci.center() - Cj.center()).norm();
-    real_t R2 = Ci.Distance(Cj, tapas::Center);
+    real_t R2 = TapasFMM::Distance2(Ci, Cj, tapas::Center);
     vec3 Xperiodic = 0; // dummy; periodic is not ported
 
     real_t Ri = 0;

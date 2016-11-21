@@ -33,8 +33,9 @@ class ProxyCell {
   using CellAttr = ProxyAttr<TSP>;
   using RealCellType = CellType;
   
-  using BodyAttrType = ProxyBodyAttr<TSP>;
-  using BodyType = ProxyBody<TSP>;
+  using BodyAttr = ProxyBodyAttr<TSP>;
+  using Body = ProxyBody<TSP>;
+  using RealBody = typename RealCellType::Body;
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;
   using SFC = typename tapas::hot::Cell<TSP>::SFC;
   using Data = typename CellType::Data;
@@ -140,13 +141,25 @@ class ProxyCell {
   /**
    * \brief Distance Function
    */
-  inline FP Distance(const ProxyCell &rhs, tapas::CenterClass) const {
-    return tapas::Distance<Dim, tapas::CenterClass, FP>::Calc(*this, rhs);
+  inline FP Distance2(const ProxyCell &rhs, tapas::CenterClass) const {
+    return (center() - rhs.center()).norm();
   }
 
-  //inline FP Distance(Cell &rhs, tapas::Edge) {
-  //  return tapas::Distance<tapas::Edge, FP>::Calc(*this, rhs);
-  //}
+  /**
+   * \brief Distance Function
+   */
+  inline FP Distance2(const Body &b, tapas::CenterClass) const {
+    Vec pos = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b));
+    return (center() - pos).norm();
+  }
+
+  /**
+   * \brief Distance Function
+   */
+  inline FP Distance2(const RealBody &b, tapas::CenterClass) const {
+    Vec pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b));
+    return (center() - pos).norm();
+  }
 
   /**
    * \fn FP ProxyCell::width(FP d) const
@@ -188,7 +201,7 @@ class ProxyCell {
       return cell_->nb();
     } else {
       TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
-      Body();
+      MarkBody();
       return 0;
     }
   }
@@ -314,7 +327,7 @@ class ProxyCell {
   void Split() const {
     marked_split_ = IncIfNotNull(clock_);
   }
-  void Body() const {
+  void MarkBody() const {
     marked_body_ = IncIfNotNull(clock_);
   }
   void MarkModified() {
