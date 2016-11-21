@@ -60,8 +60,9 @@ class ProxyCell : public _POLICY {
   using CellAttr = ProxyAttr<ProxyCell>;
   using Body = ProxyBody<RealBody, RealBodyAttr>;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
-  
+
   using Policy = _POLICY;
+
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;
   using SFC = typename tapas::hot::Cell<TSP>::SFC;
   using Data = typename CellType::Data;
@@ -70,7 +71,7 @@ class ProxyCell : public _POLICY {
   using Threading = typename CellType::Threading;
 
   using Mapper = ProxyMapper<ProxyCell>;
-  using Vec = typename CellType::Vec;
+  using VecT = typename CellType::VecT;
 
   // ctor
   template<class...Args>
@@ -160,28 +161,24 @@ class ProxyCell : public _POLICY {
   /**
    * \brief Cell-cell Distance Function
    */
-  inline FP Distance(const ProxyCell &rhs, tapas::CenterClass) const {
-    return this->Base::Distance((Base&)rhs, tapas::CenterClass());
-  }
-
-  /**
-   * \brief Cell-cell Distance Function
-   */
-  inline Vec dX(const ProxyCell &rhs, tapas::CenterClass) const {
+  inline VecT dX(const ProxyCell &rhs, tapas::CenterClass) const {
     return this->Base::dX((Base&)rhs, tapas::CenterClass());
   }
 
   /**
-   * \brief Cell-body Distance Function
+   * \brief Distance Function
    */
-  inline FP Distance(const Body &b, tapas::CenterClass) const {
-    Vec body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::Distance(body_pos, tapas::CenterClass());
+  inline VecT dX(const Body &b, tapas::CenterClass) const {
+    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    return this->Base::dX(body_pos, tapas::CenterClass());
   }
 
-  inline Vec dX(const Body &b, tapas::CenterClass) const {
-    Vec body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::dX(body_pos, tapas::CenterClass()).norm();
+  /**
+   * \brief Distance Function
+   */
+  inline VecT dX(const RealBody &b, tapas::CenterClass) const {
+    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    return this->Base::dX(body_pos, tapas::Center);
   }
 
   /**
@@ -195,7 +192,7 @@ class ProxyCell : public _POLICY {
   /**
    * \fn FP ProxyCell::width() const
    */
-  inline Vec width() const {
+  inline VecT width() const {
     Touched();
     return this->Base::width();
   }
@@ -211,9 +208,7 @@ class ProxyCell : public _POLICY {
   inline index_t nb() {
     TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
     Touched();
-    MarkBody();
-
-    return this->Base::nb();    
+    return this->Base::nb();
   }
 
   inline SubCellIterator<ProxyCell> subcells() {

@@ -23,7 +23,7 @@ bool Includes(VEC &xmax, VEC &xmin, VEC &ymax, VEC &ymin) {
 }
 
 class CenterClass {} Center;
-class EdgeClass{} Edge;
+class ShortestClass{} Shortest;
 
 template<int Dim, typename DIST_TYPE, typename FP> // takes DistanceType
 struct Distance;

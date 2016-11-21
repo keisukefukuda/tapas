@@ -13,8 +13,8 @@ LFLAGS	+= -DDIRECT # Compare with direct summation
 
 MODE ?= release
 ifeq ($(MODE),debug)
-	OPT = -O0
-	DEBUG = -DTAPAS_DEBUG=1 -g -fno-inline -O0
+	OPT = -O2
+	DEBUG = -DTAPAS_DEBUG=1 -g -fno-inline
 	LOG = -DTAPAS_LOG_LEVEL=1
 	LFLAGS += -DASSERT # Turns on asserttions (otherwise define an empty macro function)
 else ifeq ($(MODE),debug2)

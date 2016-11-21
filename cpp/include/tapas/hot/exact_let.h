@@ -612,8 +612,11 @@ struct ExactInsp2 {
 
     tapas::debug::BarrierExec([&](int, int) {
         {
+
+#if 0
           // Call exact inspector ::Inspect
-          //Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+          Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+#else
 
           // Call one-side insp2::Inspect
           KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
@@ -625,17 +628,16 @@ struct ExactInsp2 {
           double et = MPI_Wtime();
           std::cout << "<<< Oneside Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
 
-#if 0
-          std::cout << "req_cell_attr_keys.size() = " << req_cell_attr_keys.size() << std::endl;
-          std::cout << "req_cell_leaf_keys.size() = " << req_leaf_keys.size() << std::endl;
-          std::cout << "req_cell_attr_keys2.size() = " << req_cell_attr_keys2.size() << std::endl;
-          std::cout << "req_cell_leaf_keys2.size() = " << req_leaf_keys2.size() << std::endl;
-#endif
+          // std::cout << "req_cell_attr_keys.size() = " << req_cell_attr_keys.size() << std::endl;
+          // std::cout << "req_cell_leaf_keys.size() = " << req_leaf_keys.size() << std::endl;
+          // std::cout << "req_cell_attr_keys2.size() = " << req_cell_attr_keys2.size() << std::endl;
+          // std::cout << "req_cell_leaf_keys2.size() = " << req_leaf_keys2.size() << std::endl;
 
           req_cell_attr_keys.clear();
           req_leaf_keys.clear();
           req_cell_attr_keys = req_cell_attr_keys2;
           req_leaf_keys = req_leaf_keys2;
+#endif
         }
       });
 

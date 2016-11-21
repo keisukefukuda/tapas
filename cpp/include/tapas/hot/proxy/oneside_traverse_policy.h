@@ -177,18 +177,20 @@ class OnesideTraversePolicy {
     return dX;
   }
 
-  inline FP Distance(const OnesideTraversePolicy& rhs, tapas::CenterClass) const {
-    return dX(rhs, tapas::CenterClass()).norm();
-  }
-
-  inline FP Distance(const VecT& body_pos, tapas::CenterClass) const {
-    return dX(body_pos, tapas::CenterClass()).norm();
-  }
-
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
-    (void) body_pos;
-    return 0;
+    VecT dx = {0.0};
+    
+    for (int d = 0; d < Dim; d++) {
+      if (body_pos[d] < region_.min(d)) {
+        dx[d] = region_.min(d) - body_pos[d] + width_/2;
+      } else if (body_pos[d] > region_.max(d)) {
+        dx[d] = body_pos[d] - region_.max(d) + width_/2;
+      } else {
+        dx[d] = 0;
+      }
+    }
+    return dx;
   }
 
   inline FP width(int d) const {

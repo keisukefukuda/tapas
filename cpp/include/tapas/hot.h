@@ -296,7 +296,7 @@ class Cell {
   using Reg = Region<Dim, FP>;
   using KeyType = typename SFC::KeyType;
   using CellType = Cell<TSP>;
-  using Vec = tapas::Vec<Dim, FP>;
+  using VecT = tapas::Vec<Dim, FP>;
 
   using Data = SharedData<TSP, SFC>;
   using CellHashTable = std::unordered_map<KeyType, Cell*>;
@@ -403,11 +403,11 @@ class Cell {
   /**
    *
    */
-  Vec center() const {
+  VecT center() const {
     return center_;
   }
 
-  Vec width() const {
+  VecT width() const {
     return region_.width();
   }
 
@@ -545,7 +545,7 @@ class Cell {
     return ret;
   }
 
-  static Vec CalcCenter(KeyType key, const Reg& region) {
+  static VecT CalcCenter(KeyType key, const Reg& region) {
     auto r = CalcRegion(key, region);
     return r.min() + r.width() / 2;
   }
@@ -582,36 +582,14 @@ class Cell {
   }
   const Mapper &mapper() const { return data_->mapper; }
 
-  inline FP Distance(const Cell &rhs, tapas::CenterClass) const {
-    return dX(rhs, tapas::CenterClass()).norm();
+  inline VecT dX(const Cell &rhs, tapas::CenterClass) const {
+    return (center() - rhs.center());
   }
 
-  // inline FP Distance(const Cell &rhs, tapas::LongestClass) const {
-  //   // TODO
-  //   return 0;
-  // }
-
-  // inline FP Distance(const Cell &rhs, tapas::ShortestClass) const {
-  //   // TDOO
-  //   return 0;
-  // }
-
-  inline Vec dX(const Cell &rhs, tapas::CenterClass) const {
-    return center() - rhs.center();
+  inline VecT dX(const Body &b, tapas::CenterClass) const {
+    VecT pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b));
+    return (center() - pos);
   }
-
-  inline FP Distance(const Body &b, tapas::CenterClass) const {
-    return dX(b, tapas::CenterClass()).norm();
-  }
-
-  inline Vec dX(const Body &b, tapas::CenterClass) const {
-    Vec body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return center() - body_pos;
-  }
-
-  //inline FP Distance(Cell &rhs, tapas::Edge) {
-  //  return tapas::Distance<tapas::Edge, FP>::Calc(*this, rhs);
-  //}
 
  protected:
   // utility/accessor functions
@@ -638,7 +616,7 @@ class Cell {
   bool is_local_subtree_; //!< If all of its descendants are local.
 
   const Reg region_; //!< Local region
-  const Vec center_; //!< The center of the cell
+  const VecT center_; //!< The center of the cell
 
   Mapper mapper_;
 
@@ -1640,6 +1618,7 @@ template<class _TSP>
 struct Tapas {
   using TSP = _TSP;
   static const constexpr int Dim = TSP::Dim;
+  static const constexpr size_t BodyCoordOffset = TSP::BodyCoordOffset;
   using FP = typename TSP::FP;
   using Partitioner = typename TSP::template Partitioner<TSP>;
   using Region = tapas::Region<Dim, FP>;
@@ -1653,6 +1632,7 @@ struct Tapas {
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
   using ProxyBodyIterator = tapas::hot::proxy::ProxyBodyIterator<ProxyCell>;
   using ProxyBodyIterator2 = tapas::hot::proxy::ProxyBodyIterator<ProxyCell2>;
+  using VecT = tapas::Vec<Dim, FP>;
 
   /**
    * @brief Partition and build an octree of the target space.
@@ -1805,6 +1785,48 @@ struct Tapas {
     //std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;
     cell.MarkModified();
     // nop.
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const CellType &c1, const CellType &c2, DistanceType t) {
+    return c1.dX(c2, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const CellType &c1, const Body &b, DistanceType t) {
+    return c1.dX(b, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const Body &b, const CellType &c1, DistanceType t) {
+    return c1.dX(b, t);
+  }
+
+  static inline VecT dx(const Body &b1, const Body &b2) {
+    Vec<Dim, FP> pos1 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b1));
+    Vec<Dim, FP> pos2 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b2));
+    return (pos1 - pos2);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const CellType &c1, const CellType &c2, DistanceType t) {
+    return dX(c1, c2, t).norm();
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const CellType &c1, const Body &b, DistanceType t) {
+    return dX(c1, b, t).norm();
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const Body &b, const CellType &c1, DistanceType t) {
+    return dX(c1, b, t).norm();
+  }
+
+  static inline FP Distance2(const Body &b1, const Body &b2) {
+    Vec<Dim, FP> pos1 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b1));
+    Vec<Dim, FP> pos2 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b2));
+    return (pos1 - pos2).norm();
   }
 
 #ifdef __CUDACC__

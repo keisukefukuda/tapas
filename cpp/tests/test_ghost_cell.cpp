@@ -44,8 +44,14 @@ bool Close(V1 a, V1 b, const char *file, int line) {
   return ret;
 }
 
+struct Cell { using KeyType = unsigned long long; };
+struct Body {};
+struct BodyAttr {};
+
 struct Data {
-  using CellType = int;
+  using CellType = Cell;
+  using BodyType = Body;
+  using BodyAttrType = BodyAttr;
   int max_depth_;
 };
 
@@ -84,15 +90,15 @@ void Test_Distance_Center_1d() {
     auto gc1 = make_cell_1d({-1.0}, { 1.0}, 2.0, 1);
     auto gc2 = make_cell_1d({ 2.0}, { 4.0}, 2.0, 1);
     ans = 3.0;
-    ASSERT_TRUE(Close(gc1.Distance(gc2, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
-    ASSERT_TRUE(Close(gc2.Distance(gc1, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc1.dX(gc2, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc2.dX(gc1, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
 
     // if ghost cell width is 1.0 each.
     auto gc3 = make_cell_1d({-1.0}, { 1.0}, 1.0, 1);
     auto gc4 = make_cell_1d({ 2.0}, { 4.0}, 1.0, 1);
     ans = 2.0;
-    ASSERT_TRUE(Close(gc3.Distance(gc4, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
-    ASSERT_TRUE(Close(gc4.Distance(gc3, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc3.dX(gc4, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc4.dX(gc3, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
   }
 
   {
@@ -105,16 +111,16 @@ void Test_Distance_Center_1d() {
     auto gc1 = make_cell_1d({-1.0}, { 1.0}, 2.0, 1);
     auto gc2 = make_cell_1d({ 1.0}, { 3.0}, 2.0, 1);
     ans=2.0;
-    ASSERT_TRUE(Close(gc1.Distance(gc2, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
-    ASSERT_TRUE(Close(gc2.Distance(gc1, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc1.dX(gc2, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc2.dX(gc1, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
 
 
     // if ghost cell width is 1.0 each.
     auto gc3 = make_cell_1d({-1.0}, { 1.0}, 1.0, 1);
     auto gc4 = make_cell_1d({ 1.0}, { 3.0}, 1.0, 1);
     ans=1.0;
-    ASSERT_TRUE(Close(gc3.Distance(gc4, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
-    ASSERT_TRUE(Close(gc4.Distance(gc3, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc3.dX(gc4, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc4.dX(gc3, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
   }
   
   {
@@ -127,15 +133,15 @@ void Test_Distance_Center_1d() {
     auto gc1 = make_cell_1d({-1.0}, { 1.0}, 2.0, 1);
     auto gc2 = make_cell_1d({ 0.0}, { 2.0}, 2.0, 1);
     ans=1.0;
-    ASSERT_TRUE(Close(gc1.Distance(gc2, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
-    ASSERT_TRUE(Close(gc2.Distance(gc1, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc1.dX(gc2, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc2.dX(gc1, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
 
     // if ghost cell width is 1.0 each.
     auto gc3 = make_cell_1d({-1.0}, { 1.0}, 1.0, 1);
     auto gc4 = make_cell_1d({ 0.0}, { 2.0}, 1.0, 1);
     ans=0.0;
-    ASSERT_TRUE(Close(gc3.Distance(gc4, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
-    ASSERT_TRUE(Close(gc4.Distance(gc3, tapas::CenterClass()), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc3.dX(gc4, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
+    ASSERT_TRUE(Close(gc4.dX(gc3, tapas::Center).norm(), ans*ans, __FILE__, __LINE__));
   }
 }
 
@@ -147,39 +153,39 @@ void Test_Distance_Center_2d() {
   auto A = make_cell_2d({-5.0, 0.0}, {-1.0, 4.0}, 1.0, 1);
   auto B = make_cell_2d({ 1.0, 0.0}, { 6.0, 5.0}, 1.0, 1);
 
-  ASSERT_CLOSE(A.Distance(A, tapas::CenterClass()), 0.0*0.0);
+  ASSERT_CLOSE(A.dX(A, tapas::Center).norm(), 0.0*0.0);
   
-  ASSERT_CLOSE(A.Distance(B, tapas::CenterClass()), 3.0*3.0);
-  ASSERT_CLOSE(B.Distance(A, tapas::CenterClass()), 3.0*3.0);
+  ASSERT_CLOSE(A.dX(B, tapas::Center).norm(), 3.0*3.0);
+  ASSERT_CLOSE(B.dX(A, tapas::Center).norm(), 3.0*3.0);
 
   // test 2
   auto C = make_cell_2d({ 1.0, -2.0}, { 5.0, 2.0}, 1.0, 1);
-  ASSERT_CLOSE(A.Distance(C, tapas::CenterClass()), 3.0*3.0);
-  ASSERT_CLOSE(C.Distance(A, tapas::CenterClass()), 3.0*3.0);
+  ASSERT_CLOSE(A.dX(C, tapas::Center).norm(), 3.0*3.0);
+  ASSERT_CLOSE(C.dX(A, tapas::Center).norm(), 3.0*3.0);
 
   // test 3
   auto D = make_cell_2d({ 1.0, -4.0}, { 5.0, 0.0}, 1.0, 1);
   double ans3 = 3.16227766;
-  ASSERT_CLOSE(A.Distance(D, tapas::CenterClass()), ans3*ans3);
-  ASSERT_CLOSE(D.Distance(A, tapas::CenterClass()), ans3*ans3);
+  ASSERT_CLOSE(A.dX(D, tapas::Center).norm(), ans3*ans3);
+  ASSERT_CLOSE(D.dX(A, tapas::Center).norm(), ans3*ans3);
 
   // test 4
   auto E = make_cell_2d({ 1.0, -5.0}, { 5.0,-1.0}, 1.0, 1);
   double ans4 = 3.605551275;
-  ASSERT_CLOSE(A.Distance(E, tapas::CenterClass()), ans4*ans4);
-  ASSERT_CLOSE(E.Distance(A, tapas::CenterClass()), ans4*ans4);
+  ASSERT_CLOSE(A.dX(E, tapas::Center).norm(), ans4*ans4);
+  ASSERT_CLOSE(E.dX(A, tapas::Center).norm(), ans4*ans4);
   
   // test 5
   auto F = make_cell_2d({ 1.0, -2.0}, { 3.0, 0.0}, 2.0, 1);
   double ans5 = 3.807886553;
-  ASSERT_CLOSE(A.Distance(F, tapas::CenterClass()), ans5*ans5);
-  ASSERT_CLOSE(F.Distance(A, tapas::CenterClass()), ans5*ans5);
+  ASSERT_CLOSE(A.dX(F, tapas::Center).norm(), ans5*ans5);
+  ASSERT_CLOSE(F.dX(A, tapas::Center).norm(), ans5*ans5);
   
   // test 6
   auto G = make_cell_2d({ 1.0, -1.0}, { 3.0, 1.0}, 2.0, 1);
   double ans6 = 3.535533906;
-  ASSERT_CLOSE(A.Distance(G, tapas::CenterClass()), ans6*ans6);
-  ASSERT_CLOSE(G.Distance(A, tapas::CenterClass()), ans6*ans6);
+  ASSERT_CLOSE(A.dX(G, tapas::Center).norm(), ans6*ans6);
+  ASSERT_CLOSE(G.dX(A, tapas::Center).norm(), ans6*ans6);
 }
 
 int main(int argc, char **argv) {

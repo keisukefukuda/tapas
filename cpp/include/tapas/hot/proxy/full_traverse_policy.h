@@ -26,7 +26,7 @@ class FullTraversePolicy {
   using SFC = typename tapas::hot::Cell<TSP>::SFC;
   using Data = typename CellType::Data;
   using Reg = Region<Dim, FP>;
-  using Vec = typename CellType::Vec;
+  using VecT = typename CellType::VecT;
 
  public:
   FullTraversePolicy(const Data &data, KeyType key)
@@ -98,15 +98,15 @@ class FullTraversePolicy {
     return dX(rhs, tapas::CenterClass()).norm();
   }
 
-  inline Vec dX(const FullTraversePolicy& rhs, tapas::CenterClass) const {
+  inline VecT dX(const FullTraversePolicy& rhs, tapas::CenterClass) const {
     return center() - rhs.center();
   }
 
-  inline FP Distance(const Vec& body_pos, tapas::CenterClass) const {
+  inline FP Distance(const VecT& body_pos, tapas::CenterClass) const {
     return dX(body_pos, tapas::CenterClass()).norm();
   }
 
-  inline Vec dX(const Vec& body_pos, tapas::CenterClass) const {
+  inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     return center() - body_pos;
   }
 
@@ -114,7 +114,7 @@ class FullTraversePolicy {
     return Cell<TSP>::CalcRegion(key_, data_.region_).width(d);
   }
 
-  inline Vec width() const {
+  inline VecT width() const {
     return Cell<TSP>::CalcRegion(key_, data_.region_).width();
   }
 
@@ -177,7 +177,7 @@ class FullTraversePolicy {
 
   KeyType key() const { return key_; } // being public for debugging purpose
 
-  inline Vec center() const {
+  inline VecT center() const {
     return Cell<TSP>::CalcCenter(key_, data_.region_);
   }
 

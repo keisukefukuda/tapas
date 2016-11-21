@@ -44,24 +44,6 @@ typedef tapas::BodyInfo<float4, 0> BodyInfo;
 #include "tapas/single_node_hot.h"
 #endif
 
-#if 0
-#if 0
-typedef tapas::Tapas<DIM, real_t,
-                     BodyInfo, // BT
-                     float4,   // Cell attr
-                     float4,   // body attr
-                     tapas::HOT<DIM, tapas::sfc::Morton>,
-                     tapas::threading::Default> Tapas;
-#else
-#include "tapas/single_node_hot.h"
-typedef tapas::Tapas<DIM, real_t, BodyInfo,
-                     float4,
-                     float4,
-                     tapas::SingleNodeHOT<DIM, tapas::sfc::Morton>,
-                     tapas::threading::Default> Tapas;
-#endif // 0
-#endif // 0
-
 // Select threading component: serial or MassiveThreads
 #ifdef MTHREAD
 #include "tapas/threading/massivethreads.h"
@@ -69,6 +51,7 @@ using Threading = tapas::threading::MassiveThreads;
 #endif /* MTHREAD */
 
 const constexpr size_t kBodyCoordOffset = 0;
+
 struct BH_Params : public tapas::HOT<3, real_t, float4, kBodyCoordOffset, float4, float4> {
 #ifdef MTHREAD
   using Threading = tapas::threading::MassiveThreads;
@@ -115,15 +98,6 @@ void P2P(f4vec &tattrs, f4vec &tbodies, f4vec &source, float eps2) {
     tattrs[i].z += az;
   }
 }
-
-#if 0 // unsed. commented cout to supress 'unsed function' warnings.
-static real_t distR2(const float4 &p, const float4 &q) {
-  real_t dx = q.x - p.x;
-  real_t dy = q.y - p.y;
-  real_t dz = q.z - p.z;
-  return dx * dx + dy * dy + dz * dz;
-}
-#endif
 
 static real_t distR2(const tapas::Vec<3, double> &p, const float4 &q) {
   real_t dx = q.x - p[0];
@@ -218,8 +192,8 @@ struct interact {
       assert(c1.nb() == 1);
     
       // use apploximation
-      //const float4 &p1 = c1.body(0);
-      real_t d = std::sqrt(c2.Distance(c1.body(0), tapas::Center)); //std::sqrt(distR2(c2.center(), p1));
+      const auto &p1 = c1.body(0);
+      real_t d = std::sqrt(TapasBH::Distance2(c2, p1, tapas::Center));
       //real_t d = std::sqrt(distR2(c2.attr(), p1));
       real_t s = c2.width(0);
 
