@@ -586,6 +586,16 @@ class Cell {
     return dX(rhs, tapas::CenterClass()).norm();
   }
 
+  // inline FP Distance(const Cell &rhs, tapas::LongestClass) const {
+  //   // TODO
+  //   return 0;
+  // }
+
+  // inline FP Distance(const Cell &rhs, tapas::ShortestClass) const {
+  //   // TDOO
+  //   return 0;
+  // }
+
   inline Vec dX(const Cell &rhs, tapas::CenterClass) const {
     return center() - rhs.center();
   }
