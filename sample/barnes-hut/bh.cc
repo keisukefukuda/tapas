@@ -332,8 +332,8 @@ void CheckResult(int np_check,
   // tbodies : sampled target bodies (small portion of sourceHost)
   // tattrs  : target attrs to be computed directly in this function
 
-  TAPAS_ASSERT(np_check <= sourceHost.size());
-  TAPAS_ASSERT(np_check <= targetTapas.size());
+  TAPAS_ASSERT(np_check <= (int)sourceHost.size());
+  TAPAS_ASSERT(np_check <= (int)targetTapas.size());
       
   f4vec tbodies(sourceHost.begin(), sourceHost.begin() + np_check);
   f4vec tattrs(np_check);
