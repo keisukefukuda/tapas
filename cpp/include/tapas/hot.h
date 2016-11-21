@@ -1664,6 +1664,11 @@ struct Tapas {
     return part.Partition(nullptr, b, nb, comm);
   }
 
+  static Cell *Partition(std::vector<Body> bodies, index_t max_nb,
+                         MPI_Comm comm = MPI_COMM_WORLD) {
+    return Partition(bodies.data(), bodies.size(), max_nb, comm);
+  }
+
   /**
    * @brief Re-construct the tree and returns the new tree.
    * the argument pointer is deleted.
