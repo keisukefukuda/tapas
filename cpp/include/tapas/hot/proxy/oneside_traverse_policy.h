@@ -206,9 +206,9 @@ class OnesideTraversePolicy {
     
     for (int d = 0; d < Dim; d++) {
       if (body_pos[d] < region_.min(d)) {
-        dx[d] = region_.min(d) - body_pos[d] + width_/2;
+        dx[d] = region_.min(d) - body_pos[d] + width_[d]/2;
       } else if (body_pos[d] > region_.max(d)) {
-        dx[d] = body_pos[d] - region_.max(d) + width_/2;
+        dx[d] = body_pos[d] - region_.max(d) + width_[d]/2;
       } else {
         dx[d] = 0;
       }
