@@ -158,19 +158,18 @@ class ProxyCell : public _POLICY {
     return this->Base::depth();
   }
 
-  /**
-   * \brief Cell-cell Distance Function
-   */
-  inline VecT dX(const ProxyCell &rhs, tapas::CenterClass) const {
-    return this->Base::dX((Base&)rhs, tapas::CenterClass());
+  template<class DistanceType>
+  inline VecT dX(const ProxyCell &rhs, DistanceType t) const {
+    return this->Base::dX((Base&)rhs, t);
   }
 
   /**
    * \brief Distance Function
    */
-  inline VecT dX(const Body &b, tapas::CenterClass) const {
+  template<class DistanceType>
+  inline VecT dX(const Body &b, DistanceType t) const {
     VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::dX(body_pos, tapas::CenterClass());
+    return this->Base::dX(body_pos, t);
   }
 
   /**

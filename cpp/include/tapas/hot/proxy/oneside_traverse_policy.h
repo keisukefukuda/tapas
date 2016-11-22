@@ -177,6 +177,29 @@ class OnesideTraversePolicy {
     return dX;
   }
 
+  inline VecT dX(const OnesideTraversePolicy &rhs, tapas::ShortestClass) const {
+    VecT dx = {0.0};
+    for (int d = 0; d < Dim; d++) {
+      FP a_min = region_.min(d), a_max = region_.max(d);
+      FP b_min = rhs.region_.min(d), b_max = rhs.region_.max(d);
+      if ((b_min <= a_min && a_min <= b_max) || (b_min <= a_max && a_max <= b_max)) {
+        dx[d] = 0;
+      } else if (a_min <= b_min && b_max <= a_max) {
+        dx[d] = 0;
+      } else if (b_min <= a_min && a_max <= b_max) {
+        dx[d] = 0;
+      } else if (a_max < b_min) {
+        dx[d] = b_min - a_max;
+      } else if (b_max < a_min) {
+        dx[d] = a_min - b_max;
+      } else {
+        assert(0);
+      }
+    }
+    return dx;
+  }
+  
+
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
     VecT dx = {0.0};

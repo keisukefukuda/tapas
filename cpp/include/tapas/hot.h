@@ -582,13 +582,56 @@ class Cell {
   }
   const Mapper &mapper() const { return data_->mapper; }
 
+  // cell, center
   inline VecT dX(const Cell &rhs, tapas::CenterClass) const {
     return (center() - rhs.center());
   }
 
+  // cell, shortest
+  inline VecT dX(const Cell &rhs, tapas::ShortestClass) const {
+    VecT dx = {0.0};
+    for (int d = 0; d < Dim; d++) {
+      FP a_max = region_.max(d), a_min = region_.min(d);
+      FP b_max = rhs.region_.max(d), b_min = rhs.region_.min(d);
+
+      if ((b_min <= a_min && a_min <= b_max)
+          || (b_min <= a_max && a_max <= b_max)) {
+        // the two regions overlap
+        dx[d] = 0;
+      } else if (a_max < b_min) {
+        dx[d] = b_min - a_max;
+      } else if (a_min > b_max) {
+        dx[d] = a_min - b_max;
+      } else {
+        assert(0); // should not reach
+      }
+    }
+    return dx;
+  }
+
+  // body, center
   inline VecT dX(const Body &b, tapas::CenterClass) const {
     VecT pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b));
     return (center() - pos);
+  }
+
+  // body, shortest
+  inline VecT dX(const Body &b, tapas::ShortestClass) const {
+    VecT pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b));
+    VecT dx = {0.0};
+    for (int d = 0; d < Dim; d++) {
+      if ((region_.min(d) <= pos[d]) && (pos[d] <= region_.max(d))) {
+        // the position[d] is included in region[d]
+        dx[d] = 0;
+      } else if (pos[d] < region_.min(d)) {
+        dx[d] = region_.min(d) - pos[d];
+      } else if (pos[d] > region_.max(d)) {
+        dx[d] = pos[d] - region_.max(d);
+      } else {
+        assert(0);
+      }
+    }
+    return dx;
   }
 
  protected:
@@ -1618,7 +1661,7 @@ template<class _TSP>
 struct Tapas {
   using TSP = _TSP;
   static const constexpr int Dim = TSP::Dim;
-  static const constexpr size_t BodyCoordOffset = TSP::BodyCoordOffset;
+  static const constexpr size_t BodyCoordOffset = TSP::kBodyCoordOffset;
   using FP = typename TSP::FP;
   using Partitioner = typename TSP::template Partitioner<TSP>;
   using Region = tapas::Region<Dim, FP>;
@@ -1824,8 +1867,8 @@ struct Tapas {
   }
 
   static inline FP Distance2(const Body &b1, const Body &b2) {
-    Vec<Dim, FP> pos1 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b1));
-    Vec<Dim, FP> pos2 = ParticlePosOffset<Dim, FP, TSP::BodyCoordOffset>::vec(reinterpret_cast<const void*>(&b2));
+    Vec<Dim, FP> pos1 = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b1));
+    Vec<Dim, FP> pos2 = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(reinterpret_cast<const void*>(&b2));
     return (pos1 - pos2).norm();
   }
 
