@@ -91,21 +91,45 @@ class FullTraversePolicy {
   }
 
   inline Reg region() const {
-    CellType::CalcRegion(key_, data_.region_);
+    return CellType::CalcRegion(key_, data_.region_);
   }
 
-  inline FP Distance(const FullTraversePolicy& rhs, tapas::CenterClass) const {
-    return dX(rhs, tapas::CenterClass()).norm();
+  // Cell-Cell, Shortest
+  inline VecT dX(const FullTraversePolicy& rhs, tapas::ShortestClass) const {
+    Reg reg1 = region();
+    Reg reg2 = rhs.region();
+    VecT dx = {0.0};
+    for (int d = 0; d < Dim; d++) {
+      FP a_min = reg1.min(d), a_max = reg1.max(d);
+      FP b_min = reg2.min(d), b_max = reg2.max(d);
+      if ((b_min <= a_min && a_min <= b_max) || (b_min <= a_max && a_max <= b_max)) {
+        dx[d] = 0;
+      } else if (a_min <= b_min && b_max <= a_max) {
+        dx[d] = 0;
+      } else if (b_min <= a_min && a_max <= b_max) {
+        dx[d] = 0;
+      } else if (a_max < b_min) {
+        dx[d] = b_min - a_max;
+      } else if (b_max < a_min) {
+        dx[d] = a_min - b_max;
+      } else {
+        assert(0);
+      }
+    }
+    return dx;
   }
 
+  // Cell-Cell, Center
   inline VecT dX(const FullTraversePolicy& rhs, tapas::CenterClass) const {
     return center() - rhs.center();
   }
 
-  inline FP Distance(const VecT& body_pos, tapas::CenterClass) const {
-    return dX(body_pos, tapas::CenterClass()).norm();
+  // Cell-Body, Shortest
+  inline VecT dX(const VecT& body_pos, tapas::ShortestClass) const {
+    return center() - body_pos;
   }
 
+  // Cell-Cell, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     return center() - body_pos;
   }

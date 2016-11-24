@@ -121,6 +121,7 @@ class OnesideTraversePolicy {
     is_leaf_ = b;
   }
 
+  // Cell-Cell, Center
   inline VecT dX(const OnesideTraversePolicy &rhs, tapas::CenterClass) const {
     const Reg &r1 = region_, &r2 = rhs.region_;
     VecT dX = {0.0};
@@ -177,6 +178,7 @@ class OnesideTraversePolicy {
     return dX;
   }
 
+  // Cell-Cell, Shortest
   inline VecT dX(const OnesideTraversePolicy &rhs, tapas::ShortestClass) const {
     VecT dx = {0.0};
     for (int d = 0; d < Dim; d++) {
@@ -198,8 +200,8 @@ class OnesideTraversePolicy {
     }
     return dx;
   }
-  
 
+  // Cell-Body, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
     VecT dx = {0.0};
@@ -209,6 +211,23 @@ class OnesideTraversePolicy {
         dx[d] = region_.min(d) - body_pos[d] + width_[d]/2;
       } else if (body_pos[d] > region_.max(d)) {
         dx[d] = body_pos[d] - region_.max(d) + width_[d]/2;
+      } else {
+        dx[d] = 0;
+      }
+    }
+    return dx;
+  }
+
+  // Cell-Body, Shortest
+  inline VecT dX(const VecT& body_pos, tapas::ShortestClass) const {
+    // todo
+    VecT dx = {0.0};
+    
+    for (int d = 0; d < Dim; d++) {
+      if (body_pos[d] < region_.min(d)) {
+        dx[d] = region_.min(d) - body_pos[d];
+      } else if (body_pos[d] > region_.max(d)) {
+        dx[d] = body_pos[d] - region_.max(d);
       } else {
         dx[d] = 0;
       }
