@@ -613,7 +613,7 @@ struct ExactInsp2 {
     tapas::debug::BarrierExec([&](int, int) {
         {
 
-#if 0
+#if 1
           // Call exact inspector ::Inspect
           Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
