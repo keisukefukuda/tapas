@@ -236,7 +236,7 @@ function test_bh() {
     done
 }
 
-#test_bh
+test_bh
 
 echo --------------------------------------------------------------------
 echo ExaFMM
