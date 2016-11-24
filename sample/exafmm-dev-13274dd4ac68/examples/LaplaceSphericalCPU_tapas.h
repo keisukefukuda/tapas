@@ -207,9 +207,9 @@ void M2M(Cell &parent, Cell &child) {
   }
 
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
-  
+
   if (!Cell::Inspector) {
-    std::cout << parent.key() << " M= " << parent.attr().M << std::endl;
+    //std::cout << parent.key() << " M= " << parent.attr().M << std::endl;
   }
 }
 
