@@ -1146,7 +1146,7 @@ void PropagateFunc(Cell *cell, typename Cell::Data &data) {
       //double alpha = 0.1;
       data.local_body_weight_br_[bidx] = wbr;
       data.local_body_weight_lf_[bidx] = wlf;
-      data.local_body_weights_[bidx] = wbr + 0.014296 * wlf; // 0.014296 is for Spherical kernel.
+      data.local_body_weights_[bidx] = wbr + 0.0014296 * wlf; // 0.014296 is for Spherical kernel.
     }
   } else {
     // Add the parent's weight to the children
