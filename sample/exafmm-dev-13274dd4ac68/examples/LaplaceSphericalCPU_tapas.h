@@ -238,12 +238,16 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   evalLocal(rho, alpha, beta, Ynmi);
   IF_MUTUAL( evalLocal(rho, alpha+M_PI, beta, Ynmj) );
 
+  std::vector<real_t> Cnm_debug;
+
   for (int j=0; j<P; j++) {
 #if MASS
     real_t Cnm = std::real(Ci->M[0] * Cj->M[0]) * ODDEVEN(j);
 #else
     real_t Cnm = ODDEVEN(j);
 #endif
+
+    Cnm_debug.push_back(Cnm);
 
     for (int k=0; k<=j; k++) {
       int jks = j * (j + 1) / 2 + k;
@@ -288,6 +292,8 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   if (!Cell::Inspector) {
     if (tapas::mpi::Rank() == 0) {
       if (Ci.key() == 2304717109306851332 && Cj.key() == 4305441243766194179) {
+        std::cout << "M2L: P=" << P << std::endl;
+        std::cout << "M2L: " << std::endl;
         std::cout << "M2L: dL= " << dL << std::endl;
         std::cout << "M2L: " << std::endl;
         std::cout << "M2L: dX= " << dX << std::endl;
@@ -296,6 +302,13 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
         std::cout << "M2L: " << std::endl;
         std::cout << "M2L: Ynmi= ";
         for (int i = 0; i < P*P; i++) std::cout << Ynmi[i] << " ";
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << "M2L: Cj.M= " << attr_j.M << std::endl;
+        std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << "M2L: Cnm= ";
+        for (real_t v : Cnm_debug) std::cout << v << " ";
         std::cout << std::endl;
       }
     }
