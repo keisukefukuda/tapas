@@ -207,12 +207,6 @@ void M2M(Cell &parent, Cell &child) {
   }
 
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
-  
-  if (!Cell::Inspector) {
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << child.key() << " M= " << child.attr().M << std::endl;
-    }
-  }
 }
 
 #ifdef FMM_MUTUAL
