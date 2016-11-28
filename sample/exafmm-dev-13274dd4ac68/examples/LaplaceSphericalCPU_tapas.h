@@ -287,8 +287,10 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
 
   if (!Cell::Inspector) {
     if (tapas::mpi::Rank() == 0) {
-      std::cout << Ci.key() << " " << Cj.key() << " "
-                << "dL= " << dL << std::endl;
+      if (Ci.key() == 2304717109306851332 && Cj.key() == 4305441243766194179) {
+        std::cout << Ci.key() << " " << Cj.key() << " "
+                  << "dL= " << dL << std::endl;
+      }
     }
   }
 }
