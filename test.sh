@@ -1,4 +1,15 @@
 #!/bin/bash
+#
+#-------------------------------------------------------------------------------
+# setup.sh
+#
+# Usage:
+#  $ sh test.sh 
+#
+#
+#-------------------------------------------------------------------------------
+
+
 set -u
 set -e
 
@@ -160,25 +171,29 @@ else
     echo MassiveThreads is NOT activated.
 fi    
 
-echo --------------------------------------------------------------------
-echo C++ Unit Tests
-echo --------------------------------------------------------------------
+function test_unit() {
+    echo --------------------------------------------------------------------
+    echo C++ Unit Tests
+    echo --------------------------------------------------------------------
+    
+    SRC_DIR=$SRC_ROOT/cpp/tests
 
-SRC_DIR=$SRC_ROOT/cpp/tests
+    echoCyan make MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean
+    make -j MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
 
-echoCyan make MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean
-make -j MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
+    echoCyan make MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
+    make -j MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all
 
-echoCyan make MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
-make -j MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all
-
-TEST_TARGETS=$(make -C $SRC_DIR list | grep -v make | grep -v echo | grep test_)
-for t in $TEST_TARGETS; do
-    for NP in 1 2 3 4; do
-        echoCyan ${MPIEXEC} -np $NP $SRC_DIR/$t
-        ${MPIEXEC} -np $NP $SRC_DIR/$t
+    TEST_TARGETS=$(make -C $SRC_DIR list | grep -v make | grep -v echo | grep test_)
+    for t in $TEST_TARGETS; do
+        for NP in 1 2 3 4; do
+            echoCyan ${MPIEXEC} -np $NP $SRC_DIR/$t
+            ${MPIEXEC} -np $NP $SRC_DIR/$t
+        done
     done
-done
+}
+
+test_unit
 
 function test_bh() {
     echo --------------------------------------------------------------------
@@ -238,64 +253,62 @@ function test_bh() {
 
 #test_bh
 
-echo --------------------------------------------------------------------
-echo ExaFMM
-echo --------------------------------------------------------------------
+function build_fmm() {
+    if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
+        NP=(1)
+        NB=(100)
+        DIST=(c)
+        NCRIT=(1 2 16)
+    elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
+        NP=(1 2)
+        NB=(1000)
+        DIST=(c)
+        NCRIT=(1 2 16)
+    elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
+        NP=(1 2 3 4 5 6)
+        NB=(10000 20000)
+        DIST=(s c)
+        NCRIT=(1 2 16 64)
+    elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
+        NP=(1 2 4 8 16 32)
+        NB=(10000 20000 40000 80000 160000)
+        DIST=(l s p c)
+        NCRIT=(1 2 16 64)
+    else
+        echo "Unknown SCALE : '$SCALE'" >&2
+        exit 1
+    fi
 
-MAX_ERR=5e-3
+    SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
 
-if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
-    NP=(1)
-    NB=(100)
-    DIST=(c)
-    NCRIT=(1 2 16)
-elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
-    NP=(1 2)
-    NB=(1000)
-    DIST=(c)
-    NCRIT=(1 2 16)
-elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
-    NP=(1 2 3 4 5 6)
-    NB=(10000 20000)
-    DIST=(s c)
-    NCRIT=(1 2 16 64)
-elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
-    NP=(1 2 4 8 16 32)
-    NB=(10000 20000 40000 80000 160000)
-    DIST=(l s p c)
-    NCRIT=(1 2 16 64)
-else
-    echo "Unknown SCALE : '$SCALE'" >&2
-    exit 1
-fi
+    make VERBOSE=1 -C $SRC_DIR clean 
 
-SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
+    # Build multi-threaded version
+    if [[ -d "${MYTH_DIR:-}" ]]; then
+        export MYTH_DIR
+        echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
+        env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
 
-make VERBOSE=1 -C $SRC_DIR clean 
+        mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_mt
+        mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_mt
+    fi
 
-# Build multi-threaded version
-if [[ -d "${MYTH_DIR:-}" ]]; then
-    export MYTH_DIR
-    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
+    # Build single-threaded, without-weighted-repartitioning version
+    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
 
-    mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_mt
-    mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_mt
-fi
-
-# Build single-threaded, without-weighted-repartitioning version
-echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
-env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
-
-mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
-mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
+    mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
+    mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
 
 
-# Build single-threaded version
-echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
-env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+    # Build single-threaded version
+    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+}
 
 function accuracyCheck() {
+    MAX_ERR=5e-3
+
     local fname=$1
     PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
     AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
@@ -318,6 +331,12 @@ function accuracyCheck() {
 }
 
 function tapasCheck() {
+    echo --------------------------------------------------------------------
+    echo ExaFMM
+    echo --------------------------------------------------------------------
+
+    build_fmm
+
     for ts in 1 2 3; do
     for nb in ${NB[@]}; do
     for ncrit in ${NCRIT[@]}; do
