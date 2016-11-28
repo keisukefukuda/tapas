@@ -289,9 +289,10 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   Ci.attr() = attr_i;
   IF_MUTUAL( Cj.attr() = attr_j );
 
+#if 0
   if (!Cell::Inspector) {
-    if (tapas::mpi::Rank() == 0) {
-      if (Ci.key() == 2304717109306851332 && Cj.key() == 4305441243766194179) {
+    if (Ci.key() == 2304717109306851332 && Cj.key() == 4305441243766194179) {
+      if (tapas::mpi::Rank() == 0) {
         std::cout << "M2L: P=" << P << std::endl;
         std::cout << "M2L: " << std::endl;
         std::cout << "M2L: dL= " << dL << std::endl;
@@ -310,9 +311,18 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
         std::cout << "M2L: Cnm= ";
         for (real_t v : Cnm_debug) std::cout << v << " ";
         std::cout << std::endl;
+        std::cout << std::endl;
+        std::cout << "M2L: " << Cj.data().ht_.count(Cj.key()) << std::endl;
+        std::cout << "M2L: " << Cj.data().ht_let_.count(Cj.key()) << std::endl;
+      }
+    }
+    if (Cj.key() == 2304717109306851332 && Ci.key() == 4305441243766194179) {
+      if (tapas::mpi::Rank() == 1) {
+        std::cout << "M2L: M in rank 1 = " << Ci.data().ht_.at(4305441243766194179)->attr().M << std::endl;
       }
     }
   }
+#endif
 }
 
 void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.

@@ -637,6 +637,19 @@ struct ExactInsp2 {
           req_leaf_keys.clear();
           req_cell_attr_keys = req_cell_attr_keys2;
           req_leaf_keys = req_leaf_keys2;
+
+          for (KeyType k : req_cell_attr_keys) {
+            if (k == 4305441243766194179) {
+              std::cout << "Exchange: requesting " << k << " as attr from rank " << tapas::mpi::Rank() << std::endl;
+            }
+          }
+          for (KeyType k : req_leaf_keys) {
+            if (k == 4305441243766194179) {
+              std::cout << "Exchange: requesting " << k << " as leaf from rank " << tapas::mpi::Rank() << std::endl;
+            }
+          }
+
+          req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 #endif
         }
       });
