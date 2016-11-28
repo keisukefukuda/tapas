@@ -205,7 +205,7 @@ void M2M(Cell &parent, Cell &child) {
       dM[jks] += M_jks;
     }
   }
-
+  
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
 }
 
@@ -288,8 +288,15 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   if (!Cell::Inspector) {
     if (tapas::mpi::Rank() == 0) {
       if (Ci.key() == 2304717109306851332 && Cj.key() == 4305441243766194179) {
-        std::cout << Ci.key() << " " << Cj.key() << " "
-                  << "dL= " << dL << std::endl;
+        std::cout << "M2L: dL= " << dL << std::endl;
+        std::cout << "M2L: " << std::endl;
+        std::cout << "M2L: dX= " << dX << std::endl;
+        std::cout << "M2L: " << std::endl;
+        std::cout << "M2L: rho= " << rho << ", alpha= " << alpha << ", beta= " << beta << std::endl;
+        std::cout << "M2L: " << std::endl;
+        std::cout << "M2L: Ynmi= ";
+        for (int i = 0; i < P*P; i++) std::cout << Ynmi[i] << " ";
+        std::cout << std::endl;
       }
     }
   }
