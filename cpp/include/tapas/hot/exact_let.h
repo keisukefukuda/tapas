@@ -596,9 +596,6 @@ struct ExactInsp2 {
    */
   template<class UserFunct, class...Args>
   static void Exchange(CellType &root, UserFunct f, Args...args) {
-    if (root.data().mpi_rank_ == 0) {
-      std::cout << "Using Exact Inspector" << std::endl;
-    }
     SCOREP_USER_REGION("LET-All", SCOREP_USER_REGION_TYPE_FUNCTION);
     double beg = MPI_Wtime();
 
@@ -610,38 +607,19 @@ struct ExactInsp2 {
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    tapas::debug::BarrierExec([&](int, int) {
-        {
-
+    double bt = MPI_Wtime();
 #if 0
-          // Call exact inspector ::Inspect
-          Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    // Call exact inspector ::Inspect
+    Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
-
-          // Call one-side insp2::Inspect
-          KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
-          KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
-
-          std::cout << "\n\n>>> Oneside Inspector in rank " << tapas::mpi::Rank() << std::endl;
-          double bt = MPI_Wtime();
-          Insp2<TSP>::Inspect(root, req_cell_attr_keys2, req_leaf_keys2, f, args...);
-          double et = MPI_Wtime();
-          std::cout << "<<< Oneside Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
-
-          // std::cout << "req_cell_attr_keys.size() = " << req_cell_attr_keys.size() << std::endl;
-          // std::cout << "req_cell_leaf_keys.size() = " << req_leaf_keys.size() << std::endl;
-          // std::cout << "req_cell_attr_keys2.size() = " << req_cell_attr_keys2.size() << std::endl;
-          // std::cout << "req_cell_leaf_keys2.size() = " << req_leaf_keys2.size() << std::endl;
-
-          req_cell_attr_keys.clear();
-          req_leaf_keys.clear();
-          req_cell_attr_keys = req_cell_attr_keys2;
-          req_leaf_keys = req_leaf_keys2;
-
-          req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
+    Insp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #endif
-        }
-      });
+    double et = MPI_Wtime();
+    if (root.data().mpi_rank_ == 0) {
+      std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
+    }
+
+    req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 
     // We need to convert the sets to vectors
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
