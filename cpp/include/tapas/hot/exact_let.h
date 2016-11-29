@@ -8,7 +8,7 @@
 #include <tapas/geometry.h>
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/let_common.h>
-#include <tapas/hot/insp2.h>
+#include <tapas/hot/oneside_insp2.h>
 
 using tapas::debug::BarrierExec;
 
@@ -608,11 +608,11 @@ struct ExactInsp2 {
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
     double bt = MPI_Wtime();
-#if 0
+#if 1
     // Call exact inspector ::Inspect
     Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
-    Insp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    OnesideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #endif
     double et = MPI_Wtime();
     if (root.data().mpi_rank_ == 0) {
