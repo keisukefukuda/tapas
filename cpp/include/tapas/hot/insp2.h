@@ -68,12 +68,10 @@ class Insp2 {
     const int nrow = max_depth - trg_depth + 1;
     std::vector<SplitType> table(ncol * nrow);
 
-    bool dbg_flag = tapas::mpi::Rank() == 0
-                    && SFC::IsDescendant(trg_root_key, 4)
-                    && SFC::IsDescendant(src_root_key, 1729382256910270466);
+    bool dbg_flag = tapas::mpi::Rank() == 1 && src_root_key == 1 && trg_root_key == 2449958197289549826;
 
     if (dbg_flag) {
-      std::cout << "=======================" << std::endl;
+      std::cout << "========== Build Table =============" << std::endl;
     }
     // std::cout << "\tBuildTable: max_depth = " << max_depth << std::endl;
     // std::cout << "\tBuildTable: src_depth = " << src_depth << std::endl;
@@ -88,9 +86,20 @@ class Insp2 {
         GCell src_gc = GCell(data, nullptr, src_reg, sw, sd);
         GCell trg_gc = GCell(data, nullptr, trg_reg, tw, td);
 
+        if (dbg_flag && sd == 2 && td == 2) {
+          setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
+        }
         SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
         int idx = (td - trg_depth) * ncol + (sd - src_depth);
         table[idx] = split;
+
+        if (dbg_flag && sd == 2 && td == 2) {
+          unsetenv("TAPAS_DEBUG_INSPECTOR");
+          std::cout << "trg width = " << trg_gc.width() << std::endl;
+          std::cout << "src width = " << src_gc.width() << std::endl;
+          std::cout << "distance = " << std::sqrt(src_gc.dX(trg_gc, tapas::Shortest).norm()) << std::endl;
+          std::cout << "td=2, sd=2 => " << split << std::endl;
+        }
 
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
@@ -100,23 +109,17 @@ class Insp2 {
             && td >= data.min_leaf_level_[trg_root_key]) {
           if (dbg_flag && 0) {
             std::cout << "table[" << (td-trg_depth) << ", " << (sd - src_depth) << "]"
+                      << "(depth: T-" << td << "," << "S-" << sd << ")"
                       << " is " << table[idx]
-                      << ", so testing with target leaf" 
                       << std::endl;
           }
           trg_gc.ClearFlags();
           trg_gc.SetIsLeaf(true); // re-use the target Ghost Cell, but now a leaf
-
-          if (dbg_flag && td==4 && sd == 1) {
-            setenv("TAPAS_DEBUG_BH", "1", 1);
-          }
+          
           SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
-          if (dbg_flag) {
-            unsetenv("TAPAS_DEBUG_BH");
-          }
-
           if (dbg_flag && 0) {
             std::cout << "table[" << (td-trg_depth) << ", " << (sd - src_depth) << "]"
+                      << "(depth: T-" << td << "," << "S-" << sd << ") "
                       << " is                       =================> " << split
                       << std::endl;
           }
@@ -146,7 +149,7 @@ class Insp2 {
     for (int i = 0; i < ncol; i++) {
       std::cout << i;
     }
-    std::cout << std::endl;
+    std::cout << " S" << std::endl;
     
     for (int i = 0; i < nrow; i++) {
       std::cout << i;
@@ -176,7 +179,7 @@ class Insp2 {
       }
       std::cout << std::endl;
     }
-    std::cout << std::endl;
+    std::cout << "T" << std::endl;
   }
 
   /**
@@ -201,28 +204,23 @@ class Insp2 {
     int ncols = data.max_depth_ - src_root_depth + 1;
     int nrows = data.max_depth_ - trg_root_depth + 1;
 
-
-    if (src_key == 1729382256910270465
-        && SFC::IsDescendant(trg_root_key, 2251799813685252)
-        && tapas::mpi::Rank() == 0) {
-      std::cout << "#########" << std::endl;
-      DumpTable(table, nrows, ncols);
-    }
-    // std::cout << "\tTraverseSource: max depth = " << data.max_depth_ << std::endl;
-    // std::cout << "\tTraverseSource: trg root = " << SFC::Decode(trg_root_key) << std::endl;
-    // std::cout << "\tTraverseSource: src root = " << SFC::Decode(src_root_key) << std::endl;
-    // std::cout << "\tTraverseSource: src key  = " << SFC::Decode(src_key) << std::endl;
-    // std::cout << "\tTraverseSource: src depth = " << src_depth << std::endl;
-    // std::cout << "\tTraverseSource: nrows = " << nrows << ", ncols = " << ncols << std::endl;
-    
     // DumpTable(table, nrows, ncols);
 
     int c = src_depth - src_root_depth;
+
+    bool dbg_flg = tapas::mpi::Rank() == 1 && src_key == 2 && trg_root_key == 2449958197289549826;
 
     //std::cout << "Checking col " << c << std::endl;
     int cnt = 0;
     for (int r = 0; r < nrows; r++) {
       auto sp = table[r * ncols + c];
+
+      if (dbg_flg) {
+        std::cout << "trg depth = " << (trg_root_depth + r) << " "
+                  << "src key = " << src_key << " "
+                  << "split_type = " << sp << std::endl;
+      }
+      
       if (sp == SplitType::SplitRight
           || sp == SplitType::SplitBoth
           || sp == SplitType::SplitRightILL) {
@@ -296,9 +294,6 @@ class Insp2 {
     req_keys_attr.insert(root.key());
 
     // Repeat over all pairs target and source local trees
-    std::cout << "data.gleaves_.size() = " << data.gleaves_.size() << std::endl;
-    std::cout << "data.lroots_.size()  = " << data.lroots_.size() << std::endl;
-    
     for (KeyType src_key : data.gleaves_) {
       if (data.ht_.count(src_key) == 0) {
         for (KeyType trg_key : data.lroots_) {
@@ -313,7 +308,9 @@ class Insp2 {
 
             std::vector<SplitType> table = BuildTable(data, src_key, trg_key, f, args...);
 
-            //DumpTable(table, nrow, ncol);
+            if (src_key == 1 && trg_key == 2449958197289549826) {
+              DumpTable(table, nrow, ncol);
+            }
             
             TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 

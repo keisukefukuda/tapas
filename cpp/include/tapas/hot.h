@@ -1013,7 +1013,7 @@ Cell<TSP> &Cell<TSP>::subcell(int idx) {
   if (c == nullptr) {
     std::stringstream ss;
     ss << "In MPI rank " << data_->mpi_rank_ << ": "
-       << "Cell not found for key "
+       << "Cell not found for key \n      "
        << SFC::Simplify(child_key) << " "
        << SFC::Decode(child_key) << " "
        << child_key

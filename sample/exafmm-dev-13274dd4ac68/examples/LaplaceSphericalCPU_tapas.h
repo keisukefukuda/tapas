@@ -227,8 +227,6 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   CellAttr attr_i = Ci.attr();
   CellAttr attr_j = Cj.attr();
 
-  decltype(attr_i.L) dL = {0.0};
-
   vec3 dX;
   asn(dX, Ci.dX(Cj, tapas::Center));
   dX -= Xperiodic;
@@ -238,16 +236,12 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   evalLocal(rho, alpha, beta, Ynmi);
   IF_MUTUAL( evalLocal(rho, alpha+M_PI, beta, Ynmj) );
 
-  std::vector<real_t> Cnm_debug;
-
   for (int j=0; j<P; j++) {
 #if MASS
     real_t Cnm = std::real(Ci->M[0] * Cj->M[0]) * ODDEVEN(j);
 #else
     real_t Cnm = ODDEVEN(j);
 #endif
-
-    Cnm_debug.push_back(Cnm);
 
     for (int k=0; k<=j; k++) {
       int jks = j * (j + 1) / 2 + k;
@@ -280,7 +274,6 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
       }
 
       // TODO: attr_j can be put out of the outer `for' loop
-      dL[jks] += Li;
       attr_i.L[jks] += Li;
       IF_MUTUAL( attr_j.L[jks] += Lj; );
     }
@@ -288,7 +281,6 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
 
   Ci.attr() = attr_i;
   IF_MUTUAL( Cj.attr() = attr_j );
-
 }
 
 void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to avoid NVCC's bug of parsing C++ code.

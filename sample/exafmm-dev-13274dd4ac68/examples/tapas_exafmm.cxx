@@ -219,20 +219,62 @@ struct FMM_DTT {
     Ri = (Ri / 2 * 1.00001) / theta;
     Rj = (Rj / 2 * 1.00001) / theta;
 
-    if (getenv("TAPAS_DEBUG_INSPECTOR") && tapas::mpi::Rank() == 0) {
-      if (Cell::Inspector && tapas::mpi::Rank() == 0) {
-        std::cout << "FMM_DTT: " << std::endl;
-        std::cout << "Ci : depth " << Ci.depth() << (Ci.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
-        std::cout << "Cj : depth " << Cj.depth() << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf") << std::endl;
-        if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
-          std::cout << " => M2L" << std::endl;
-        } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-          std::cout << " => P2P" << std::endl;
-        } 
-        //std::cout << "Ci.R = " << Ci.width() << std::endl;
-        //std::cout << "Cj.R = " << Cj.width() << std::endl;
-        //std::cout << "Distance2 : " << Ci.Distance(Cj, tapas::Center) << std::endl;
+    if (tapas::mpi::Rank() == 1 && Cj.key() == 2 && Ci.key() == 2449958197289549826 && !Cell::Inspector) {
+      std::cout << "FMM_DTT: " << std::endl;
+      std::cout << "Ci : " << Cell::SFC::Decode(Ci.key()) << " " << Ci.key() << " "
+                << (Ci.IsLeaf() ? " Leaf" : " Non-Leaf")
+                << std::endl;
+      std::cout << "Cj : " << Cell::SFC::Decode(Cj.key()) << " " << Cj.key() << " "
+                << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf")
+                << std::endl;
+      std::cout << "Ri = " << Ri << ", Rj = " << Rj << std::endl;
+      std::cout << (Ri >= Rj ? "Ri >= Rj" : "Ri < Rj") << std::endl;
+      std::cout << "R2 = " << R2 << std::endl;
+      if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
+        std::cout << " => M2L" << std::endl;
+      } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
+        std::cout << " => P2P" << std::endl;
+      } else if (Cj.IsLeaf()) {
+        std::cout << " => Split Left" << std::endl;
+      } else if (Ci.IsLeaf()) {
+        std::cout << " => Split Right" << std::endl;
+      } else if (Ri >= Rj) {
+        std::cout << " => Split Left" << std::endl;
+      } else {                                                    // Else if Cj is larger than Ci
+        std::cout << " => Split Right" << std::endl;
       }
+      //std::cout << "Ci.R = " << Ci.width() << std::endl;
+      //std::cout << "Cj.R = " << Cj.width() << std::endl;
+      //std::cout << "Distance2 : " << Ci.Distance(Cj, tapas::Center) << std::endl;
+    }
+
+    if (getenv("TAPAS_DEBUG_INSPECTOR")) {
+      std::cout << "FMM_DTT: " << std::endl;
+      std::cout << "Ci : " << Cell::SFC::Decode(Ci.key()) << " " << Ci.key() << " "
+                << (Ci.IsLeaf() ? " Leaf" : " Non-Leaf")
+                << std::endl;
+      std::cout << "Cj : " << Cell::SFC::Decode(Cj.key()) << " " << Cj.key() << " "
+                << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf")
+                << std::endl;
+      std::cout << "Ri = " << Ri << ", Rj = " << Rj << std::endl;
+      std::cout << (Ri >= Rj ? "Ri >= Rj" : "Ri < Rj") << std::endl;
+      std::cout << "R2 = " << R2 << std::endl;
+      if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
+        std::cout << " => M2L" << std::endl;
+      } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
+        std::cout << " => P2P" << std::endl;
+      } else if (Cj.IsLeaf()) {
+        std::cout << " => Split Left" << std::endl;
+      } else if (Ci.IsLeaf()) {
+        std::cout << " => Split Right" << std::endl;
+      } else if (Ri >= Rj) {
+        std::cout << " => Split Left" << std::endl;
+      } else {                                                    // Else if Cj is larger than Ci
+        std::cout << " => Split Right" << std::endl;
+      }
+      //std::cout << "Ci.R = " << Ci.width() << std::endl;
+      //std::cout << "Cj.R = " << Cj.width() << std::endl;
+      //std::cout << "Distance2 : " << Ci.Distance(Cj, tapas::Center) << std::endl;
     }
     
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
@@ -252,16 +294,6 @@ struct FMM_DTT {
   template<class Cell>
   inline void tapas_splitCell(Cell &Ci, _CONST Cell &Cj, real_t Ri, real_t Rj, real_t theta) {
     (void) Ri; (void) Rj;
-    
-    if (getenv("TAPAS_DEBUG_INSPECTOR") && tapas::mpi::Rank() == 0) {
-      if (Cj.IsLeaf()) {
-        std::cout << " => Split Left" << std::endl;
-      } else if (Ci.IsLeaf()) {
-        std::cout << " => Split Right" << std::endl;
-      } else {
-        std::cout << " => Split Both (two-side)" << std::endl;
-      }
-    }
     
     if (Cj.IsLeaf()) {
       assert(!Ci.IsLeaf());                                   //  Make sure Ci is not leaf
@@ -288,10 +320,10 @@ struct FMM_DTT {
       TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), theta);
     }
 #else
-    } else {
-      // 2-side split
-      TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), theta);
-  }
+    // } else {
+    //   // 2-side split
+    //   TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), theta);
+    // }
 #endif
   }
 };

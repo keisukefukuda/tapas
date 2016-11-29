@@ -128,6 +128,11 @@ class ProxyCell : public _POLICY {
   static SplitType PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
 
+    if (getenv("TAPAS_DEBUG_INSPECTOR")) {
+      std::cout << "PredSplit2: trg_cell.marked_split_ = " << trg_cell.marked_split_ << std::endl;
+      std::cout << "PredSplit2: src_cell.marked_split_ = " << src_cell.marked_split_ << std::endl;
+    }
+
     if (trg_cell.marked_split_ && src_cell.marked_split_) {
       return SplitType::SplitBoth;
     } else if (trg_cell.marked_split_) {

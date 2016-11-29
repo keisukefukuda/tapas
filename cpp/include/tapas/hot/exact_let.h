@@ -622,7 +622,7 @@ struct ExactInsp2 {
           KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
           KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
 
-          std::cout << "\n\n>>> Oneside Inspector" << std::endl;
+          std::cout << "\n\n>>> Oneside Inspector in rank " << tapas::mpi::Rank() << std::endl;
           double bt = MPI_Wtime();
           Insp2<TSP>::Inspect(root, req_cell_attr_keys2, req_leaf_keys2, f, args...);
           double et = MPI_Wtime();
