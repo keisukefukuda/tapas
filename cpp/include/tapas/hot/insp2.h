@@ -58,7 +58,6 @@ class Insp2 {
 
     trg_gc.SetIsLeaf(is_left_leaf);
     
-    // If 
     return GCell::PredSplit2(trg_gc, src_gc, f, args...);
   }
   
@@ -134,7 +133,6 @@ class Insp2 {
    */
   template<class UserFunct, class...Args>
   static std::vector<SplitType> BuildTable(Data &data, KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
-    //std::cout << "\tBuildTable:started." << std::endl;
     const int max_depth = data.max_depth_;
     const int src_depth = SFC::GetDepth(src_root_key);
     const int trg_depth = SFC::GetDepth(trg_root_key);
@@ -146,34 +144,15 @@ class Insp2 {
     const int nrow = max_depth - trg_depth + 1;
     std::vector<SplitType> table(ncol * nrow);
 
-    bool dbg_flag = tapas::mpi::Rank() == 1 && src_root_key == 1 && trg_root_key == 2449958197289549826;
-
-    if (dbg_flag) {
-      std::cout << "========== Build Table =============" << std::endl;
-    }
-    // std::cout << "\tBuildTable: max_depth = " << max_depth << std::endl;
-    // std::cout << "\tBuildTable: src_depth = " << src_depth << std::endl;
-    // std::cout << "\tBuildTable: trg_depth = " << trg_depth << std::endl;
-    // std::cout << "\tBuildTable: ncol,nrow = " << ncol << "," << nrow << std::endl;
-
     for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
         SplitType split;
         
-        // if (dbg_flag && sd == 2 && td == 2) {
-        //   setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
-        // }
-
         if (td == sd) {
           split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
         } else {
           split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
         }
-
-        // if (dbg_flag && sd == 2 && td == 2) {
-        //   std::cout << "===> Split = " << split << std::endl;
-        //   unsetenv("TAPAS_DEBUG_INSPECTOR");
-        // }
 
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
@@ -194,12 +173,6 @@ class Insp2 {
         int idx = (td - trg_depth) * ncol + (sd - src_depth);
         table[idx] = split;
       }
-    }
-
-    if (dbg_flag) {
-      std::cout << "BuildTable : " << std::endl;
-      DumpTable(table, nrow, ncol);
-      std::cout << "=======================\n" << std::endl;
     }
 
     return table;
@@ -256,7 +229,6 @@ class Insp2 {
                              UserFunct f, Args...args) {
     if (data.shallow_leaves_.count(src_key) > 0) {
       req_keys_body.insert(src_key);
-      //std::cout << "Pruned " << SFC::Decode(src_key) << std::endl;
       return;
     }
     
@@ -266,11 +238,8 @@ class Insp2 {
     int ncols = data.max_depth_ - src_root_depth + 1;
     int nrows = data.max_depth_ - trg_root_depth + 1;
 
-    // DumpTable(table, nrows, ncols);
-
     int c = src_depth - src_root_depth;
 
-    //std::cout << "Checking col " << c << std::endl;
     int cnt = 0;
     for (int r = 0; r < nrows; r++) {
       auto sp = table[r * ncols + c];
@@ -286,45 +255,16 @@ class Insp2 {
         // If they are Far, we don't need to split the cell and transfer the children of the source cell.
         
         int trg_depth = trg_root_depth + r;
-        bool dbg_flg = tapas::mpi::Rank() == 1 && src_key == 2 && trg_depth == 2;
-        const auto trg_width = data.region_.width() / pow(2, trg_depth);
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
-        GCell trg_gc = GCell(data, nullptr, trg_reg, trg_width, trg_depth);
-        GCell src_gc = GCell(data, nullptr, src_reg, src_reg.width(), src_depth);
-        
-        if (dbg_flg) {
-          std::cout << "TraverseSource: trg depth = " << (trg_root_depth + r) << " "
-                    << "src key = " << src_key << " "
-                    << "split_type = " << sp << std::endl;
-        }
-      
-        if (sp == SplitType::SplitRightILL) {
-          trg_gc.SetIsLeaf(true);
-        }
-
-        if (dbg_flg) {
-          setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
-        }
-        // SplitType sp2 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
         SplitType sp2 = (src_depth == trg_depth)
                         ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
                         : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp == SplitType::SplitRightILL, f, args...);
         
-        //std::cout << ((split == SplitType::SplitRight || split == SplitType::SplitBoth) ? "Split" : "NOT Split!!");
-        //std::cout << std::endl;
-
-        if (dbg_flg) {
-          unsetenv("TAPAS_DEBUG_INSPECTOR");
-          std::cout << "TraverseSource: re-doing trg depth = " << (trg_root_depth + r) << " "
-                    << "src key = " << src_key << " "
-                    << "split_type = " << sp2 << std::endl;
-        }
         if (sp2 == SplitType::SplitRight || sp2 == SplitType::SplitBoth) {
           // source side is still split.
           cnt++;
-          if (dbg_flg) { std::cout << "TraverseSource: cnt++ => " << cnt << std::endl; }
         }
       }
     }
@@ -333,15 +273,12 @@ class Insp2 {
     
     if (cnt == 0 && data.ht_.count(src_key) == 0) {
       if (src_depth == data.max_depth_) {
-        //if (debug) std::cout << "Body" << std::endl;
         req_keys_body.insert(src_key);
       } else {
-        //if(debug) std::cout << "Attr" << std::endl;
         req_keys_attr.insert(src_key);
       }
     } else {
       for (auto ch_key : SFC::GetChildren(src_key)) {
-        //if(debug) std::cout << "Recursive TraverseSource(ch_key=" << ch_key << ")" << std::endl;
         TraverseSource(data, table, req_keys_attr, req_keys_body, trg_root_key, src_root_key, ch_key, f, args...);
       }
     }
@@ -382,10 +319,6 @@ class Insp2 {
 
             std::vector<SplitType> table = BuildTable(data, src_key, trg_key, f, args...);
 
-            if (src_key == 1 && trg_key == 2449958197289549826) {
-              DumpTable(table, nrow, ncol);
-            }
-            
             TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
             // If table[0] is "approximate", We don't need to traverse the source local tree.
