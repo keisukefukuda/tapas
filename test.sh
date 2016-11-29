@@ -355,7 +355,9 @@ function tapasCheck() {
             ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts} > $TMPFILE
             echo "exit status=$?"
             echo "TMPFILE=${TMPFILE}"
-            cat $TMPFILE ||:
+            if [[ ! "${QUIET:-}" == "1" ]]; then
+                cat $TMPFILE ||:
+            fi
 
             accuracyCheck $TMPFILE
         else
@@ -386,7 +388,9 @@ for MUTUAL in "" "_mutual" ; do
     rm -f $TMPFILE; sleep 0.5s
     echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c
     ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c  > $TMPFILE
-    cat $TMPFILE ||:
+    if [[ ! "${QUIET:-}" == "1" ]]; then
+        cat $TMPFILE ||:
+    fi
     
     accuracyCheck $TMPFILE
 done
@@ -423,7 +427,9 @@ if which nvcc >/dev/null 2>&1; then
             for ncrit in ${NCRIT[@]}; do
                 echoCyan ${MPIEXEC} -n 1 ./$BIN --numBodies 1000
                 ${MPIEXEC} -n 1 ./$BIN --numBodies 10000 > $TMPFILE
-                cat $TMPFILE
+                if [[ ! "${QUIET:-}" == "1" ]]; then
+                    cat $TMPFILE
+                fi
                 accuracyCheck $TMPFILE
             done
         done
