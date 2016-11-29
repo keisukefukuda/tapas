@@ -35,7 +35,7 @@ class Insp2 {
   using BodyAttrType = typename CellType::BodyAttrType;
 
   using CellAttr = typename CellType::CellAttr;
-  using Vec = tapas::Vec<TSP::Dim, typename TSP::FP>;
+  using VecT = tapas::Vec<TSP::Dim, typename TSP::FP>;
   using Reg = Region<Dim, FP>;
 
   using TravPolicy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
@@ -44,6 +44,84 @@ class Insp2 {
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<ProxyCell>;
+
+  template<class UserFunct, class...Args>
+  static SplitType TryInteraction(Data &data,
+                                  const Reg &trg_reg, const Reg &src_reg,
+                                  int trg_dep, int src_dep, bool is_left_leaf,
+                                  UserFunct f, Args... args) {
+    auto sw = data.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
+    auto tw = data.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
+        
+    GCell src_gc = GCell(data, nullptr, src_reg, sw, src_dep);
+    GCell trg_gc = GCell(data, nullptr, trg_reg, tw, trg_dep);
+
+    trg_gc.SetIsLeaf(is_left_leaf);
+    
+    // If 
+    return GCell::PredSplit2(trg_gc, src_gc, f, args...);
+  }
+  
+  template<class UserFunct, class...Args>
+  static SplitType TryInteractionOnSameLevel(Data &data,
+                                             const Reg &trg_reg, const Reg &src_reg,
+                                             int trg_dep, int src_dep,
+                                             UserFunct f, Args... args) {
+    // By the nature of octrees, if the traget and source depth are equal,
+    // target and source cells hav the same width theoretically.
+    // In practice, however, the floating point values are sometimes
+    // slightly different.
+    // The user code may use the values to make a decision to split the source cell
+    // or not (i.e. "split the larger one").
+    // Thus, in the inspector, we have to cover all cases:
+    //  (1) the two cells are exactly equal size
+    //  (2) the target cell is slightly bigger
+    //  (3) the source cell is slightly bigger
+    
+    // case 1.
+    VecT sw = data.region_.width() / pow(2, src_dep);
+    VecT tw = sw;
+
+    SplitType split1, split2, split3;
+
+    {
+      GCell src_gc(data, nullptr, src_reg, sw, src_dep);
+      GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
+      split1 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
+    }
+    
+    // case 2.
+    for (int d = 0; d < Dim; d++) {
+      tw[d] = sw[d] + tapas::util::NearZeroValue<FP>(sw[d]);
+    }
+    {
+      GCell src_gc(data, nullptr, src_reg, sw, src_dep);
+      GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
+      split2 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
+    }
+
+    // case 3.
+    tw = sw;
+    for (int d = 0; d < Dim; d++) {
+      sw[d] += tapas::util::NearZeroValue<FP>(sw[d]);
+    }
+    {
+      GCell src_gc(data, nullptr, src_reg, sw, src_dep);
+      GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
+      split3 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
+    }
+
+    // merge the result.
+    int sp = static_cast<int>(split1)
+             | static_cast<int>(split2)
+             | static_cast<int>(split3);
+    // We don't think about leaf-case in this function.
+    if      (sp & static_cast<int>(SplitType::SplitBoth))  { return SplitType::SplitBoth; }
+    else if (sp & static_cast<int>(SplitType::SplitLeft))  { return SplitType::SplitLeft; }
+    else if (sp & static_cast<int>(SplitType::SplitRight)) { return SplitType::SplitRight; }
+
+    return SplitType::Approx;
+  }
 
   /**
    * \brief Do inspection between a single pair of target (local) root and source (remote) root
@@ -78,59 +156,43 @@ class Insp2 {
     // std::cout << "\tBuildTable: trg_depth = " << trg_depth << std::endl;
     // std::cout << "\tBuildTable: ncol,nrow = " << ncol << "," << nrow << std::endl;
 
-    for (int sd = src_depth; sd <= max_depth; sd++) {
-      for (int td = trg_depth; td <= max_depth; td++) {
-        auto sw = data.region_.width() / pow(2, sd); // n-dim dimensional width of the source ghost cell
-        auto tw = data.region_.width() / pow(2, td); // n-dim dimensional width of the target ghost cell
+    for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
+      for (int td = trg_depth; td <= max_depth; td++) { // target depth
+        SplitType split;
+        
+        // if (dbg_flag && sd == 2 && td == 2) {
+        //   setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
+        // }
 
-        GCell src_gc = GCell(data, nullptr, src_reg, sw, sd);
-        GCell trg_gc = GCell(data, nullptr, trg_reg, tw, td);
-
-        if (dbg_flag && sd == 2 && td == 2) {
-          setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
+        if (td == sd) {
+          split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
+        } else {
+          split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
         }
-        SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
-        int idx = (td - trg_depth) * ncol + (sd - src_depth);
-        table[idx] = split;
 
-        if (dbg_flag && sd == 2 && td == 2) {
-          unsetenv("TAPAS_DEBUG_INSPECTOR");
-          std::cout << "trg width = " << trg_gc.width() << std::endl;
-          std::cout << "src width = " << src_gc.width() << std::endl;
-          std::cout << "distance = " << std::sqrt(src_gc.dX(trg_gc, tapas::Shortest).norm()) << std::endl;
-          std::cout << "td=2, sd=2 => " << split << std::endl;
-        }
+        // if (dbg_flag && sd == 2 && td == 2) {
+        //   std::cout << "===> Split = " << split << std::endl;
+        //   unsetenv("TAPAS_DEBUG_INSPECTOR");
+        // }
 
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
         // Thus, there is possibility that the source cell is split
         // even if the `split` value above is not SplitRight if the target cell is a leaf.
-        if (table[idx] != SplitType::SplitRight && table[idx] != SplitType::SplitBoth
+        if (split != SplitType::SplitRight
+            && split != SplitType::SplitBoth
             && td >= data.min_leaf_level_[trg_root_key]) {
-          if (dbg_flag && 0) {
-            std::cout << "table[" << (td-trg_depth) << ", " << (sd - src_depth) << "]"
-                      << "(depth: T-" << td << "," << "S-" << sd << ")"
-                      << " is " << table[idx]
-                      << std::endl;
-          }
-          trg_gc.ClearFlags();
-          trg_gc.SetIsLeaf(true); // re-use the target Ghost Cell, but now a leaf
+          SplitType split2 = TryInteraction(data, trg_reg, src_reg, td, sd, true, f, args...);
           
-          SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
-          if (dbg_flag && 0) {
-            std::cout << "table[" << (td-trg_depth) << ", " << (sd - src_depth) << "]"
-                      << "(depth: T-" << td << "," << "S-" << sd << ") "
-                      << " is                       =================> " << split
-                      << std::endl;
-          }
+          TAPAS_ASSERT(split2 != SplitType::SplitBoth); // because left cell (target) is a leaf.
+          TAPAS_ASSERT(split2 != SplitType::SplitLeft);
 
-          TAPAS_ASSERT(split != SplitType::SplitBoth); // because left cell (target) is a leaf.
-          TAPAS_ASSERT(split != SplitType::SplitLeft);
-
-          if (split == SplitType::SplitRight) {
-            table[idx] = SplitType::SplitRightILL;
+          if (split2 == SplitType::SplitRight) {
+            split = SplitType::SplitRightILL;
           }
         }
+        int idx = (td - trg_depth) * ncol + (sd - src_depth);
+        table[idx] = split;
       }
     }
 
@@ -208,19 +270,11 @@ class Insp2 {
 
     int c = src_depth - src_root_depth;
 
-    bool dbg_flg = tapas::mpi::Rank() == 1 && src_key == 2 && trg_root_key == 2449958197289549826;
-
     //std::cout << "Checking col " << c << std::endl;
     int cnt = 0;
     for (int r = 0; r < nrows; r++) {
       auto sp = table[r * ncols + c];
 
-      if (dbg_flg) {
-        std::cout << "trg depth = " << (trg_root_depth + r) << " "
-                  << "src key = " << src_key << " "
-                  << "split_type = " << sp << std::endl;
-      }
-      
       if (sp == SplitType::SplitRight
           || sp == SplitType::SplitBoth
           || sp == SplitType::SplitRightILL) {
@@ -232,29 +286,49 @@ class Insp2 {
         // If they are Far, we don't need to split the cell and transfer the children of the source cell.
         
         int trg_depth = trg_root_depth + r;
+        bool dbg_flg = tapas::mpi::Rank() == 1 && src_key == 2 && trg_depth == 2;
         const auto trg_width = data.region_.width() / pow(2, trg_depth);
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
-        
+
         GCell trg_gc = GCell(data, nullptr, trg_reg, trg_width, trg_depth);
         GCell src_gc = GCell(data, nullptr, src_reg, src_reg.width(), src_depth);
-
+        
+        if (dbg_flg) {
+          std::cout << "TraverseSource: trg depth = " << (trg_root_depth + r) << " "
+                    << "src key = " << src_key << " "
+                    << "split_type = " << sp << std::endl;
+        }
+      
         if (sp == SplitType::SplitRightILL) {
           trg_gc.SetIsLeaf(true);
         }
 
-        SplitType split = GCell::PredSplit2(trg_gc, src_gc, f, args...);
-
+        if (dbg_flg) {
+          setenv("TAPAS_DEBUG_INSPECTOR", "1", 1);
+        }
+        // SplitType sp2 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
+        SplitType sp2 = (src_depth == trg_depth)
+                        ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
+                        : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp == SplitType::SplitRightILL, f, args...);
+        
         //std::cout << ((split == SplitType::SplitRight || split == SplitType::SplitBoth) ? "Split" : "NOT Split!!");
         //std::cout << std::endl;
 
-        if (split == SplitType::SplitRight || split == SplitType::SplitBoth) {
+        if (dbg_flg) {
+          unsetenv("TAPAS_DEBUG_INSPECTOR");
+          std::cout << "TraverseSource: re-doing trg depth = " << (trg_root_depth + r) << " "
+                    << "src key = " << src_key << " "
+                    << "split_type = " << sp2 << std::endl;
+        }
+        if (sp2 == SplitType::SplitRight || sp2 == SplitType::SplitBoth) {
           // source side is still split.
           cnt++;
+          if (dbg_flg) { std::cout << "TraverseSource: cnt++ => " << cnt << std::endl; }
         }
-      } 
+      }
     }
-
+ 
     req_keys_attr.insert(src_key);
     
     if (cnt == 0 && data.ht_.count(src_key) == 0) {

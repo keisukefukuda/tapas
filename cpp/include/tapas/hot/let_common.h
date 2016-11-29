@@ -14,9 +14,9 @@ enum class SplitType {
   Body       = 1 << 1 ,  // Compute using right cell's bodies
   SplitLeft  = 1 << 2,   // Split left (local) cell
   SplitRight = 1 << 3,   // Split right (remote) cell
-  SplitRightILL,         // Split right leaf is split only *If the Left cell is a Leaf*
   SplitBoth  = SplitLeft | SplitRight,    // Split both cells
-  None       = 0,        // Nothing. Use when a target cell isn't local in Traverse
+  SplitRightILL = 1 << 4,  // Split right leaf is split only *If the Left cell is a Leaf*
+  None       = 0,          // Nothing. Use when a target cell isn't local in Traverse
 };
 
 std::string ToString(SplitType st) {

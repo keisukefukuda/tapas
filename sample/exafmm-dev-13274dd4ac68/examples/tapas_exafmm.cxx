@@ -228,6 +228,9 @@ struct FMM_DTT {
                 << (Cj.IsLeaf() ? " Leaf" : " Non-Leaf")
                 << std::endl;
       std::cout << "Ri = " << Ri << ", Rj = " << Rj << std::endl;
+      printf("Ci.width = [%.16f,%.16f,%.16f]\n", Ci.width(0), Ci.width(1), Ci.width(2));
+      printf("Cj.width = [%.16f,%.16f,%.16f]\n", Cj.width(0), Cj.width(1), Cj.width(2));
+      printf("Ri = %.16f, Rj = %.16f\n", Ri, Rj);
       std::cout << (Ri >= Rj ? "Ri >= Rj" : "Ri < Rj") << std::endl;
       std::cout << "R2 = " << R2 << std::endl;
       if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
@@ -258,6 +261,9 @@ struct FMM_DTT {
                 << std::endl;
       std::cout << "Ri = " << Ri << ", Rj = " << Rj << std::endl;
       std::cout << (Ri >= Rj ? "Ri >= Rj" : "Ri < Rj") << std::endl;
+      printf("Ci.width = [%.16f,%.16f,%.16f]\n", Ci.width(0), Ci.width(1), Ci.width(2));
+      printf("Cj.width = [%.16f,%.16f,%.16f]\n", Cj.width(0), Cj.width(1), Cj.width(2));
+      printf("Ri = %.16f, Rj = %.16f\n", Ri, Rj);
       std::cout << "R2 = " << R2 << std::endl;
       if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
         std::cout << " => M2L" << std::endl;
