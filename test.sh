@@ -228,7 +228,7 @@ function test_bh() {
     for np in ${NP[@]}; do
         for nb in ${NB[@]}; do
             echoCyan ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb
-            ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb | tee $TMPFILE
+            ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb >$TMPFILE 2>&1
 
             PERR=$(grep "P ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
             FERR=$(grep "F ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
