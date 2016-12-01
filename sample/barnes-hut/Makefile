@@ -32,20 +32,6 @@ else ifneq (, $(findstring g++, $(CXX)))
 else ifneq (, $(findstring icpc, $(CXX)))
 endif
 
-CXXFLAGS += -DS=$(S)
-
-ifeq ($(LET),hardcoded)
-	CXXFLAGS += -DOLD_LET_TRAVERSE
-endif
-
-ifeq ($(LET),manual)
-	CXXFLAGS += -DMANUAL_LET
-endif
-
-ifeq ($(LET),auto-slow)
-	CXXFLAGS += -DAUTO_LET_SLOW
-endif
-
 TAPAS_DIR = ../../cpp
 
 all: depend bh
