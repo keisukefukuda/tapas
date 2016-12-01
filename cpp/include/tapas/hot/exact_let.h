@@ -608,7 +608,7 @@ struct ExactInsp2 {
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
     double bt = MPI_Wtime();
-#if 1
+#if 0
     // Call exact inspector ::Inspect
     Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
