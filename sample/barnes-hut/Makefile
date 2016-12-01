@@ -12,15 +12,14 @@ else
 	LOG = -DTAPAS_LOG_LEVEL=0
 endif
 
-ifneq (,$(USE_ONESIDE_LET))
-	CXX += -DTAPAS_ONESIDE_LET
-	MPICXX += -DTAPAS_ONESIDE_LET
-endif
-
 CC ?= clang
 CXX ?= clang++
 MPICXX ?= mpicxx
 CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors
+
+ifneq (,$(USE_ONESIDE_LET))
+	CXXFLAGS += -DTAPAS_ONESIDE_LET
+endif
 
 #PROF := -pg
 
