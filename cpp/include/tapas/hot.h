@@ -53,15 +53,8 @@
 # include "tapas/vectormap.h"
 #endif
 
-#ifdef TAPAS_ONESIDE_LET
-# include "tapas/hot/oneside_let.h"
-# error "This is no longer supported"
-#else
-# include "tapas/hot/exact_let.h"
-# include "tapas/hot/insp2.h"
-#endif
-
-#define DEBUG_SENDRECV
+#include "tapas/hot/exact_let.h"
+#include "tapas/hot/oneside_insp2.h"
 
 using tapas::debug::BarrierExec;
 
@@ -281,14 +274,9 @@ class Cell {
   //========================================================
  public: // public type usings
 
-#ifdef TAPAS_ONESIDE_LET
-  friend struct OptInsp2<TSP>;
-  using Inspector2 = OptInsp2<TSP>;
-#else
   friend struct ExactInsp2<TSP>;
   using Inspector2 = ExactInsp2<TSP>;
-  using Inspector2_2 = Insp2<TSP>;
-#endif
+  using Inspector2_2 = OnesideInsp2<TSP>;
 
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -1013,7 +1001,7 @@ Cell<TSP> &Cell<TSP>::subcell(int idx) {
   if (c == nullptr) {
     std::stringstream ss;
     ss << "In MPI rank " << data_->mpi_rank_ << ": "
-       << "Cell not found for key "
+       << "Cell not found for key \n      "
        << SFC::Simplify(child_key) << " "
        << SFC::Decode(child_key) << " "
        << child_key

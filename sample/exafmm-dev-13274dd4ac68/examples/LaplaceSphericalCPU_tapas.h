@@ -207,10 +207,6 @@ void M2M(Cell &parent, Cell &child) {
   }
 
   TapasFMM::Reduce(parent, parent.attr().M, dM, SumP);
-
-  if (!Cell::Inspector) {
-    //std::cout << parent.key() << " M= " << parent.attr().M << std::endl;
-  }
 }
 
 #ifdef FMM_MUTUAL
@@ -231,9 +227,6 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
   CellAttr attr_i = Ci.attr();
   CellAttr attr_j = Cj.attr();
 
-  if (!Cell::Inspector) {
-    //std::cout << "M2L M= " << Ci.key() << " " << Cj.key() << " " << attr_i.M << std::endl;
-  }
   vec3 dX;
   asn(dX, Ci.dX(Cj, tapas::Center));
   dX -= Xperiodic;
@@ -286,9 +279,6 @@ void M2L(Cell &Ci, _CONST Cell &Cj, vec3 Xperiodic) {
     }
   }
 
-  if (!Cell::Inspector) {
-    //std::cout << "M2L L= " << Ci.key() << " " << Cj.key() << " " << attr_i.L << std::endl;
-  }
   Ci.attr() = attr_i;
   IF_MUTUAL( Cj.attr() = attr_j );
 }

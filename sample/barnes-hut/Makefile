@@ -1,3 +1,4 @@
+DEPFILE=bh.d
 
 MODE ?= release
 
@@ -16,6 +17,10 @@ CXX ?= clang++
 MPICXX ?= mpicxx
 CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors
 
+ifneq (,$(USE_ONESIDE_LET))
+	CXXFLAGS += -DTAPAS_ONESIDE_LET
+endif
+
 #PROF := -pg
 
 ifneq (,$(findstring clang++,$(CXX)))
@@ -26,35 +31,22 @@ else ifneq (, $(findstring g++, $(CXX)))
 else ifneq (, $(findstring icpc, $(CXX)))
 endif
 
-CXXFLAGS += -DS=$(S)
-
-ifeq ($(LET),hardcoded)
-	CXXFLAGS += -DOLD_LET_TRAVERSE
-endif
-
-ifeq ($(LET),manual)
-	CXXFLAGS += -DMANUAL_LET
-endif
-
-ifeq ($(LET),auto-slow)
-	CXXFLAGS += -DAUTO_LET_SLOW
-endif
-
 TAPAS_DIR = ../../cpp
 
-all: bh bh_mpi
+all: depend bh
 
 bh.o: bh.cc
-	$(CXX) $(CXXFLAGS) $(DEBUG) $(LOG) $(OPT) -c $^ -I$(TAPAS_DIR)/include
+	$(MPICXX) -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
 
 bh: bh.o
-	$(CXX) $^ -o $@
-
-bh_mpi.o: bh.cc
-	$(MPICXX) -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $^ $(PROF)
-
-bh_mpi: bh_mpi.o
 	$(MPICXX) -DUSE_MPI $^ $(PROF) -o $@ $(PROF)
 
+bh.d: bh.cc
+	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS) -I$(TAPAS_DIR)/include $^
+
 clean:
-	$(RM) -f *.o bh bh_mpi
+	$(RM) -f *.o bh
+
+depend: $(DEPFILE)
+
+-include bh.d

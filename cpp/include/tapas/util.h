@@ -406,7 +406,38 @@ void TiedSort2(std::vector<T1> &keys, std::vector<T2>& a2) {
   }
 }
 
+template<class FpType, int BYTES>
+struct NearZeroFP;
 
+template<class FpType>
+struct NearZeroFP<FpType, 4> {
+  static const constexpr int Value = -24;
+};
+
+template<class FpType>
+struct NearZeroFP<FpType, 8> {
+  static const constexpr int Value = -52;
+};
+
+template<class FpType>
+struct NearZeroFP<FpType, 16> {
+  static const constexpr int Value = -52;
+};
+
+template<class FP>
+FP NearZeroValue(FP a) {
+  int deg = NearZeroFP<FP, sizeof(FP)>::Value;
+  while(1) {
+    FP v = a * pow(2, deg);
+    //printf("deg=%d, v = %.16f, a+v = %.16f, a < a+v => %d\n", deg, v, a+v, a<a+v);
+    if (a == a + v) {
+      deg++;
+      continue;
+    } else {
+      return v;
+    }
+  }
+}
 
 } // namespace util
 } // namespace tapas

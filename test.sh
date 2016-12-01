@@ -220,15 +220,15 @@ function test_bh() {
     fi
 
     SRC_DIR=$SRC_ROOT/sample/barnes-hut
-    BIN=$SRC_DIR/bh_mpi
+    BIN=$SRC_DIR/bh
 
     echoCyan make CXX=\"${CXX}\" CC=\"${CC}\" MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
     make CXX=${CXX} CC=${CC} MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
 
     for np in ${NP[@]}; do
         for nb in ${NB[@]}; do
-            echoCyan ${MPIEXEC} -n $np $SRC_DIR/bh_mpi -w $nb
-            ${MPIEXEC} -n $np $SRC_DIR/bh_mpi -w $nb | tee $TMPFILE
+            echoCyan ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb
+            ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb | tee $TMPFILE
 
             PERR=$(grep "P ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
             FERR=$(grep "F ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
@@ -256,24 +256,24 @@ test_bh
 function build_fmm() {
     if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
         NP=(1)
-        NB=(100)
+        NB_FMM=(100)
         DIST=(c)
-        NCRIT=(1 2 16)
+        NCRIT=(16)
     elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
         NP=(1 2)
-        NB=(1000)
+        NB_FMM=(500)
         DIST=(c)
-        NCRIT=(1 2 16)
+        NCRIT=(16)
     elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
         NP=(1 2 3 4 5 6)
-        NB=(10000 20000)
+        NB_FMM=(10000 20000)
         DIST=(s c)
-        NCRIT=(1 2 16 64)
+        NCRIT=(16 64)
     elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
         NP=(1 2 4 8 16 32)
-        NB=(10000 20000 40000 80000 160000)
+        NB_FMM=(10000 20000 40000 80000 160000)
         DIST=(l s p c)
-        NCRIT=(1 2 16 64)
+        NCRIT=(16 64)
     else
         echo "Unknown SCALE : '$SCALE'" >&2
         exit 1
@@ -300,6 +300,13 @@ function build_fmm() {
     mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
     mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
 
+
+    # Build single-threaded, without-weighted-repartitioning version
+    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
+
+    mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_oneside
+    mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_oneside
 
     # Build single-threaded version
     echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
@@ -338,24 +345,37 @@ function tapasCheck() {
     build_fmm
 
     for ts in 1 2 3; do
-    for nb in ${NB[@]}; do
+    for nb in ${NB_FMM[@]}; do
     for ncrit in ${NCRIT[@]}; do
     for dist in ${DIST[@]}; do
+    for oneside in "" "_oneside"; do
     for mutual in "" "_mutual"; do
-    for opt in "" "_mt" "_nw"; do
+    for mt in "" "_mt"; do
+    for weight in "" "_nw"; do
     for np in ${NP[@]}; do
         rm -f $TMPFILE; sleep 0.5s
 
-        BIN=$SRC_DIR/parallel_tapas${mutual}${opt}
+        #BIN=$SRC_DIR/parallel_tapas${mutual}${opt}${oneside}
+        echo "Looking for binary ${oneside} ${mutual} ${mt} ${weight}..."
+        BIN=$(find $SRC_DIR -maxdepth 1 -executable -name "parallel_tapas*" -name "*${oneside}*" -name "*${mutual}*" -name "*${mt}*" -name "*${weight}*" | head -n 1)
+
+        if [[ -z "$BIN" ]]; then
+            echo "Not found."
+            continue
+        fi
+
+        echo BIN=${BIN}
 
         if [[ -x ${BIN} ]]; then
             # run Exact LET TapasFMM
-            rm -f $TMPFILE; sleep 0.5s # make sure that file is deleted on NFS
+            rm -f $TMPFILE; sleep 0.3s # make sure that file is deleted on NFS
             echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts}
             ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts} > $TMPFILE
             echo "exit status=$?"
             echo "TMPFILE=${TMPFILE}"
-            cat $TMPFILE ||:
+            if [[ ! "${QUIET:-}" == "1" ]]; then
+                cat $TMPFILE ||:
+            fi
 
             accuracyCheck $TMPFILE
         else
@@ -363,6 +383,8 @@ function tapasCheck() {
         fi
         echo
         echo
+    done
+    done
     done
     done
     done
@@ -383,10 +405,28 @@ echo --------------------------------------------------------------------
 echo
 
 for MUTUAL in "" "_mutual" ; do
-    rm -f $TMPFILE; sleep 0.5s
-    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c
-    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 1000 -c 1024 -d c  > $TMPFILE
-    cat $TMPFILE ||:
+    rm -f $TMPFILE; sleep 0.3s
+    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c
+    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c  > $TMPFILE
+    if [[ ! "${QUIET:-}" == "1" ]]; then
+        cat $TMPFILE ||:
+    fi
+    
+    accuracyCheck $TMPFILE
+done
+
+echo
+echo --------------------------------------------------------------------
+echo "ExaFMM (with Ncrit = 1)"
+echo --------------------------------------------------------------------
+echo
+for MUTUAL in "" "_mutual" ; do
+    rm -f $TMPFILE; sleep 0.3s
+    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c
+    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c  > $TMPFILE
+    if [[ ! "${QUIET:-}" == "1" ]]; then
+        cat $TMPFILE ||:
+    fi
     
     accuracyCheck $TMPFILE
 done
@@ -419,11 +459,13 @@ if which nvcc >/dev/null 2>&1; then
     $compile
 
     for dist in ${DIST[@]}; do
-        for nb in ${NB[@]}; do
+        for nb in ${NB_FMM[@]}; do
             for ncrit in ${NCRIT[@]}; do
                 echoCyan ${MPIEXEC} -n 1 ./$BIN --numBodies 1000
                 ${MPIEXEC} -n 1 ./$BIN --numBodies 10000 > $TMPFILE
-                cat $TMPFILE
+                if [[ ! "${QUIET:-}" == "1" ]]; then
+                    cat $TMPFILE
+                fi
                 accuracyCheck $TMPFILE
             done
         done

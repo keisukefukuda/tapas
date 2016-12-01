@@ -8,7 +8,8 @@
 #include <tapas/geometry.h>
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/let_common.h>
-#include <tapas/hot/insp2.h>
+#include <tapas/hot/oneside_insp2.h>
+#include <tapas/hot/twoside_insp2.h>
 
 using tapas::debug::BarrierExec;
 
@@ -62,145 +63,6 @@ struct ExactInsp2 {
   // However, it is actually not possible because LET class is declared as 'friend' in the Cell class
   // only with TSP parameter. It's impossible to declare a partial specialization to be friend.
 
-  /**
-   * \brief Traverse a virtual global tree and collect cells to be requested to other processes.
-   * \param p Traget particle
-   * \param key Source cell key
-   * \param data Data
-   * \param list_attr (output) Set of request keys of which attrs are to be sent
-   * \param list_body (output) Set of request keys of which bodies are to be sent
-   */
-  template<class UserFunct, class...Args>
-  static void Traverse(KeyType trg_key, KeyType src_key, Data &data,
-                       KeySet &list_attr, KeySet &list_body,
-                       std::mutex &list_attr_mutex, std::mutex &list_body_mutex,
-                       UserFunct f, Args...args) {
-    SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
-
-    using Th = typename CellType::Threading;
-
-    // Traverse traverses the hypothetical global tree and constructs a list of
-    // necessary cells required by the local process.
-    auto &ht = data.ht_; // hash table
-
-    // (A) check if the trg cell is local (kept in this function)
-    if (ht.count(trg_key) == 0) {
-      return; // SplitType::None;
-    }
-
-    // Maximum depth of the tree.
-    const int max_depth = data.max_depth_;
-
-    bool is_src_local = ht.count(src_key) != 0; // CAUTION: even if is_src_local, the children are not necessarily all local.
-    bool is_src_local_leaf = is_src_local && ht[src_key]->IsLeaf();
-    bool is_src_remote_leaf = !is_src_local && SFC::GetDepth(src_key) >= max_depth;
-
-    //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << std::endl;
-
-    if (is_src_local_leaf) {
-      // the cell is local. everythig's fine. nothing to do.
-      //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_local_leaf" << std::endl;
-      return; // SplitType::None;
-    }
-    
-    if (is_src_remote_leaf) {
-      // If the source cell is a remote leaf, we need it (with it's bodies).
-      list_attr_mutex.lock();
-      list_attr.insert(src_key);
-      list_attr_mutex.unlock();
-
-      list_body_mutex.lock();
-      list_body.insert(src_key);
-      list_body_mutex.unlock();
-      //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_remote_leaf" << std::endl;
-      return; // SplitType::Body;
-    }
-    TAPAS_ASSERT(SFC::GetDepth(src_key) <= SFC::MAX_DEPTH);
-    list_attr_mutex.lock();
-    list_attr.insert(src_key);
-    list_attr_mutex.unlock();
-
-    // Approx/Split branch
-    SplitType split = ExactInsp2<TSP>::ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
-
-    const constexpr int kNspawn = 3;
-    bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
-    to_spawn = false;
-    
-    switch(split) {
-      case SplitType::SplitBoth:
-        if (to_spawn) {
-          typename Th::TaskGroup tg;
-          for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(trg_ch) > 0) {
-              for (KeyType src_ch : SFC::GetChildren(src_key)) {
-                tg.createTask([&]() mutable {
-                    Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-                  });
-              }
-            }
-          }
-          tg.wait();
-        } else {
-          for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(trg_ch) > 0) {
-              for (KeyType src_ch : SFC::GetChildren(src_key)) {
-                Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-              }
-            }
-          }
-        }
-        break;
-      case SplitType::SplitLeft:
-        if (to_spawn) {
-          typename Th::TaskGroup tg;
-          for (KeyType ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(ch) > 0) {
-              tg.createTask([&]() mutable {
-                  Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-                });
-            }
-          }
-          tg.wait();
-        } else {
-          for (KeyType ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(ch) > 0) {
-              Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-            }
-          }
-        }
-        break;
-
-      case SplitType::None:
-        break;
-
-      case SplitType::SplitRight:
-        if (to_spawn) {
-          typename Th::TaskGroup tg;
-          for (KeyType src_ch : SFC::GetChildren(src_key)) {
-            tg.createTask([&]() mutable {
-                Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-              });
-          }
-          tg.wait();
-        } else {
-          for (KeyType src_ch : SFC::GetChildren(src_key)) {
-            Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-          }
-        }
-        break;
-
-      case SplitType::Approx:
-        list_attr_mutex.lock();
-        list_attr.insert(src_key);
-        list_attr_mutex.unlock();
-        break;
-
-      default: assert(0); // Never happens
-    }
-    return; // split;
-  }
-
   static void ShowHistogram(const Data &data) {
     const int d = data.max_depth_;
     TAPAS_ASSERT(d <= SFC::MaxDepth());
@@ -231,32 +93,6 @@ struct ExactInsp2 {
         }
       });
 #endif
-  }
-
-  /**
-   * \brief Inspector for Map-2. Traverse hypothetical global tree and construct a cell list.
-   */
-  template<class UserFunct, class...Args>
-  static void Inspect(CellType &root,
-                      KeySet &req_keys_attr, KeySet &req_keys_body,
-                      UserFunct f, Args...args) {
-    SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
-    MPI_Barrier(MPI_COMM_WORLD);
-
-    double beg = MPI_Wtime();
-    auto & data = root.data();
-    req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
-    req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
-
-    std::mutex list_attr_mutex, list_body_mutex;
-
-    // Construct request lists of necessary cells
-    req_keys_attr.insert(root.key());
-
-    Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
-
-    double end = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map2-LET-insp", end - beg);
   }
 
   /**
@@ -596,9 +432,6 @@ struct ExactInsp2 {
    */
   template<class UserFunct, class...Args>
   static void Exchange(CellType &root, UserFunct f, Args...args) {
-    if (root.data().mpi_rank_ == 0) {
-      std::cout << "Using Exact Inspector" << std::endl;
-    }
     SCOREP_USER_REGION("LET-All", SCOREP_USER_REGION_TYPE_FUNCTION);
     double beg = MPI_Wtime();
 
@@ -610,36 +443,22 @@ struct ExactInsp2 {
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    tapas::debug::BarrierExec([&](int, int) {
-        {
+    double bt = MPI_Wtime();
 
-#if 1
-          // Call exact inspector ::Inspect
-          Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
+    // One side traverse is much faster but it requires certain condition in user function f.
+#ifdef TAPAS_ONESIDE_LET
+    OnesideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
-
-          // Call one-side insp2::Inspect
-          KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
-          KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
-
-          std::cout << "\n\n>>> Oneside Inspector" << std::endl;
-          double bt = MPI_Wtime();
-          Insp2<TSP>::Inspect(root, req_cell_attr_keys2, req_leaf_keys2, f, args...);
-          double et = MPI_Wtime();
-          std::cout << "<<< Oneside Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
-
-          // std::cout << "req_cell_attr_keys.size() = " << req_cell_attr_keys.size() << std::endl;
-          // std::cout << "req_cell_leaf_keys.size() = " << req_leaf_keys.size() << std::endl;
-          // std::cout << "req_cell_attr_keys2.size() = " << req_cell_attr_keys2.size() << std::endl;
-          // std::cout << "req_cell_leaf_keys2.size() = " << req_leaf_keys2.size() << std::endl;
-
-          req_cell_attr_keys.clear();
-          req_leaf_keys.clear();
-          req_cell_attr_keys = req_cell_attr_keys2;
-          req_leaf_keys = req_leaf_keys2;
+    TwosideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #endif
-        }
-      });
+    
+    double et = MPI_Wtime();
+    if (root.data().mpi_rank_ == 0) {
+      std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
+    }
+
+    req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 
     // We need to convert the sets to vectors
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested

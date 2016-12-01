@@ -445,7 +445,8 @@ int main(int argc, char **argv) {
   // check result
   // Compute interactions between sampled bodies and all others in all processes.
   // Determine how many bodies to sample
-  int np_check = xmin(100, targetTapas.size(), sourceHost.size());
+  int np_check = xmin(30, targetTapas.size(), sourceHost.size());
+  std::cout << "Checkint result for " << np_check << " bodies" << std::endl;
 
 #ifdef USE_MPI
   MPI_Allreduce(MPI_IN_PLACE, &np_check, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
