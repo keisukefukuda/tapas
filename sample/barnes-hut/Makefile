@@ -1,3 +1,4 @@
+DEPFILE=bh.d
 
 MODE ?= release
 
@@ -9,6 +10,11 @@ else
 	OPT = -O3 # -O3 is also OK, but when gprof is used, gprof command misunderstand names of functions called as 'frame_dummy'
 	DEBUG = -DTAPAS_DEBUG=0
 	LOG = -DTAPAS_LOG_LEVEL=0
+endif
+
+ifneq (,$(USE_ONESIDE_LET))
+	CXX += -DTAPAS_ONESIDE_LET
+	MPICXX += -DTAPAS_ONESIDE_LET
 endif
 
 CC ?= clang
@@ -42,19 +48,20 @@ endif
 
 TAPAS_DIR = ../../cpp
 
-all: bh bh_mpi
+all: depend bh
 
 bh.o: bh.cc
-	$(CXX) $(CXXFLAGS) $(DEBUG) $(LOG) $(OPT) -c $^ -I$(TAPAS_DIR)/include
+	$(MPICXX) -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
 
 bh: bh.o
-	$(CXX) $^ -o $@
-
-bh_mpi.o: bh.cc
-	$(MPICXX) -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $^ $(PROF)
-
-bh_mpi: bh_mpi.o
 	$(MPICXX) -DUSE_MPI $^ $(PROF) -o $@ $(PROF)
 
+bh.d: bh.cc
+	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS) -I$(TAPAS_DIR)/include $^
+
 clean:
-	$(RM) -f *.o bh bh_mpi
+	$(RM) -f *.o bh
+
+depend: $(DEPFILE)
+
+-include bh.d
