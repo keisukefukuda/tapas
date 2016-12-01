@@ -22,8 +22,6 @@ namespace hot {
 template<class TSP>
 class OnesideInsp2 {
  public:
-  
-  // typedefs
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
   using CellType = Cell<TSP>;
