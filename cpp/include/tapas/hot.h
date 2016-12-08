@@ -1325,6 +1325,7 @@ class Partitioner {
   const index_t max_nb_;
 
   using BodyType = typename TSP::Body;
+  using BodyAttr = typename TSP::BodyAttr;
   using KeyType = typename Cell<TSP>::KeyType;
   using CellAttr = typename Cell<TSP>::CellAttr;
   using CellHashTable = typename Cell<TSP>::CellHashTable;
@@ -1342,16 +1343,28 @@ class Partitioner {
   /**
    * @brief Partition the space and build the tree
    */
-  Cell<TSP> *Partition(Data *data, BodyType *b, index_t nb, MPI_Comm comm);
-  Cell<TSP> *Partition(Data *data, BodyType *b, const double *w, index_t nb, MPI_Comm comm);
-
+  Cell<TSP> *Partition(Data *data, const BodyType *b, const BodyAttr *a, index_t nb, MPI_Comm comm) {
+    // If `w` is omitted, use nullptr instead.
+    // In the first tree construction, there is no information of body weights
+    // so a vector of 1.0 is used inside SamplingOctree class.
+    return Partition(data, b, a, nullptr, nb, comm);
+  }
+  
   /**
    * @brief Overloaded version of Partitioner::Partition
    */
-  Cell<TSP>* Partition(std::vector<BodyType> &b) {
-    return Partition(b.data(), b.size());
+  Cell<TSP>* Partition(const std::vector<BodyType> &b) {
+    std::vector<BodyAttr> attrs(b.size());
+    memset(b.data(), 0, sizeof(BodyAttr) * b.size());
+    return Partition(b.data(), attrs.data(), b.size());
   }
 
+  Cell<TSP>* Partition(const std::vector<BodyType> &b, const std::vector<BodyAttr> &a) {
+    return Partition(b.data(), a.data(), a.size());
+  }
+  
+  Cell<TSP> *Partition(Data *data, const BodyType *b, const BodyAttr *a, const double *w, index_t nb, MPI_Comm comm);
+  
 
  public:
   //---------------------
@@ -1504,19 +1517,6 @@ class Partitioner {
 
 }; // class Partitioner
 
-template<class TSP>
-Cell<TSP>*
-Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
-                            typename TSP::Body *b,
-                            index_t num_bodies,
-                            MPI_Comm comm) {
-  // If `w` is omitted, use nullptr instead.
-  // In the first tree construction, there is no information of body weights
-  // so a vector of 1.0 is used inside SamplingOctree class.
-  return Partition(data, b, nullptr, num_bodies, comm);
-}
-
-
 /**
  * @brief Partition the simulation space and build SFC key based octree
  * @tparam TSP Tapas static params
@@ -1531,7 +1531,8 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
 template <class TSP> // TSP : Tapas Static Params
 Cell<TSP>*
 Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
-                            typename TSP::Body *b,
+                            const typename TSP::Body *b,
+                            const typename TSP::BodyAttr *a,
                             const double *w,
                             index_t num_bodies,
                             MPI_Comm comm) {
@@ -1552,9 +1553,9 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
   }
 
   // Build local trees
-  SamplingOctree<TSP, SFC> stree(b, w, num_bodies, data, max_nb_);
+  SamplingOctree<TSP, SFC> stree(b, a, w, num_bodies, data, max_nb_);
   stree.Build();
-
+  
   // Build Global trees
   GlobalTree<TSP>::Build(*data);
 
@@ -1669,15 +1670,15 @@ struct Tapas {
    * @brief Partition and build an octree of the target space.
    * @param b Array of body of BT::type.
    */
-  static Cell *Partition(Body *b, index_t nb, int max_nb,
+  static Cell *Partition(const Body *b, index_t nb, int max_nb,
                          MPI_Comm comm = MPI_COMM_WORLD) {
     Partitioner part(max_nb);
-    return part.Partition(nullptr, b, nb, comm);
+    return part.Partition(nullptr, b, nullptr, nb, comm);
   }
-
-  static Cell *Partition(std::vector<Body> bodies, index_t max_nb,
+  
+  static Cell *Partition(const std::vector<Body> &bodies, index_t max_nb,
                          MPI_Comm comm = MPI_COMM_WORLD) {
-    return Partition(bodies.data(), bodies.size(), max_nb, comm);
+    return Partition(bodies.data(), nullptr, bodies.size(), max_nb, comm);
   }
 
   /**
@@ -1697,6 +1698,7 @@ struct Tapas {
     DestroyCells(root);
 
     std::vector<Body> bodies = std::move(data->local_bodies_);
+    std::vector<BodyAttr> attrs = std::move(data->local_body_attrs_);
 
 #ifdef TAPAS_USE_WEIGHT
     std::vector<double> weights = std::move(data->local_body_weights_);
@@ -1741,7 +1743,7 @@ struct Tapas {
 #endif
 
     Partitioner part(max_nb);
-    return part.Partition(data, bodies.data(), weights.data(), bodies.size(), data->mpi_comm_);
+    return part.Partition(data, bodies.data(), attrs.data(), weights.data(), bodies.size(), data->mpi_comm_);
   }
 
   static void Destroy(Cell *&root) {

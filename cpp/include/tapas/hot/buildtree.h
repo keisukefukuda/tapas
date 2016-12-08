@@ -63,6 +63,7 @@ class SamplingOctree {
 
  private:
   std::vector<BodyType> bodies_; // bodies
+  std::vector<BodyAttr> attrs_;  // body attributes
   std::vector<double> weights_;  // weights of bodies
   std::vector<KeyType> body_keys_;
   std::vector<KeyType> proc_first_keys_; // first key of each process's region
@@ -70,14 +71,34 @@ class SamplingOctree {
   Data* data_;
   int ncrit_;
 
+  static std::vector<BodyAttr> InitAttr(const BodyAttr *a, index_t nb) {
+    std::vector<BodyAttr> v;
+    if (a == nullptr) {
+      v.resize(nb);
+      memset(v.data(), 0, sizeof(attrs_[0]) * nb);
+    } else {
+      v.assign(a, a + nb);
+    }
+    return v;
+  }
+
+  static std::vector<Body> InitBody(const Body *b, index_t nb) {
+    if (b == nullptr) {
+      std::cerr << "Body pointer must not be NULL." << std::endl;
+      TAPAS_ASSERT(0);
+    }
+    return std::vector<Body>(b, b + nb);
+  }
+
  public:
-  SamplingOctree(const BodyType *b, const double *w, index_t nb, Data *data, int ncrit)
-      : bodies_(b, b+nb)
+  SamplingOctree(const BodyType *b, const BodyAttr *a, const double *w, index_t nb, Data *data, int ncrit)
+      : bodies_(InitBody(b, nb))
+      , attrs_ (InitAttr(a, nb))
       , weights_()
       , body_keys_(), proc_first_keys_(), region_(), data_(data), ncrit_(ncrit)
   {
     Vec<kDim, FP> local_max, local_min;
-
+    
     for (index_t i = 0; i < nb; i++) {
       Vec<kDim, FP> pos = ParticlePosOffset<kDim, FP, kPosOffset>::vec(reinterpret_cast<const void*>(b+i));
       for (int d = 0; d < kDim; d++) {
@@ -85,7 +106,7 @@ class SamplingOctree {
         local_min[d] = (i == 0) ? pos[d] : std::min(pos[d], local_min[d]);
       }
     }
-    
+
     // If nullptr is specified as weights, use a vector of 1.0
     if (w == nullptr) {
       weights_.resize(nb, 1.0);
@@ -106,6 +127,7 @@ class SamplingOctree {
 
     const long ncells = data.ht_.size();
     const long nall   = (pow(8.0, d+1) - 1) / 7;
+    
     BarrierExec([&](int,int) {
         std::cout << "Cells: " << ncells << std::endl;
         std::cout << "depth: " << d << std::endl;
@@ -474,9 +496,7 @@ class SamplingOctree {
     data_->nb_before = bodies_.size();
 
     // Exchange bodies according to proc_first_keys_
-    // new_bodies is the received bodies
-
-    bodies_ = ExchangeBodies(bodies_, proc_first_keys_, region_, MPI_COMM_WORLD);
+    std::tie(bodies_, attrs_) = ExchangeBodies(bodies_, attrs_, proc_first_keys_, region_, data_->mpi_comm_); 
     body_keys_ = BodiesToKeys(bodies_, region_);
 
     // Sort both new_keys and new_bodies.
@@ -664,9 +684,14 @@ class SamplingOctree {
 
 
 
-  std::vector<BodyType> ExchangeBodies(std::vector<BodyType> bodies,
-                                       const std::vector<KeyType> proc_first_keys,
-                                       const Reg &reg, MPI_Comm comm) {
+  /**
+   * Exchange bodies and body attributes according to other processes according to proc_first_keys
+   */
+  std::tuple<std::vector<BodyType>, std::vector<BodyAttr>>
+             ExchangeBodies(std::vector<Body> bodies,
+                            std::vector<BodyAttr> attrs,
+                            const std::vector<KeyType> proc_first_keys,
+                            const Reg &reg, MPI_Comm comm) {
     std::vector<KeyType> body_keys = BodiesToKeys(bodies, reg);
     std::vector<int> dest(body_keys.size()); // destiantion of each body
 
@@ -681,33 +706,47 @@ class SamplingOctree {
     tapas::SortByKeys(dest, bodies);
 
     std::vector<BodyType> recv_bodies;
+    std::vector<BodyAttr> recv_attrs;
     std::vector<int> src;
 
+    std::cerr << "bodies.size() = " << bodies.size() << std::endl;
+    std::cerr << "attrs.size() = " << attrs.size() << std::endl;
+
     tapas::mpi::Alltoallv2(bodies, dest, recv_bodies, src, data_->mpi_type_body_, comm); // MPI_COMM_WORLD
+    tapas::mpi::Alltoallv2(attrs,  dest, recv_attrs, src, data_->mpi_type_battr_, comm); // MPI_COMM_WORLD
 
 #if 1 // debug
     // check if the total number of bodies
 
     // Check the given `bodies`
     int nb = bodies.size();
+    int nb2 = attrs.size();
     int nb_total = 0;
+    int nb_total2 = 0;
     tapas::mpi::Reduce(nb, nb_total, MPI_SUM, 0, comm);
+    tapas::mpi::Reduce(nb2, nb_total2, MPI_SUM, 0, comm);
 
     if (data_->mpi_rank_ == 0) {
+      assert(nb == nb2);
       assert(nb_total == (int)data_->nb_total);
+      assert(nb_total2 == (int)data_->nb_total);
     }
 
     // Check the resulting `recv_bodies`
     nb = recv_bodies.size();
+    nb2 = recv_attrs.size();
     nb_total = 0;
+    nb_total2 = 0;
     tapas::mpi::Reduce(nb, nb_total, MPI_SUM, 0, comm);
+    tapas::mpi::Reduce(nb2, nb_total2, MPI_SUM, 0, comm);
 
     if (data_->mpi_rank_ == 0) {
       assert(nb_total == (int)data_->nb_total);
+      assert(nb_total2 == (int)data_->nb_total);
     }
 #endif
 
-    return recv_bodies;
+    return std::make_tuple(recv_bodies, recv_attrs);
   }
 
   /**

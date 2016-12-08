@@ -149,55 +149,6 @@ void Debug(Cell &Ci, Cell &Cj, L lambda) {
   }
 }
 
-
-#ifdef TAPAS_DEBUG
-
-template<class Cell>
-void DebugWatchCell(Cell &Ci, Cell &Cj, real_t Ri, real_t Rj, real_t R2) {
-  using KeyType = typename Cell::SFC::KeyType;
-  const KeyType C4 = 221802281647996932; // the problematic cell
-  const KeyType C3 = 216172782113783811;
-  const KeyType C2 = 216172782113783811;
-  const KeyType C1 = 1;
-
-  const KeyType watched_cell = C3;
-  const int watched_rank = 1;
-
-  using SFC = typename Cell::SFC;
-
-  if (tapas::debug::MPI_Rank() == watched_rank) {
-    if (Cj.key() == watched_cell) {
-      if (getenv("TAPAS_IN_LET")) {
-        std::cout << "In LET: Found src_key = " << Cj.key() << std::endl;
-      } else {
-        std::cout << "In Main Traverse: Found src_key = " << Cj.key() << std::endl;
-      }
-      std::cout << "\tCi.key() = " << SFC::Describe(Ci.key()) << std::endl;
-      std::cout << "\tCj.key() = " << SFC::Describe(Cj.key()) << std::endl;
-      std::cout << "\tRi = " << Ri << std::endl;
-      std::cout << "\tRj = " << Rj << std::endl;
-      std::cout << "\tR2 = " << R2 << std::endl;
-      std::cout << "\t(Ri + Rj) * (Ri + Rj) = " << ((Ri + Rj) * (Ri + Rj)) << std::endl;
-      std::cout << "\t" << "target width  = " << Ci.region().width() << std::endl;
-      std::cout << "\t" << "target center = " << Ci.region().center() << std::endl;
-      std::cout << "\t" << "source width  = " << Cj.region().width() << std::endl;
-      std::cout << "\t" << "source center = " << Cj.region().center() << std::endl;
-      if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
-        std::cout << "\tApprox" << std::endl;
-      } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-        std::cout << "\tP2P" << std::endl;
-      } else {                                                    // Else if cells are close but not bodies
-        std::cout << "\tSplit" << ", "
-                  << "Ci.IsLeaf() = " << Ci.IsLeaf() << ", "
-                  << "Cj.IsLeaf() = " << Cj.IsLeaf() << std::endl;
-      }                                                           // End if for multipole acceptance
-      std::cout << std::endl;
-    }
-  }
-}
-
-#endif
-
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
   std::string label() const { return "FMM-DTT"; }
