@@ -253,9 +253,9 @@ struct Type2Int {
  * @param vals Values to be sorted.
  *
  */
-template<class C1, class C2>
-void SortByKeys(C1 &keys, C2 &vals) {
-  assert(keys.size() == vals.size());
+template<class CKey, class CVal>
+void SortByKeys(CKey &keys, CVal& vals) {
+  //assert(keys.size() == vals.size());
 
   auto len = keys.size();
 
@@ -268,17 +268,51 @@ void SortByKeys(C1 &keys, C2 &vals) {
   std::sort(std::begin(perm), std::end(perm),
             [&keys](size_t a, size_t b) { return keys[a] < keys[b]; });
 
-  C1 keys2(len); // sorted keys
-  C2 vals2(len); // sorted vals
+  CKey keys2(len); // sorted keys
+  CVal vals2(len); // sorted vals
+  vals2.resize(len);
   for (size_t i = 0; i < len; i++) {
     size_t idx = perm[i];
-    vals2[i] = vals[idx];
     keys2[i] = keys[idx];
+    vals2[i] = vals[idx];
   }
 
-  keys = keys2;
-  vals = vals2;
+  keys = std::move(keys2);
+  vals = std::move(vals2);
 }
+
+template<class CKey, class CT1, class CT2>
+void SortByKeys(CKey &keys, CT1& vals1, CT2& vals2) {
+  assert(keys.size() == vals1.size() && keys.size() == vals1.size());
+
+  auto len = keys.size();
+
+  std::vector<size_t> perm(len); // Permutation
+
+  for (size_t i = 0; i < len; i++) {
+    perm[i] = i;
+  }
+
+  std::sort(std::begin(perm), std::end(perm),
+            [&keys](size_t a, size_t b) { return keys[a] < keys[b]; });
+
+  CKey keys2(len); // sorted keys
+  CT1 vals1x(len); // sorted vals
+  CT2 vals2x(len);
+  
+  vals2.resize(len);
+  for (size_t i = 0; i < len; i++) {
+    size_t idx = perm[i];
+    keys2[i] = keys[idx];
+    vals1x[i] = vals1[idx];
+    vals2x[i] = vals2[idx];
+  }
+
+  keys = std::move(keys2);
+  vals1 = std::move(vals1x);
+  vals2 = std::move(vals2x);
+}
+
 } // namespace tapas
 
 #ifdef __CUDACC__

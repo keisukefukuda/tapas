@@ -367,7 +367,7 @@ class Cell {
   bool IsRoot() const;
   bool IsLocalSubtree() const;
 
-  template<class Funct, class...Args> static void DownwardMap(Funct f, Cell<TSP> &c, Args...args);
+  template<class Funct, class...Args> static void DownwardMap(Funct f, Cell<TSP> &c, Args&&...args);
 
   inline CellType &cell() { return *this; }
   inline const CellType &cell() const { return *this; }
@@ -875,7 +875,7 @@ void Cell<TSP>::ExchangeGlobalLeafAttrs(typename Cell<TSP>::CellHashTable &gtree
 }
 
 template<class TSP, class Funct, class...Args>
-void GlobalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
+void GlobalUpwardTraversal(Cell<TSP> &c, Funct f, Args&&...args) {
   using KeyType = typename Cell<TSP>::KeyType;
   using SFC = typename Cell<TSP>::SFC;
   auto &data = c.data();
@@ -903,10 +903,10 @@ void GlobalUpwardTraversal(Cell<TSP> &c, Funct f, Args...args) {
   for (size_t ci = 0; ci < nc; ci++) {
     KeyType chk = SFC::Child(c.key(), ci);
     Cell<TSP> *child = data.ht_gtree_.at(chk);
-    GlobalUpwardTraversal(*child, f, args...);
+    GlobalUpwardTraversal(*child, f, std::forward(args)...);
   }
 
-  f(c, args...);
+  f(c, std::forward(args)...);
 }
 
 #define LOG(k_, code) do {                            \
@@ -1659,6 +1659,7 @@ struct Tapas {
   using Data = typename Cell::Data;
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
+  using BodyAttr = typename TSP::BodyAttr;
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
   using ProxyCell2 = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
@@ -1674,6 +1675,12 @@ struct Tapas {
                          MPI_Comm comm = MPI_COMM_WORLD) {
     Partitioner part(max_nb);
     return part.Partition(nullptr, b, nullptr, nb, comm);
+  }
+  
+  static Cell *Partition(const Body *b, const BodyAttr *a, index_t nb, int max_nb,
+                         MPI_Comm comm = MPI_COMM_WORLD) {
+    Partitioner part(max_nb);
+    return part.Partition(nullptr, b, a, nb, comm);
   }
   
   static Cell *Partition(const std::vector<Body> &bodies, index_t max_nb,
@@ -1754,57 +1761,57 @@ struct Tapas {
   template<class Funct, class...Args>
   static inline void Map(Funct f,
                          tapas::iterator::Bodies<Cell> bodies,
-                         Args... args) {
-    bodies.cell().mapper().Map(f, bodies, args...);
+                         Args&&... args) {
+    bodies.cell().mapper().Map(f, bodies, std::forward<Args>(args)...);
   }
 
   template<class Funct, class T1_Iter, class T2_Iter, class...Args>
-  static inline void Map(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args...args) {
+  static inline void Map(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args&&...args) {
     if (prod.size() > 0) {
       auto &cell = *(prod.t1_);  // "Cell" may be Cell or ProxyCell
-      cell.mapper().MapP2(f, prod, args...);
+      cell.mapper().MapP2(f, prod, std::forward<Args>(args)...);
     }
   }
 
   template <class Funct, class T1_Iter, class...Args>
-  static inline void Map(Funct f, ProductIterator<T1_Iter> prod, Args...args) {
+  static inline void Map(Funct f, ProductIterator<T1_Iter> prod, Args&&...args) {
     TAPAS_LOG_DEBUG() << "map product iterator size: "
                       << prod.size() << std::endl;
 
     if (prod.size() > 0) {
       auto &cell = prod.t1_.cell(); // cell may be Cell or ProxyCell
-      cell.mapper().MapP1(f, prod, args...);
+      cell.mapper().MapP1(f, prod, std::forward<Args>(args)...);
     }
   }
 
   template <class Funct, class...Args>
-  static inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args...args) {
-    iter.cell().mapper().Map(f, iter, args...);
+  static inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args&&...args) {
+    iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
   template <class Funct, class...Args>
-  static inline void Map(Funct f, tapas::iterator::SubCellIterator<ProxyCell> iter, Args...args) {
-    iter.cell().mapper().Map(f, iter, args...);
+  static inline void Map(Funct f, tapas::iterator::SubCellIterator<ProxyCell> iter, Args&&...args) {
+    iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
   template <class Funct, class ...Args>
-  static inline void Map(Funct f, BodyIterator iter, Args...args) {
-    iter.cell().mapper().Map(f, iter, args...);
+  static inline void Map(Funct f, BodyIterator iter, Args&&...args) {
+    iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
   template <class Funct, class ...Args>
-  static inline void Map(Funct f, ProxyBodyIterator iter, Args...args) {
-    iter.cell().mapper().Map(f, iter, args...);
+  static inline void Map(Funct f, ProxyBodyIterator iter, Args&&...args) {
+    iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
   template <class Funct, class ...Args>
-  static inline void Map(Funct f, ProxyBodyIterator2 iter, Args...args) {
-    iter.cell().mapper().Map(f, iter, args...);
+  static inline void Map(Funct f, ProxyBodyIterator2 iter, Args&&...args) {
+    iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
   template <class Funct, class...Args>
-  static inline void Map(Funct f, Cell &c, Args...args) {
-    c.mapper().Map(f, c, args...);
+  static inline void Map(Funct f, Cell &c, Args&&...args) {
+    c.mapper().Map(f, c, std::forward<Args>(args)...);
   }
 
   template<typename T, typename ReduceFunc>

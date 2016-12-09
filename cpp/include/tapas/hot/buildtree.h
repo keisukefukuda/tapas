@@ -63,7 +63,7 @@ class SamplingOctree {
 
  private:
   std::vector<BodyType> bodies_; // bodies
-  std::vector<BodyAttr> attrs_;  // body attributes
+  std::vector<BodyAttrType> attrs_;  // body attributes
   std::vector<double> weights_;  // weights of bodies
   std::vector<KeyType> body_keys_;
   std::vector<KeyType> proc_first_keys_; // first key of each process's region
@@ -71,8 +71,8 @@ class SamplingOctree {
   Data* data_;
   int ncrit_;
 
-  static std::vector<BodyAttr> InitAttr(const BodyAttr *a, index_t nb) {
-    std::vector<BodyAttr> v;
+  static std::vector<BodyAttrType> InitAttr(const BodyAttrType *a, index_t nb) {
+    std::vector<BodyAttrType> v;
     if (a == nullptr) {
       v.resize(nb);
       memset(v.data(), 0, sizeof(attrs_[0]) * nb);
@@ -82,16 +82,16 @@ class SamplingOctree {
     return v;
   }
 
-  static std::vector<Body> InitBody(const Body *b, index_t nb) {
+  static std::vector<BodyType> InitBody(const BodyType *b, index_t nb) {
     if (b == nullptr) {
       std::cerr << "Body pointer must not be NULL." << std::endl;
       TAPAS_ASSERT(0);
     }
-    return std::vector<Body>(b, b + nb);
+    return std::vector<BodyType>(b, b + nb);
   }
 
  public:
-  SamplingOctree(const BodyType *b, const BodyAttr *a, const double *w, index_t nb, Data *data, int ncrit)
+  SamplingOctree(const BodyType *b, const BodyAttrType *a, const double *w, index_t nb, Data *data, int ncrit)
       : bodies_(InitBody(b, nb))
       , attrs_ (InitAttr(a, nb))
       , weights_()
@@ -116,6 +116,7 @@ class SamplingOctree {
 
     region_.min() = local_min;
     region_.max() = local_max;
+
   }
 
   static void ShowHistogram(const Data &data) {
@@ -500,15 +501,16 @@ class SamplingOctree {
     body_keys_ = BodiesToKeys(bodies_, region_);
 
     // Sort both new_keys and new_bodies.
-    SortByKeys(body_keys_, bodies_);
+    SortByKeys(body_keys_, bodies_, attrs_);
 
     // todo: record bodies
 
     data_->local_bodies_.assign(bodies_.begin(), bodies_.end());
+    data_->local_body_attrs_.assign(attrs_.begin(), attrs_.end());
     data_->local_body_keys_ = body_keys_;
 
-    data_->local_body_attrs_.resize(bodies_.size());
-    bzero(data_->local_body_attrs_.data(), sizeof(BodyAttrType) * bodies_.size());
+    //data_->local_body_attrs_.resize(bodies_.size());
+    //bzero(data_->local_body_attrs_.data(), sizeof(BodyAttrType) * bodies_.size());
     data_->nb_after = data_->local_bodies_.size();
 
     double end = MPI_Wtime();
@@ -687,9 +689,9 @@ class SamplingOctree {
   /**
    * Exchange bodies and body attributes according to other processes according to proc_first_keys
    */
-  std::tuple<std::vector<BodyType>, std::vector<BodyAttr>>
-             ExchangeBodies(std::vector<Body> bodies,
-                            std::vector<BodyAttr> attrs,
+  std::tuple<std::vector<BodyType>, std::vector<BodyAttrType>>
+             ExchangeBodies(std::vector<BodyType> bodies,
+                            std::vector<BodyAttrType> attrs,
                             const std::vector<KeyType> proc_first_keys,
                             const Reg &reg, MPI_Comm comm) {
     std::vector<KeyType> body_keys = BodiesToKeys(bodies, reg);
@@ -703,19 +705,16 @@ class SamplingOctree {
       TAPAS_ASSERT(0 <= dest[i]);
     }
 
-    tapas::SortByKeys(dest, bodies);
+    tapas::SortByKeys(dest, bodies, attrs);
 
     std::vector<BodyType> recv_bodies;
-    std::vector<BodyAttr> recv_attrs;
+    std::vector<BodyAttrType> recv_attrs;
     std::vector<int> src;
-
-    std::cerr << "bodies.size() = " << bodies.size() << std::endl;
-    std::cerr << "attrs.size() = " << attrs.size() << std::endl;
 
     tapas::mpi::Alltoallv2(bodies, dest, recv_bodies, src, data_->mpi_type_body_, comm); // MPI_COMM_WORLD
     tapas::mpi::Alltoallv2(attrs,  dest, recv_attrs, src, data_->mpi_type_battr_, comm); // MPI_COMM_WORLD
 
-#if 1 // debug
+#ifdef TAPAS_DEBUG // check
     // check if the total number of bodies
 
     // Check the given `bodies`
@@ -797,7 +796,9 @@ class SamplingOctree {
         
         if (anchor[d] == num_finest_cells) {
           // the body is just on the upper edge so anchor[d] is over the
+#ifdef TAPAS_DEBUG
           TAPAS_LOG_DEBUG() << "Particle located at max boundary." << std::endl;
+#endif
           anchor[d]--;
         }
       }
