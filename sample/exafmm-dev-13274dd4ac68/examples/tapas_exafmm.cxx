@@ -92,8 +92,8 @@ struct FMM_Upward {
 #ifdef TAPAS_DEBUG_DUMP
     {
       tapas::debug::DebugStream e("FMM_Upward");
-      e.out() << TapasFMM::TSP::SFC::Simplify(c.key()) << " (1) " << c.IsLeaf() << " ";
-      e.out() << "c.attr().R = " << std::fixed << std::setprecision(6) << c.attr().R << " ";
+      e.out() << TapasFMM::TSP::SFC::Simplify(child.key()) << " (1) " << child.IsLeaf() << " ";
+      e.out() << "child.attr().R = " << std::fixed << std::setprecision(6) << child.attr().R << " ";
       e.out() << std::endl;
     }
 #endif
