@@ -357,7 +357,7 @@ function tapasCheck() {
 
         #BIN=$SRC_DIR/parallel_tapas${mutual}${opt}${oneside}
         echo "Looking for binary ${oneside} ${mutual} ${mt} ${weight}..."
-        BIN=$(find $SRC_DIR -maxdepth 1 -executable -name "parallel_tapas*" -name "*${oneside}*" -name "*${mutual}*" -name "*${mt}*" -name "*${weight}*" | head -n 1)
+        BIN=$(find $SRC_DIR -maxdepth 1 -perm +0100 -name "parallel_tapas*" -name "*${oneside}*" -name "*${mutual}*" -name "*${mt}*" -name "*${weight}*" | head -n 1)
 
         if [[ -z "$BIN" ]]; then
             echo "Not found."
