@@ -170,15 +170,6 @@ struct Approximate {
 struct interact {
   template<class Cell>
   inline void operator()(Cell &c1, const Cell &c2, real_t theta) {
-#if 0
-    if (getenv("TAPAS_DEBUG_BH")) {
-      std::cout << "interact::operator()" << std::endl;
-      std::cout << "c1.nb() = " << c1.nb() << std::endl;
-      std::cout << "c1.IsLeaf() = " << c1.IsLeaf() << std::endl;
-      std::cout << "c2.IsLeaf() = " << c2.IsLeaf() << std::endl;
-    }
-#endif
-
     if (!c1.IsLeaf()) {
       TapasBH::Map(*this, tapas::Product(c1.subcells(), c2), theta);
     } else if (c1.IsLeaf() && c1.nb() == 0) {
@@ -202,14 +193,6 @@ struct interact {
       //real_t d = std::sqrt(distR2(c2.attr(), p1));
       real_t s = c2.width(0);
 
-#if 0
-      if (getenv("TAPAS_DEBUG_BH")) {
-        std::cout << "Compute: d=" << d << ", s=" << s << " : "
-                  << ((s/d) < theta ? "approx" : "split") << "\n"
-                  << "\t" << Cell::SFC::Decode(c1.key()) << " " << c1.key() << (c1.IsLeaf() ? "  Leaf" : "") << "\n"
-                  << "\t" << Cell::SFC::Decode(c2.key()) << " " << c2.key() << (c2.IsLeaf() ? "  Leaf" : "") << std::endl;
-      }
-#endif
       if ((s/ d) < theta) {
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.attr(), EPS2);
       } else {

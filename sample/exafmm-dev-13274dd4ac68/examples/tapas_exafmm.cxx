@@ -136,19 +136,6 @@ struct FMM_Downward {
   std::string label() const { return "FMM-downward"; }
 };
 
-template<class Cell, class L>
-void Debug(Cell &Ci, Cell &Cj, L lambda) {
-  int rank = 0;
-  (void) Ci;
-  (void) Cj;
-#ifdef USE_MPI
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-#endif
-  if (getenv("TAPAS_IN_LET")) {
-    lambda(rank);
-  }
-}
-
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
   std::string label() const { return "FMM-DTT"; }
