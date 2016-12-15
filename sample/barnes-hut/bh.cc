@@ -67,10 +67,10 @@ double get_time() {
 }
 
 
-void P2P(f4vec &tattrs, f4vec &tbodies, f4vec &source, float eps2) {
+void P2P(f4vec &tattrs, f4vec &tbodies, const f4vec &source, float eps2) {
   int ni = tbodies.size();
   int nj = source.size();
-  
+
 #pragma omp parallel for
   for (int i=0; i<ni; i++) {
     real_t ax = 0;
@@ -99,17 +99,19 @@ void P2P(f4vec &tattrs, f4vec &tbodies, f4vec &source, float eps2) {
   }
 }
 
+#if 0
 static real_t distR2(const tapas::Vec<3, double> &p, const float4 &q) {
   real_t dx = q.x - p[0];
   real_t dy = q.y - p[1];
   real_t dz = q.z - p[2];
   return dx * dx + dy * dy + dz * dz;
 }
+#endif
 
 struct ComputeForce {
   
   template<class Cell, class Body, class BodyAttr>
-  inline void operator()(Cell &, Body &p1, BodyAttr &p1_attr, float4 approx, real_t eps2) const {
+  inline void operator()(Cell &, Body &p1, BodyAttr &p1_attr, const float4 &approx, real_t eps2) const {
     real_t dx = approx.x - p1.x; // const BodyType * BodyIterator::operator->()
     real_t dy = approx.y - p1.y;
     real_t dz = approx.z - p1.z;
@@ -167,14 +169,16 @@ struct Approximate {
 
 struct interact {
   template<class Cell>
-  inline void operator()(Cell &c1, Cell &c2, real_t theta) {
+  inline void operator()(Cell &c1, const Cell &c2, real_t theta) {
+#if 0
     if (getenv("TAPAS_DEBUG_BH")) {
       std::cout << "interact::operator()" << std::endl;
       std::cout << "c1.nb() = " << c1.nb() << std::endl;
       std::cout << "c1.IsLeaf() = " << c1.IsLeaf() << std::endl;
       std::cout << "c2.IsLeaf() = " << c2.IsLeaf() << std::endl;
     }
-    
+#endif
+
     if (!c1.IsLeaf()) {
       TapasBH::Map(*this, tapas::Product(c1.subcells(), c2), theta);
     } else if (c1.IsLeaf() && c1.nb() == 0) {
@@ -188,6 +192,7 @@ struct interact {
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.body(0), EPS2);
       }
     } else {
+      // c1 is a leaf, and c2 is not a leaf
       assert(c1.IsLeaf() && !c2.IsLeaf());
       assert(c1.nb() == 1);
     
@@ -197,20 +202,14 @@ struct interact {
       //real_t d = std::sqrt(distR2(c2.attr(), p1));
       real_t s = c2.width(0);
 
+#if 0
       if (getenv("TAPAS_DEBUG_BH")) {
         std::cout << "Compute: d=" << d << ", s=" << s << " : "
                   << ((s/d) < theta ? "approx" : "split") << "\n"
                   << "\t" << Cell::SFC::Decode(c1.key()) << " " << c1.key() << (c1.IsLeaf() ? "  Leaf" : "") << "\n"
                   << "\t" << Cell::SFC::Decode(c2.key()) << " " << c2.key() << (c2.IsLeaf() ? "  Leaf" : "") << std::endl;
       }
-
-      // if (Cell::SFC::IsDescendant(c2.key(), 1729382256910270466) && !Cell::Inspector && tapas::mpi::Rank()==0) {
-      //   std::cout << "Compute: d=" << d << ", s=" << s << " : "
-      //             << ((s/d) < theta ? "approx" : "split") << "\n"
-      //             << "\t" << Cell::SFC::Decode(c1.key()) << " " << c1.key() << (c1.IsLeaf() ? "  Leaf" : "") << "\n"
-      //             << "\t" << Cell::SFC::Decode(c2.key()) << " " << c2.key() << (c2.IsLeaf() ? "  Leaf" : "") << std::endl;
-      // }
-        
+#endif
       if ((s/ d) < theta) {
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.attr(), EPS2);
       } else {
@@ -224,7 +223,7 @@ typedef tapas::Vec<DIM, real_t> Vec3;
 
 f4vec calc(f4vec &source) {
   TapasBH::Region r(Vec3(0.0, 0.0, 0.0), Vec3(1.0, 1.0, 1.0));
-  TapasBH::Cell *root = TapasBH::Partition(source.data(), source.size(), 1);
+  TapasBH::Cell *root = TapasBH::Partition(source.data(), source.size(), 1); // ncrit = 1
 
   if (!root->IsLeaf()) {
     TapasBH::Map(Approximate(), root->subcells());
@@ -238,7 +237,7 @@ f4vec calc(f4vec &source) {
   int nb = root->local_nb();
   f4vec out(&root->local_body_attr(0), &root->local_body_attr(0) + nb);
   source = f4vec(&root->local_body(0), &root->local_body(0) + nb);
-
+  
   root->Report();
   
   return out;
@@ -299,7 +298,7 @@ void parseOption(int *argc, char ***argv) {
  * \brief Evaluate the accuracy of Tapas computation by comparing Tapas' result against direct N-body method.
  */
 void CheckResult(int np_check,
-                 f4vec &sourceHost,
+                 const f4vec &sourceHost,
                  f4vec &targetTapas) {
   // sourceHost: local source bodies
   // targetTapas : target attrs computed by Tapas
@@ -410,6 +409,9 @@ int main(int argc, char **argv) {
 
   setRandSeed();
 
+  std::cout << "N=" << N << std::endl;
+  std::cout << "N_total=" << N_total << std::endl;
+
   // initialze data
   for (int i = 0; i < N_total; i++) {
     double x = drand48();
@@ -436,7 +438,7 @@ int main(int argc, char **argv) {
   double tic = get_time();
   f4vec targetTapas = calc(sourceHost);
   double toc = get_time();
-  
+
   tapas::debug::BarrierExec([=](int rank, int) {
       std::cout << "time " << rank << " total_calc "   << std::scientific << toc-tic << " s" << std::endl;
       std::cout << "time " << rank << " total_gflops " << std::scientific << OPS / (toc-tic) << " GFlops" << std::endl;
@@ -445,7 +447,7 @@ int main(int argc, char **argv) {
   // check result
   // Compute interactions between sampled bodies and all others in all processes.
   // Determine how many bodies to sample
-  int np_check = xmin(30, targetTapas.size(), sourceHost.size());
+  int np_check = xmin(100, targetTapas.size(), sourceHost.size());
   std::cout << "Checkint result for " << np_check << " bodies" << std::endl;
 
 #ifdef USE_MPI
