@@ -60,6 +60,7 @@ class ProxyCell : public _POLICY {
   using CellAttr = ProxyAttr<ProxyCell>;
   using Body = ProxyBody<RealBody, RealBodyAttr>;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
+  Body& local_body(int) { static Body b; return b; }
 
   using Policy = _POLICY;
 
@@ -204,7 +205,7 @@ class ProxyCell : public _POLICY {
     return this->Base::IsLeaf();
   }
   
-  inline index_t nb() {
+  inline index_t nb() const {
     TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
     Touched();
     return this->Base::nb();
@@ -265,7 +266,7 @@ class ProxyCell : public _POLICY {
     return ProxyBodyIterator<ProxyCell>(const_cast<ProxyCell*>(this));
   }
 
-  const Body &body(index_t idx) { // returns ProxyBody
+  const Body &body(index_t idx) const { // returns ProxyBody
     Touched();
 
     TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");

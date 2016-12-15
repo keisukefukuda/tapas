@@ -15,7 +15,8 @@ endif
 CC ?= clang
 CXX ?= clang++
 MPICXX ?= mpicxx
-CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors
+CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors -fopenmp
+LDFLAGS := -fopenmp
 
 ifneq (,$(USE_ONESIDE_LET))
 	CXXFLAGS += -DTAPAS_ONESIDE_LET
@@ -31,22 +32,25 @@ else ifneq (, $(findstring g++, $(CXX)))
 else ifneq (, $(findstring icpc, $(CXX)))
 endif
 
+CXXFLAGS += -DS=$(S)
+
 TAPAS_DIR = ../../cpp
 
-all: depend bh
+all: bh
+
+bh.d: bh.cc
+	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
 
 bh.o: bh.cc
-	$(MPICXX) -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
+	$(MPICXX) -DDUMP -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
 
 bh: bh.o
-	$(MPICXX) -DUSE_MPI $^ $(PROF) -o $@ $(PROF)
+	$(MPICXX) -DUSE_MPI $^ $(LDFLAGS) $(PROF) -o $@ $(PROF)
 
 bh.d: bh.cc
 	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS) -I$(TAPAS_DIR)/include $^
 
 clean:
-	$(RM) -f *.o bh
-
-depend: $(DEPFILE)
+	$(RM) -f *.o bh bh_mpi
 
 -include bh.d

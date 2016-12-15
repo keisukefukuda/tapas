@@ -81,12 +81,18 @@ class FullTraversePolicy {
     } else {
       is_leaf_ = SFC::GetDepth(key_) >= data_.max_depth_;
     }
+
+    InitBodies();
   }
   
   /**
    * \brief If the proxy cell is backed by a real cell, returns a pointer to it. Otherwise returns nullptr.
    */
   CellType *RealCell() {
+    return real_cell_;
+  }
+
+  const CellType *RealCell() const {
     return real_cell_;
   }
 
@@ -163,35 +169,35 @@ class FullTraversePolicy {
     return FullTraversePolicy(data_, SFC::Child(key_, nth));
   }
 
-  void InitBodies() {
+  void InitBodies() const {
     auto *cell = RealCell();
-    if (cell != nullptr && nb() > 0) {
+
+    if (cell != nullptr && cell->IsLeaf() && nb() > 0) {
       auto num_bodies = nb();
       if (bodies_.size() != num_bodies) {
         bodies_.resize(num_bodies);
         body_attrs_.resize(num_bodies);
         for (index_t i = 0; i < num_bodies; i++) {
-          bodies_[i] = reinterpret_cast<Body*>(&cell->body(i));
-          body_attrs_[i] = reinterpret_cast<BodyAttr*>(&cell->body_attr(i));
+          bodies_[i] = const_cast<Body*>(reinterpret_cast<const Body*>(&cell->body(i)));
+          body_attrs_[i] = const_cast<BodyAttr*>(reinterpret_cast<const BodyAttr*>(&cell->body_attr(i)));
         }
       }
     }
   }
-
+  
  public:
-  const Body &body(index_t idx) {
-    if (bodies_.size() != nb()) {
-      InitBodies();
-    }
-    
-    TAPAS_ASSERT(idx < (index_t)bodies_.size());
+  const Body &body(index_t idx) const {
+    return *bodies_[idx];
+  }
+  Body &body(index_t idx) {
     return *bodies_[idx];
   }
 
   BodyAttr &body_attr(index_t idx) {
-    if (body_attrs_.size() != nb()) {
-      InitBodies();
-    }
+    return *body_attrs_[idx];
+  }
+
+  const BodyAttr &body_attr(index_t idx) const {
     return *body_attrs_[idx];
   }
 
@@ -215,8 +221,8 @@ class FullTraversePolicy {
   bool is_leaf_;
   bool is_local_;
   CellType *real_cell_;
-  std::vector<Body*> bodies_;
-  std::vector<BodyAttr*> body_attrs_;
+  mutable std::vector<Body*> bodies_;
+  mutable std::vector<BodyAttr*> body_attrs_;
 };
 
 } // namespace proxy

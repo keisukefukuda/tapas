@@ -227,8 +227,8 @@ function test_bh() {
 
     for np in ${NP[@]}; do
         for nb in ${NB[@]}; do
-            echoCyan ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb
-            ${MPIEXEC} -n $np $SRC_DIR/bh -w $nb >$TMPFILE 2>&1
+            echoCyan ${MPIEXEC} -n $np $BIN -w $nb
+            ${MPIEXEC} -n $np $BIN -w $nb >$TMPFILE 2>&1
 
             PERR=$(grep "P ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
             FERR=$(grep "F ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
@@ -357,7 +357,7 @@ function tapasCheck() {
 
         #BIN=$SRC_DIR/parallel_tapas${mutual}${opt}${oneside}
         echo "Looking for binary ${oneside} ${mutual} ${mt} ${weight}..."
-        BIN=$(find $SRC_DIR -maxdepth 1 -executable -name "parallel_tapas*" -name "*${oneside}*" -name "*${mutual}*" -name "*${mt}*" -name "*${weight}*" | head -n 1)
+        BIN=$(find $SRC_DIR -maxdepth 1 -perm +0100 -name "parallel_tapas*" -name "*${oneside}*" -name "*${mutual}*" -name "*${mt}*" -name "*${weight}*" | head -n 1)
 
         if [[ -z "$BIN" ]]; then
             echo "Not found."

@@ -105,14 +105,16 @@ inline void Exit(int status, const char *file, const char *func, int line) {
 
 #ifdef TAPAS_DEBUG
 
-// Get backtrace information as strings
-std::vector<std::string> get_backtrace(int trace_size=10) {
+/**
+ * Get backtrace information as strings
+ */
+std::vector<std::string> get_backtrace(int trace_size=32) {
   void** trace = new void*[trace_size];
   int size = backtrace(trace, trace_size);
 
   char** symbols = backtrace_symbols(trace, size);
-
-  std::vector<string> result(symbols, symbols + size);
+  
+  std::vector<std::string> result(symbols, symbols + size);
 
   free(symbols);
   delete[] trace;
@@ -120,68 +122,72 @@ std::vector<std::string> get_backtrace(int trace_size=10) {
   return result;
 }
 
-/**
- * \brief Get function names from the backtrace vector
- */
-std::string cut_function_name_part(const std::string& raw_text) {
-  std::string::size_type left = raw_text.find("(");
-  std::string::size_type right = raw_text.find("+", left + 1);
-      return
-          (left == raw_text.npos || right == raw_text.npos)
-                  ? ""
-          : raw_text.substr(left + 1, right - left - 1);
+std::string demangle_token(const std::string& token) {
+  int status;
+  std::string result;
+  
+  char *dmg = abi::__cxa_demangle(token.c_str(), 0, 0, &status);
+  if (dmg != nullptr) {
+    result = dmg;
+    free(dmg);
+  } else {
+    result = token;
+  }
+  return result;
 }
 
 /**
- * \brief Demangle a function name
+ * \brief Demangle function names in a line
  */
-std::string demangle_function_name(const std::string& mangled) {
-  int status = 0;
-  char* demangled = abi::__cxa_demangle(mangled.c_str(), 0, 0, &status);
+std::string demangle_line(const std::string& line) {
+  std::string result = "";
+  std::string cur_token = "";
 
-  std::string result = demangled ? demangled : mangled;
-  free(demangled);
+  for (char c : line) {
+    if (isspace(c)) {
+      if (cur_token.size() > 0) {
+        result += demangle_token(cur_token);
+        cur_token.clear();
+      }
+      result += c;
+    } else {
+      cur_token += c;
+    }
+  }
 
-  if (status != 0) {
-    std::ostringstream oss;
-    oss << " [error:status=" << status << "]";
-    result += oss.str();
+  if (cur_token.size() > 0) {
+    result += demangle_token(cur_token);
+    cur_token.clear();
   }
 
   return result;
 }
 
+
+void stack_trace(std::ostream &os) {
+  auto bt = get_backtrace(32);
+  for (auto &&it : bt) {
+    os << demangle_line(it) << std::endl;
+  }
+}
 #endif
 
 #ifdef TAPAS_DEBUG
-#define TAPAS_ASSERT(c) do {                                            \
+# define TAPAS_ASSERT(c) do {                                           \
     if(!(c)) {                                                          \
-      auto bt = ::tapas::get_backtrace(10);                             \
       std::cerr << "Tapas: Assertion failed: '" << #c << "' == 0"       \
                 << " at " << __FILE__ << ":" << __LINE__                \
                 << std::endl;                                           \
       std::cerr << "Backtrace:" << std::endl;                           \
-      for (auto &&it : bt) {                                            \
-        std::string mangled_func_name = ::tapas::cut_function_name_part(it); \
-        std::cout << ((!mangled_func_name.empty())                      \
-                      ? ::tapas::demangle_function_name(mangled_func_name) \
-                      : "???")                                          \
-                  << ": " << it << std::endl;                           \
-      }                                                                 \
-      backward::StackTrace st;                                          \
-      st.load_here(10);                                                 \
-      backward::Printer p;                                              \
-      p.object=true; p.color=true; p.address=true;                      \
-      p.print(st, stderr);                                              \
+      ::tapas::stack_trace(std::cerr);                                  \
       abort();                                                          \
     }                                                                   \
-                                                                        \
   } while(0)
 #else
-#define TAPAS_ASSERT(c) do {} while (0)
+# define TAPAS_ASSERT(c) do {} while (0)
 #endif
 
-#define TAPAS_DIE() do {                        \
+#define TAPAS_DIE() do {                         \
     Exit(1, __FILE__, __FUNCTION__, __LINE__);   \
   } while (0)
 
