@@ -150,7 +150,11 @@ void evalLocal(real_t rho, real_t alpha, real_t beta, complex_t * Ynm) {
 // Each paritcle to Multipole
 struct P2M {
   template<class Cell>
-  void operator()(Cell &C, Body &b, BodyAttr&) {
+  void operator()(Cell &C, Body &b, BodyAttr& a) {
+    // First, need to clear the body attributes because
+    // results from the previous time step are remaining
+    a = {0.0}; 
+    
     vec3 dX = b.X - tovec(C.center());
     vecP dM = {0.0};
     real_t rho, alpha, beta;
