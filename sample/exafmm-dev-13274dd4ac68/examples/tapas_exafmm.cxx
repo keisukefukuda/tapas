@@ -158,7 +158,6 @@ struct FMM_DTT {
     Rj = (Rj / 2 * 1.00001) / theta;
 
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
-      // if (!Cell::Inspector) M2L(Ci, Cj, Xperiodic, mutual);
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
 #ifdef FMM_MUTUAL
@@ -507,7 +506,7 @@ int main(int argc, char ** argv) {
       if (!root->IsLeaf()) {
         TapasFMM::Map(FMM_Upward(), root->subcells(), args.theta);
       }
-
+      
       logger::stopTimer("Upward pass");
     }
 
