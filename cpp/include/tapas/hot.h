@@ -1612,7 +1612,7 @@ ProductIterator<tapas::iterator::CellIterator<hot::Cell<TSP>>,
 }
 
 // New Tapas Static Params base class (refereed as TSP in classes)
-template<int _DIM, class _FP, class _BODY_TYPE, size_t _BODY_COORD_OFST, class _BODY_ATTR, class _CELL_ATTR>
+template<int _DIM, class _FP, class _BODY_TYPE, size_t _BODY_COORD_OFST, class _BODY_ATTR, class _CELL_ATTR, class _KEY_TYPE=uint64_t>
 struct HOT {
   static const constexpr int Dim = _DIM;
   static const constexpr size_t kBodyCoordOffset = _BODY_COORD_OFST;
@@ -1620,7 +1620,7 @@ struct HOT {
   using Body = _BODY_TYPE;
   using BodyAttr = _BODY_ATTR;
   using CellAttr = _CELL_ATTR;
-  using SFC = tapas::sfc::Morton<_DIM, uint64_t>;
+  using SFC = tapas::sfc::Morton<_DIM, _KEY_TYPE>;
   using Threading = tapas::threading::Default;
 
 #ifdef __CUDACC__
