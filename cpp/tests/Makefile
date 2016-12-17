@@ -8,7 +8,8 @@ SRC = test_set.cpp         \
 			test_cpptricks.cpp   \
 			test_geometry.cpp    \
 			test_ghost_cell.cpp  \
-			test_tree.cpp
+			test_tree.cpp        \
+			test_tree_sum.cpp
 
 DEP = $(patsubst %.cpp,%.d,$(SRC))
 

@@ -432,10 +432,11 @@ class Morton {
     auto Y2 = RemoveDepth(y2);
 
     if (X1 >= X2) {
-      std::cerr << "X1 = " << Decode(x1) << std::endl;
-      std::cerr << "X2 = " << Decode(x2) << std::endl;
+      std::cerr << "X1 = " << Decode(x1) << " " << x1 << std::endl;
+      std::cerr << "X2 = " << Decode(x2) << " " << x2 << std::endl;
     }
 
+    // X1 must be larger than X2, otherwise the range 1 does not make sense.
     TAPAS_ASSERT(X1 < X2);
 
     if (!(Y1 < Y2)) {

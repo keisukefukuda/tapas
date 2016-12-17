@@ -345,7 +345,7 @@ struct CPUMapper {
     // Local Upward
     if (data.mpi_size_ > 1) {
       double bt = MPI_Wtime();
-            
+
       LocalUpwardMap(f, c, std::forward<Args>(args)...); // Run local upward first
             
       double et = MPI_Wtime();
@@ -379,7 +379,7 @@ struct CPUMapper {
       c.attr() = data.local_upw_results_[c.key()];
       data.local_upw_results_.erase(c.key());
     }
-        
+
     // Traversal for local trees is already done in StartUpwardMap().
     // We just perform traversal in the global tree part.
     // TODO: parallelization
@@ -387,10 +387,10 @@ struct CPUMapper {
       for (index_t i = 0; i < iter.size(); i++) {
         Cell &parent = c;
         Cell &child = *iter;
-
+        
+        // Skip such parent/child pairs (the child is  a global leaf as well as a real leaf)
+        // because already processes in LocalUpwardMap(). See LocalUpwardMap() for details.
         if (!(data.gleaves_.count(child.key()) != 0 && child.IsLeaf())) {
-          // Skip such parent/child pairs (the child is  a global leaf as well as a real leaf)
-          // because already processes in LocalUpwardMap(). See LocalUpwardMap() for details.
           f(parent, child, std::forward<Args>(args)...);
         }
         iter++;
@@ -455,7 +455,6 @@ struct CPUMapper {
    */
   template<class Funct, class...Args>
   inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args&&...args) {
-
     Cell &c = iter.cell();
     auto &data = c.data();
 
@@ -488,8 +487,8 @@ struct CPUMapper {
       // non-destructive function (like debug printer).
       
       switch(dir) {
-        case Insp1::MAP1_UP:    UpwardRoot<Funct, Args...>(f, iter, std::forward<Args>(args)...); break;
-        case Insp1::MAP1_DOWN:  DownwardRoot<Funct, Args...>(f, iter, std::forward<Args>(args)...); break;
+        case Insp1::MAP1_UP:      UpwardRoot<Funct, Args...>(f, iter, std::forward<Args>(args)...); break;
+        case Insp1::MAP1_DOWN:    DownwardRoot<Funct, Args...>(f, iter, std::forward<Args>(args)...); break;
         case Insp1::MAP1_UNKNOWN: DownwardRoot<Funct, Args...>(f, iter, std::forward<Args>(args)...); break;
         default:
           // This should not happen.

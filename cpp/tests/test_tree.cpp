@@ -1,6 +1,7 @@
 /**
  * Test of:
- * (1) When Bodies and Body Attributes are given as the initial values, check a pair of body and its attributes always match.
+ * (1) When Bodies and Body Attributes are given as the initial values, 
+ * check a pair of body and its attributes always match.
  */
 
 #include <cstdlib>

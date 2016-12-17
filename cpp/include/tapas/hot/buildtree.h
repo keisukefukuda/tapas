@@ -632,16 +632,27 @@ class SamplingOctree {
       data_->leaf_nb_.push_back(nb);
       // todo remove Data::leaf_owners_
     } else {
+      if (SFC::GetDepth(k) == SFC::MaxDepth()) {
+        // FATAL: the depth reached the maximum. We need to use larger type for KeyType.
+        std::cerr << "FATAL: The depth of the tree reached the maximum of Morton keys.\n"
+                  << "       Suggestion: \n"
+                  << "         * Use larger max_nb (an argument to Partition())\n"
+                  << "         * Use larger key type (an template argument to tapas::HOT).\n"
+                  << std::endl;
+        exit(-1);
+      }
+      
       // The cell [k] is not a leaf. Split it again.
       // Note: if the cell is not a leaf and nb == 0, that means other processes may have particles which belong to the cell.
       auto ch_keys = SFC::GetChildren(k);
 
       for (auto chk : ch_keys) {
-        // Check if the child key is in the range of this process, ignore it otherwise.
+        // Generate the child cell recursively  if the child key is in the range of this process,
+        // otherwise ignore it.
         bool overlap = SFC::Overlapped(chk, SFC::GetNext(chk),
                                        proc_first_keys_[rank],
                                        proc_first_keys_[rank+1]);
-
+        
         // Note: SFC::GetNext(0) is the next key of the root key 0, which means
         //       the `end` of the whole region
 
