@@ -781,7 +781,7 @@ class SamplingOctree {
    */
   template<class Iter>
   static std::vector<KeyType> BodiesToKeys(Iter beg, Iter end, const Reg &region) {
-    int num_finest_cells = 1 << SFC::MAX_DEPTH; // maximum number of cells in one dimension
+    unsigned long num_finest_cells = 1ul << SFC::MAX_DEPTH; // maximum number of cells in one dimension
 
     std::vector<KeyType> keys; // return value
 

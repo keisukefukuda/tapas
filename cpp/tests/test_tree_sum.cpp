@@ -7,12 +7,14 @@
 # define TAPAS_DEBUG 1 // force define TAPAS_DEBUG
 #endif
 
+#include <stdint.h>
 #include <mpi.h>
 
 #include <tapas.h>
 #include <tapas/hot.h>
 #include <tapas/test.h>
 #include <tapas/mpi_util.h>
+//#include <tapas/uint128.h>
 
 SETUP_TEST;
 
@@ -109,7 +111,7 @@ void RunTest(int num, int ncrit) {
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
-  const std::vector<int> kNcrits = {1, 16, 32};
+  const std::vector<int> kNcrits = {4, 16, 32};
 
   // smaller scale tests with 1 process
   if (tapas::mpi::Size() == 1) {

@@ -11,6 +11,7 @@
 #include <unordered_set>
 
 #include "tapas/vec.h"
+#include "tapas/uint128.h"
 
 #ifdef CPP14
 # define CONSTEXPR constexpr
@@ -191,12 +192,16 @@ class Morton {
 
 #ifdef TAPAS_DEBUG
     index_t L = GetDepth(k);
-    index_t W = pow(1 << Dim, L);
+    index_t W = pow(1L << Dim, L);
+    //std::cout << "L=" << L << std::endl;
+    //std::cout << "n=" << n << std::endl;
+    //std::cout << "W=" << W << std::endl;
     TAPAS_ASSERT((index_t)n <= W);
-    // there are W cells in level L so n < W. However, it is sometimes necessary to get the 'next of the last' key
+    // There are W cells in level L so n < W.
+    // However, it is sometimes necessary to get the 'next of the last' key
     // of level L like std::end.
 #endif
-
+    
     int d = GetDepth(k);
     KeyType inc = (KeyType)n << (Dim * (MaxDepth() - d) + DepthBits());
     return k + inc;
@@ -392,7 +397,7 @@ class Morton {
     }
 
     KeyType k = 0;
-    int mask = 1 << (MaxDepth() - 1);
+    long mask = 1L << (MaxDepth() - 1);
     for (int i = 0; i < MaxDepth(); ++i) {
       for (int d = Dim-1; d >= 0; --d) {
         k = (k << 1) | ((anchor[d] & mask) >> (MaxDepth() - i - 1));
