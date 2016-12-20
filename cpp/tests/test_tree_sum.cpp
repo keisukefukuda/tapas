@@ -96,7 +96,7 @@ void RunTest(int num, int ncrit) {
 
   delete root;
 
-  double diff = abs(ans_sum - result);
+  double diff = fabs(ans_sum - result);
 
   if (diff / ans_sum > 1e-12) {
     std::cerr << "Error: ans_sum = " << ans_sum << ", result = " << result << " "

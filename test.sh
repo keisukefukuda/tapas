@@ -122,7 +122,31 @@ export CC=$(echo $CXX | sed -e 's/clang++/clang/' | sed -e 's/g++/gcc/' | sed -e
 
 echo CC=$(which ${CC})
 echo CXX=$(which ${CXX})
-echo MPICXX=$(which mpicxx)
+
+# detect MPI implementation
+if [[ ! -x "${MPICXX:-}" ]]; then
+    if mpicxx --showme:version 2>/dev/null | grep "Open MPI"; then
+        # Opne MPI
+        #MPICC="env OMPI_CC=${CC} mpicc"
+        MPICXX="env OMPI_CXX=${CXX} mpicxx"
+
+        if [[ -z "${MPIEXEC:-}" ]]; then
+            MPIEXEC=mpiexec
+        fi
+        
+        echo Looks like Open MPI.
+    else
+        # mpich family (mpich and mvapich)
+        #MPICC="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicc"
+        MPICXX="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicxx"
+        
+        if [[ -z "${MPIEXEC:-}" ]]; then
+            MPIEXEC=mpiexec
+        fi
+        
+        echo Looks like Mpich.
+    fi
+fi
 
 echo Checking if compiler works
 echo ${CXX} --version
@@ -133,34 +157,11 @@ ${CXX} --version || {
 
 echo Detecting mpicxx implementation
 
-# detect MPI implementation
-if mpicxx --showme:version 2>/dev/null | grep "Open MPI"; then
-    # Opne MPI
-    MPICC="env OMPI_CC=${CC} mpicc"
-    MPICXX="env OMPI_CXX=${CXX} mpicxx"
-
-    if [[ -z "${MPIEXEC:-}" ]]; then
-        MPIEXEC=mpiexec
-    fi
-    
-    echo Looks like Open MPI.
-else
-    # mpich family (mpich and mvapich)
-    MPICC="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicc"
-    MPICXX="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicxx"
-    
-    if [[ -z "${MPIEXEC:-}" ]]; then
-        MPIEXEC=mpiexec
-    fi
-    
-    echo Looks like Mpich.
-fi
-
 echo MPICXX=${MPICXX}
-echo MPICC=${MPICC}
+#echo MPICC=${MPICC}
 
-echo mpicxx -show
-mpicxx -show
+echo ${MPICXX} -show
+${MPICXX} -show
 
 echo $CXX --version
 $CXX --version
@@ -178,11 +179,11 @@ function test_unit() {
     
     SRC_DIR=$SRC_ROOT/cpp/tests
 
-    echoCyan make MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean
-    make -j MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
+    echoCyan make MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean
+    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
 
-    echoCyan make MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
-    make -j MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all
+    echoCyan make MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
+    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all
 
     TEST_TARGETS=$(make -C $SRC_DIR list | grep -v make | grep -v echo | grep test_)
     for t in $TEST_TARGETS; do
@@ -222,8 +223,8 @@ function test_bh() {
     SRC_DIR=$SRC_ROOT/sample/barnes-hut
     BIN=$SRC_DIR/bh
 
-    echoCyan make CXX=\"${CXX}\" CC=\"${CC}\" MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
-    make CXX=${CXX} CC=${CC} MPICC="${MPICC}" MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
+    echoCyan make CXX=\"${CXX}\" CC=\"${CC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
+    make CXX=${CXX} CC=${CC} MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
 
     for np in ${NP[@]}; do
         for nb in ${NB[@]}; do
@@ -286,31 +287,31 @@ function build_fmm() {
     # Build multi-threaded version
     if [[ -d "${MYTH_DIR:-}" ]]; then
         export MYTH_DIR
-        echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
-        env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
+        echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
+        env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
 
         mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_mt
         mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_mt
     fi
 
     # Build single-threaded, without-weighted-repartitioning version
-    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
+    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
 
     mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
     mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
 
 
     # Build single-threaded, without-weighted-repartitioning version
-    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
+    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
 
     mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_oneside
     mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_oneside
 
     # Build single-threaded version
-    echoCyan env CC=${CC} CXX=${CXX} MPICC=\"${MPICC}\" MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICC="${MPICC}" MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
 }
 
 function accuracyCheck() {
