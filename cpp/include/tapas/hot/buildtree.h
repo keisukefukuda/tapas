@@ -805,7 +805,7 @@ class SamplingOctree {
       for (int d = 0; d < kDim; d++) {
         anchor[d] = (int)ofst[d];
         
-        if (anchor[d] == num_finest_cells) {
+        if ((unsigned long)anchor[d] == num_finest_cells) {
           // the body is just on the upper edge so anchor[d] is over the
 #ifdef TAPAS_DEBUG
           //TAPAS_LOG_DEBUG() << "Particle located at max boundary." << std::endl;
