@@ -23,7 +23,7 @@ CXXFLAGS := -std=c++14 -Wall -Wextra -I../include -Wno-sign-compare -Wno-unused-
 MPICXX ?= mpicxx -cxx=$(CXX)
 
 %.d: %.cpp
-	 @set -e; $(CXX) -MM $(CXXFLAGS) $< \
+	 @set -e; $(MPICXX) -MM $(CXXFLAGS) $< \
                 | sed 's/\($*\)\.o[ :]*/\1.o $@ : /g' > $@; \
                 [ -s $@ ] || rm -f $@
 

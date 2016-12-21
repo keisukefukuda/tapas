@@ -196,8 +196,6 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
   auto *bodies2 = &c2.body(0);
   auto *attrs1 = &c1.body_attr(0);
   auto *attrs2 = &c2.body_attr(0);
-  //auto &bodies = &data->local_bodies_;
-  //auto &attrs = data->local_body_attrs_;
 
   if (mutual) {
     for (int i = beg1; i < end1; i++) {
@@ -211,6 +209,7 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
       }
     }
   } else {
+    // non-mutual
     for (int i = beg1; i < end1; i++) {
       for (int j = beg2; j < end2; j++) {
 #ifdef TAPAS_COMPILER_INTEL

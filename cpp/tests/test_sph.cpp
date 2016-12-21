@@ -32,6 +32,7 @@ struct CellAttr {
 template<int DIM>
 struct Body {
   double pos[DIM];
+  int id[DIM];
   BodyType type;
 };
 
@@ -70,27 +71,32 @@ struct Traversal {
   inline void operator()(_Body &b1, _BodyAttr &a1,
                          const _Body &b2, const _BodyAttr &) {
     double d = std::sqrt(T<DIM>::Distance2(b1, b2));
-    //std::cout << "Particle to Particle: distance = " << d << " (while LatWidth=" << LatWidth << ")" << std::endl;
     if (d < LatWidth * 1.001) {
       a1.count++;
     }
   }
 };
 
-
-void TestLatticeCount(int N, int ncrit) {
+void TestLatticeCount2Dim(int N, int ncrit) {
   // 2-dim tests
   std::vector<Body<2>> bodies;
   std::vector<BodyAttr> attrs;
 
-  using T2 = T<2>;
-  //using T3 = T<3>;
+  int mpi_size = tapas::mpi::Size();
+  int mpi_rank = tapas::mpi::Rank();
 
+  using T2 = T<2>;
+  
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < N; j++) {
+      int idx = i * N + j;
+      if (idx % mpi_size != mpi_rank) continue;
+      
       Body<2> b;
       b.pos[0] = LatWidth * i;
       b.pos[1] = LatWidth * j;
+      b.id[0] = i;
+      b.id[1] = j;
 
       // Corner
       if ((i == 0 || i == N-1) && (j == 0 || j == N-1)) {
@@ -136,7 +142,15 @@ int main(int argc, char **argv) {
 
   // smaller scale tests with 1 process
   //TestLatticeCount(5, 16); => assertion fail
-  TestLatticeCount(10, 16);
+  if (tapas::mpi::Size() == 1) {
+    // Small scale test
+    TestLatticeCount2Dim(20, 1);
+    TestLatticeCount2Dim(20, 2);
+    TestLatticeCount2Dim(20, 16);
+  } else {
+    TestLatticeCount2Dim(100, 16);
+    TestLatticeCount2Dim(100, 32);
+  }
   
   TEST_REPORT_RESULT();
 
