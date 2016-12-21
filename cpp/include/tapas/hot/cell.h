@@ -277,6 +277,20 @@ class Cell {
     return tapas::iterator::Bodies<Cell>(*this);
   }
 
+  /**
+   * Returns const reference to the local bodies
+   */
+  const std::vector<Body> &GetBodies() const {
+    return data_->local_bodies_;
+  }
+  
+  /**
+   * Returns const reference to the local bodies
+   */
+  const std::vector<BodyAttr> &GetBodyAttrs() const {
+    return data_->local_body_attrs_;
+  }
+
   BodyAttrType &body_attr(index_t idx);
   const BodyAttrType &body_attr(index_t idx) const;
 
@@ -355,11 +369,22 @@ class Cell {
     return body_attrs();
   }
 #endif
+
   SubCellIterator subcells() {
+#ifdef TAPAS_DEBUG
+    if (IsLeaf()) {
+      TAPAS_ASSERT(!"ERROR: Calling subcells() to a non-leaf cell.");
+    }
+#endif
     return SubCellIterator(*this);
   }
 
   SubCellIterator subcells() const {
+#ifdef TAPAS_DEBUG
+    if (IsLeaf()) {
+      TAPAS_ASSERT(!"ERROR: Calling subcells() to a non-leaf cell.");
+    }
+#endif
     return SubCellIterator(const_cast<CellType&>(*this));
   }
 

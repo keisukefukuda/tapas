@@ -495,25 +495,38 @@ struct Tapas {
    */
   static Cell *Partition(const Body *b, index_t nb, int max_nb,
                          MPI_Comm comm = MPI_COMM_WORLD) {
+    TAPAS_ASSERT(b != nullptr);
+    
     Partitioner part(max_nb);
-    return part.Partition(nullptr, b, nullptr, nb, comm);
+    std::vector<BodyAttr> attrs(nb);
+    memset(attrs.data(), 0, sizeof(attrs[0]) * attrs.size());
+    
+    return part.Partition(nullptr, b, attrs.data(), nullptr, nb, comm);
   }
   
   static Cell *Partition(const Body *b, const BodyAttr *a, index_t nb, int max_nb,
                          MPI_Comm comm = MPI_COMM_WORLD) {
+    TAPAS_ASSERT(b != nullptr);
+    TAPAS_ASSERT(a != nullptr);
+    
     Partitioner part(max_nb);
-    return part.Partition(nullptr, b, a, nb, comm);
+    return part.Partition(nullptr, b, a, nullptr, nb, comm);
   }
   
   static Cell *Partition(const std::vector<Body> &bodies, index_t max_nb,
                          MPI_Comm comm = MPI_COMM_WORLD) {
-    return Partition(bodies.data(), nullptr, bodies.size(), max_nb, comm);
+    Partitioner part(max_nb);
+    std::vector<BodyAttr> attrs(bodies.size());
+    memset(attrs.data(), 0, sizeof(attrs[0]) * attrs.size());
+    
+    return part.Partition(nullptr, bodies.data(), attrs.data(), nullptr, bodies.size(), comm);
   }
   
   static Cell *Partition(const std::vector<Body> &bodies, const std::vector<BodyAttr> &attrs,
                          index_t max_nb, MPI_Comm comm = MPI_COMM_WORLD) {
     TAPAS_ASSERT(bodies.size() == attrs.size());
-    return Partition(bodies, attrs, max_nb, comm);
+    Partitioner part(max_nb);
+    return part.Partition(nullptr, bodies.data(), attrs.data(), nullptr, bodies.size(), comm);
   }
 
   /**
@@ -603,8 +616,8 @@ struct Tapas {
 
   template <class Funct, class T1_Iter, class...Args>
   static inline void Map(Funct f, ProductIterator<T1_Iter> prod, Args&&...args) {
-    TAPAS_LOG_DEBUG() << "map product iterator size: "
-                      << prod.size() << std::endl;
+    //TAPAS_LOG_DEBUG() << "map product iterator size: "
+    //                  << prod.size() << std::endl;
 
     if (prod.size() > 0) {
       auto &cell = prod.t1_.cell(); // cell may be Cell or ProxyCell

@@ -355,7 +355,7 @@ class ProductIterator<ITER, void> {
   ProductIterator(const ITER &t1, const ITER &t2):
       idx1_(0), idx2_(0), t1_(t1), t2_(t2) {
     if (t1_.AllowMutualInteraction(t2_)) {
-      TAPAS_LOG_DEBUG() << "mutual interaction\n";
+      //TAPAS_LOG_DEBUG() << "mutual interaction\n";
 #if 0 // No self interaction     
       idx2_ = 1;
       t2_.rewind(idx2_);      

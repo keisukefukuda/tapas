@@ -28,26 +28,6 @@ class Partitioner {
   /**
    * @brief Partition the space and build the tree
    */
-  Cell<TSP> *Partition(Data *data, const BodyType *b, const BodyAttr *a, index_t nb, MPI_Comm comm) {
-    // If `w` is omitted, use nullptr instead.
-    // In the first tree construction, there is no information of body weights
-    // so a vector of 1.0 is used inside SamplingOctree class.
-    return Partition(data, b, a, nullptr, nb, comm);
-  }
-  
-  /**
-   * @brief Overloaded version of Partitioner::Partition
-   */
-  Cell<TSP>* Partition(const std::vector<BodyType> &b) {
-    std::vector<BodyAttr> attrs(b.size());
-    memset(b.data(), 0, sizeof(BodyAttr) * b.size());
-    return Partition(b.data(), attrs.data(), b.size());
-  }
-
-  Cell<TSP>* Partition(const std::vector<BodyType> &b, const std::vector<BodyAttr> &a, index_t nb, MPI_Comm comm) {
-    return Partition(b.data(), a.data(), a.size(), nb);
-  }
-  
   Cell<TSP> *Partition(Data *data, const BodyType *b, const BodyAttr *a, const double *w, index_t nb, MPI_Comm comm);
 
  public:
