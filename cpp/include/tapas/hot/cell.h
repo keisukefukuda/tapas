@@ -410,20 +410,30 @@ class Cell {
     return (center() - rhs.center());
   }
 
-  // cell, shortest
+  // cell-to-cell distance, shortest
   inline VecT dX(const Cell &rhs, tapas::ShortestClass) const {
     VecT dx = {0.0};
     for (int d = 0; d < Dim; d++) {
+      // this cell's region of d-th dimension = a
       FP a_max = region_.max(d), a_min = region_.min(d);
+      // rhs's region of d-th dimension = b
       FP b_max = rhs.region_.max(d), b_min = rhs.region_.min(d);
 
       if ((b_min <= a_min && a_min <= b_max)
           || (b_min <= a_max && a_max <= b_max)) {
         // the two regions overlap
         dx[d] = 0;
+      } else if (a_min <= b_min && b_max <= a_max) {
+        // a includes b
+        dx[d] = 0;
+      } else if (b_min <= a_min && a_max <= b_max) {
+        // b includes a
+        dx[d] = 0;
       } else if (a_max < b_min) {
+        // the two regions are discrete (b is over a)
         dx[d] = b_min - a_max;
       } else if (a_min > b_max) {
+        // the two regions are discrete (a is over b)
         dx[d] = a_min - b_max;
       } else {
         assert(0); // should not reach
