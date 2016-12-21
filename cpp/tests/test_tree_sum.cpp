@@ -71,6 +71,7 @@ template<int Dim>
 void RunTest(int num, int ncrit) {
   std::vector<Body<Dim>> bodies(num);
   std::vector<BodyAttr> attrs(num);
+  double ans_sum_local = 0;
   double ans_sum = 0;
 
   for (int i = 0; i < num; i++) {
@@ -78,9 +79,11 @@ void RunTest(int num, int ncrit) {
       bodies[i].pos[d] = drand48() - 0.5;
     }
     attrs[i].val = drand48();
-    ans_sum += attrs[i].val;
+    ans_sum_local += attrs[i].val;
   }
-  
+
+  tapas::mpi::Allreduce(ans_sum_local, ans_sum, MPI_SUM, MPI_COMM_WORLD);
+
   auto *root = TestTreeSum<Dim>::Partition(bodies.data(), attrs.data(),
                                            bodies.size(), ncrit, MPI_COMM_WORLD);
 
@@ -113,6 +116,8 @@ int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   const std::vector<int> kNcrits = {4, 16, 32};
 
+  srand(tapas::mpi::Rank());
+
   // smaller scale tests with 1 process
   if (tapas::mpi::Size() == 1) {
     for (int nc : kNcrits) {
@@ -121,13 +126,11 @@ int main(int argc, char **argv) {
       }
     }
   } else {
-#if 0
     for (int nc : kNcrits) {
       for (int num = 1000; num < 10000; num += 1000) {
-        //RunTest<3>(num, nc);
+        RunTest<3>(num, nc);
       }
     }
-#endif
   }
   
   TEST_REPORT_RESULT();
