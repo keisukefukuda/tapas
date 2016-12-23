@@ -220,9 +220,6 @@ class SamplingOctree {
       return beg_keys;
     }
     
-    const int B = 1 << kDim; // 8 in 3-dim space
-    const int Ls  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
-
     // total weight
     const double totalw = std::accumulate(body_weights.begin(), body_weights.end(), 0);
 
@@ -232,7 +229,7 @@ class SamplingOctree {
     proc_weights.clear();
     proc_weights.resize(mpi_size, 0);
 
-#if 0 // new code; suspended until the new inspector is implemented.
+#if 0 // new code; suspended until the new source-side inspector is implemented.
     const double quota = totalw / mpi_size;
     // new code
 
@@ -240,10 +237,10 @@ class SamplingOctree {
     std::cout << "total weight = " << totalw << std::endl;
     std::cout << "quota = " << quota << std::endl;
 
-    int bi = 0; // body index
-    int pi = 0; // proc index
+    size_t bi = 0; // body index
+    size_t pi = 0; // proc index
     beg_keys[pi] = 0;
-    for (pi = 0; pi < mpi_size - 1; pi++) { // pi = process index
+    for (pi = 0; pi < (size_t)mpi_size - 1; pi++) { // pi = process index
       while (proc_weights[pi] < quota) {
         proc_weights[pi] += body_weights[bi];
         beg_keys[pi + 1] = body_keys[bi];
@@ -266,6 +263,9 @@ class SamplingOctree {
     return beg_keys;
     
 #else // ----------- old code
+    
+    const int B = 1 << kDim; // 8 in 3-dim space
+    const int Ls  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
     
     for (int L = Ls; L < SFC::MaxDepth(); L++) {
       //double t = MPI_Wtime();
@@ -365,8 +365,8 @@ class SamplingOctree {
         std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
       }
       
-#endif
       std::cout << "Ratio = " << ratio << std::endl;
+#endif
 
       if (ratio < 0.05) break;
 
