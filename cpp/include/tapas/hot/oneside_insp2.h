@@ -2,8 +2,18 @@
 #ifndef TAPAS_HOT_ONESIDE_INSP2_H_
 #define TAPAS_HOT_ONESIDE_INSP2_H_
 
-#include <unordered_map>
+/*
+  SrcSideInspectorと，リスト作成のロジックを分離する
+  まず，アクションを関数として分離する
+  アクション = リストを作成する
+  
+  作業順
+  [ ] SplitTypeを拡張する．attrの読み取り，bodyの読み取りについても変数を定義する
+  [ ] Inspector用のルーチンが，ReadAttr, ReadBodies についても正しい結果を返すように変更する
+  [ ] Actionクラスを定義し，class InspActionLET を定義する．req_attr, req_body をメンバー変数として持つクラスとして定義する
+*/
 
+#include <unordered_map>
 
 #include <tapas/debug_util.h>
 #include <tapas/geometry.h>
@@ -15,6 +25,16 @@
 
 namespace tapas {
 namespace hot {
+
+/**
+ * Inspecting action for LET construction
+ */
+class InspActionLET {
+ public:
+  inline void operator(KeyType trg, KeyType src, SplitType s) {
+    
+  }
+};
 
 /**
  * \brief Inspector implementation for Map-2
@@ -65,21 +85,21 @@ class OnesideInsp2 {
                                              int trg_dep, int src_dep,
                                              UserFunct f, Args... args) {
     // By the nature of octrees, if the traget and source depth are equal,
-    // target and source cells hav the same width theoretically.
+    // target and source cells have the same width theoretically.
     // In practice, however, the floating point values are sometimes
     // slightly different.
     // The user code may use the values to make a decision to split the source cell
-    // or not (i.e. "split the larger one").
+    // (i.e. "split the larger one").
     // Thus, in the inspector, we have to cover all cases:
-    //  (1) the two cells are exactly equal size
-    //  (2) the target cell is slightly bigger
-    //  (3) the source cell is slightly bigger
+    //  (1) the two cells are of exactly equal size
+    //  (2) the target cell is `slightly' bigger
+    //  (3) the source cell is `slightly' bigger
     
     // case 1.
     VecT sw = data.region_.width() / pow(2, src_dep);
     VecT tw = sw;
 
-    SplitType split1, split2, split3;
+    SplitType split1, split2, split3; // split decision result
 
     {
       GCell src_gc(data, nullptr, src_reg, sw, src_dep);
@@ -112,7 +132,10 @@ class OnesideInsp2 {
     int sp = static_cast<int>(split1)
              | static_cast<int>(split2)
              | static_cast<int>(split3);
-    // We don't think about leaf-case in this function.
+
+    // Note: We don't think about leaf-case in this function
+    //       because if one or both of the trg & src cell is/are leaf,
+    //       the 'slight difference' issue doesn't occur.
     if      (sp & static_cast<int>(SplitType::SplitBoth))  { return SplitType::SplitBoth; }
     else if (sp & static_cast<int>(SplitType::SplitLeft))  { return SplitType::SplitLeft; }
     else if (sp & static_cast<int>(SplitType::SplitRight)) { return SplitType::SplitRight; }
