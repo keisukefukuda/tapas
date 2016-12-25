@@ -3,6 +3,7 @@
 #define TAPAS_HOT_ONESIDE_INSP2_H_
 
 /*
+  Implementation memo:
   SrcSideInspectorと，リスト作成のロジックを分離する
   まず，アクションを関数として分離する
   アクション = リストを作成する
