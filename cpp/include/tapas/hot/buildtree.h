@@ -280,7 +280,7 @@ class SamplingOctree {
       const long W = pow(B, L); // number of cells in level L
       TAPAS_ASSERT(W > 0); // detect overflow
 
-      std::cout << "L=" << L << std::endl;
+      //std::cout << "L=" << L << std::endl;
       if (W <= mpi_size) {
         std::cerr << "W=" << W << ", mpi_size=" << mpi_size << std::endl;
       }
@@ -342,31 +342,7 @@ class SamplingOctree {
       double sigma = tapas::util::stddev(proc_weights); // standard deviation
       double ratio = sigma / mean;
 
-#if 0 // debug outputs: to be removed.
-      const double q = totalw / mpi_size; // quota: each process should have roughly totalw/mpi_size weight
-
-      std::cout << "--------------------" << std::endl;
-      std::cout << "L=" << L << std::endl;
-      // std::cout << "body weights = ";
-      // for (auto w : body_weights) std::cout << (int)w << " ";
-      // std::cout << std::endl;
-        
-      std::cout << "total weights = " << (int)totalw << std::endl;
-      std::cout << "q = " << q << std::endl;
-        
-      std::cout << "proc_weights = ";
-      for (auto w : proc_weights) std::cout << (int)w << " ";
-      std::cout << std::endl;
-
-      std::cout << "MEAN   = " << mean << std::endl;
-      std::cout << "STDDEV = " << sigma << std::endl;
-      
-      for (int i = 0; i < mpi_size; i++) {
-        std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
-      }
-      
-#endif
-      std::cout << "Ratio = " << ratio << std::endl;
+      //std::cout << "Ratio = " << ratio << std::endl;
 
       if (ratio < 0.05) break;
 

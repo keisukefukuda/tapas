@@ -213,9 +213,9 @@ using uset = std::unordered_set<T>;
 
 // new Traverse
 template<class TSP>
-void ReportSplitType(typename Cell<TSP>::KeyType trg_key,
+void ReportInteractionType(typename Cell<TSP>::KeyType trg_key,
                      typename Cell<TSP>::KeyType src_key,
-                     SplitType by_pred, SplitType orig) {
+                     InteractionType by_pred, InteractionType orig) {
   using SFC = typename Cell<TSP>::SFC;
 
   tapas::debug::DebugStream e("check");
@@ -223,21 +223,21 @@ void ReportSplitType(typename Cell<TSP>::KeyType trg_key,
 
   e.out() << "Pred:";
   switch(by_pred) {
-    case SplitType::Approx:     e.out() << "Approx";     break;
-    case SplitType::Body:       e.out() << "Body";       break;
-    case SplitType::SplitLeft:  e.out() << "SplitLeft";  break;
-    case SplitType::SplitRight: e.out() << "SplitRight"; break;
-    case SplitType::None:       e.out() << "None:";      break;
+    case InteractionType::Approx:     e.out() << "Approx";     break;
+    case InteractionType::Body:       e.out() << "Body";       break;
+    case InteractionType::SplitLeft:  e.out() << "SplitLeft";  break;
+    case InteractionType::SplitRight: e.out() << "SplitRight"; break;
+    case InteractionType::None:       e.out() << "None:";      break;
     default: assert(0);
   }
 
   e.out() << " Orig:";
   switch(orig) {
-    case SplitType::Approx:     e.out() << "Approx";     break;
-    case SplitType::Body:       e.out() << "Body";       break;
-    case SplitType::SplitLeft:  e.out() << "SplitLeft";  break;
-    case SplitType::SplitRight: e.out() << "SplitRight"; break;
-    case SplitType::None:       e.out() << "None:";      break;
+    case InteractionType::Approx:     e.out() << "Approx";     break;
+    case InteractionType::Body:       e.out() << "Body";       break;
+    case InteractionType::SplitLeft:  e.out() << "SplitLeft";  break;
+    case InteractionType::SplitRight: e.out() << "SplitRight"; break;
+    case InteractionType::None:       e.out() << "None:";      break;
     default: assert(0);
   }
 

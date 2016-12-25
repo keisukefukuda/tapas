@@ -9,7 +9,7 @@ namespace hot {
 /**
  * Enum values of predicate function
  */
-enum class SplitType {
+enum class InteractionType {
   Approx     = 1 << 0,   // Compute using right cell's attribute
   Body       = 1 << 1 ,  // Compute using right cell's bodies
   SplitLeft  = 1 << 2,   // Split left (local) cell
@@ -19,22 +19,22 @@ enum class SplitType {
   None       = 0,          // Nothing. Use when a target cell isn't local in Traverse
 };
 
-std::string ToString(SplitType st) {
+std::string ToString(InteractionType st) {
   switch(st) {
-    case SplitType::Approx:        return "SplitType::Approx";
-    case SplitType::Body:          return "SplitType::Body";
-    case SplitType::SplitLeft:     return "SplitType::SplitLeft";
-    case SplitType::SplitRight:    return "SplitType::SplitRight";
-    case SplitType::SplitRightILL: return "SplitType::SplitRightILL";
-    case SplitType::SplitBoth:     return "SplitType::SplitBoth";
-    case SplitType::None:          return "SplitType::None";
+    case InteractionType::Approx:        return "InteractionType::Approx";
+    case InteractionType::Body:          return "InteractionType::Body";
+    case InteractionType::SplitLeft:     return "InteractionType::SplitLeft";
+    case InteractionType::SplitRight:    return "InteractionType::SplitRight";
+    case InteractionType::SplitRightILL: return "InteractionType::SplitRightILL";
+    case InteractionType::SplitBoth:     return "InteractionType::SplitBoth";
+    case InteractionType::None:          return "InteractionType::None";
     default:
       assert(0);
       return "";
   }
 }
 
-std::ostream& operator<<(std::ostream &os, SplitType st) {
+std::ostream& operator<<(std::ostream &os, InteractionType st) {
   os << ToString(st);
   return os;
 }

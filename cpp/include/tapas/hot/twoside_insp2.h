@@ -79,7 +79,7 @@ class TwosideInsp2 {
 
     // (A) check if the trg cell is local (kept in this function)
     if (ht.count(trg_key) == 0) {
-      return; // SplitType::None;
+      return; // InteractionType::None;
     }
 
     // Maximum depth of the tree.
@@ -94,7 +94,7 @@ class TwosideInsp2 {
     if (is_src_local_leaf) {
       // the cell is local. everythig's fine. nothing to do.
       //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_local_leaf" << std::endl;
-      return; // SplitType::None;
+      return; // InteractionType::None;
     }
     
     if (is_src_remote_leaf) {
@@ -107,7 +107,7 @@ class TwosideInsp2 {
       list_body.insert(src_key);
       list_body_mutex.unlock();
       //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_remote_leaf" << std::endl;
-      return; // SplitType::Body;
+      return; // InteractionType::Body;
     }
     TAPAS_ASSERT(SFC::GetDepth(src_key) <= SFC::MAX_DEPTH);
     list_attr_mutex.lock();
@@ -115,14 +115,14 @@ class TwosideInsp2 {
     list_attr_mutex.unlock();
 
     // Approx/Split branch
-    SplitType split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
+    InteractionType split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
 
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
     to_spawn = false;
     
     switch(split) {
-      case SplitType::SplitBoth:
+      case InteractionType::SplitBoth:
         if (to_spawn) {
           typename Th::TaskGroup tg;
           for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
@@ -145,7 +145,7 @@ class TwosideInsp2 {
           }
         }
         break;
-      case SplitType::SplitLeft:
+      case InteractionType::SplitLeft:
         if (to_spawn) {
           typename Th::TaskGroup tg;
           for (KeyType ch : SFC::GetChildren(trg_key)) {
@@ -165,10 +165,10 @@ class TwosideInsp2 {
         }
         break;
 
-      case SplitType::None:
+      case InteractionType::None:
         break;
 
-      case SplitType::SplitRight:
+      case InteractionType::SplitRight:
         if (to_spawn) {
           typename Th::TaskGroup tg;
           for (KeyType src_ch : SFC::GetChildren(src_key)) {
@@ -184,7 +184,7 @@ class TwosideInsp2 {
         }
         break;
 
-      case SplitType::Approx:
+      case InteractionType::Approx:
         list_attr_mutex.lock();
         list_attr.insert(src_key);
         list_attr_mutex.unlock();
