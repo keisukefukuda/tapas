@@ -42,8 +42,7 @@ class Serial {
     TaskGroup() { }
     template<class F>
     void createTask(F f) {
-      auto *t = new CallableTask<F>(f);
-      t->run();
+      CallableTask<F>(f).run();
     }
 
     void wait() { }
