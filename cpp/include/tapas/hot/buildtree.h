@@ -220,9 +220,6 @@ class SamplingOctree {
       return beg_keys;
     }
     
-    const int B = 1 << kDim; // 8 in 3-dim space
-    const int Ls  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
-
     // total weight
     const double totalw = std::accumulate(body_weights.begin(), body_weights.end(), 0);
 
@@ -232,7 +229,7 @@ class SamplingOctree {
     proc_weights.clear();
     proc_weights.resize(mpi_size, 0);
 
-#if 0 // new code; suspended until the new inspector is implemented.
+#if 0 // new code; suspended until the new source-side inspector is implemented.
     const double quota = totalw / mpi_size;
     // new code
 
@@ -240,10 +237,10 @@ class SamplingOctree {
     std::cout << "total weight = " << totalw << std::endl;
     std::cout << "quota = " << quota << std::endl;
 
-    int bi = 0; // body index
-    int pi = 0; // proc index
+    size_t bi = 0; // body index
+    size_t pi = 0; // proc index
     beg_keys[pi] = 0;
-    for (pi = 0; pi < mpi_size - 1; pi++) { // pi = process index
+    for (pi = 0; pi < (size_t)mpi_size - 1; pi++) { // pi = process index
       while (proc_weights[pi] < quota) {
         proc_weights[pi] += body_weights[bi];
         beg_keys[pi + 1] = body_keys[bi];
@@ -266,6 +263,9 @@ class SamplingOctree {
     return beg_keys;
     
 #else // ----------- old code
+    
+    const int B = 1 << kDim; // 8 in 3-dim space
+    const int Ls  = (int)(log((double)mpi_size) / log((double)B) + 2); // logB(Np) = log(Np) / log(B)
     
     for (int L = Ls; L < SFC::MaxDepth(); L++) {
       //double t = MPI_Wtime();
@@ -342,7 +342,31 @@ class SamplingOctree {
       double sigma = tapas::util::stddev(proc_weights); // standard deviation
       double ratio = sigma / mean;
 
-      //std::cout << "Ratio = " << ratio << std::endl;
+#if 0 // debug outputs: to be removed.
+      const double q = totalw / mpi_size; // quota: each process should have roughly totalw/mpi_size weight
+
+      std::cout << "--------------------" << std::endl;
+      std::cout << "L=" << L << std::endl;
+      // std::cout << "body weights = ";
+      // for (auto w : body_weights) std::cout << (int)w << " ";
+      // std::cout << std::endl;
+        
+      std::cout << "total weights = " << (int)totalw << std::endl;
+      std::cout << "q = " << q << std::endl;
+        
+      std::cout << "proc_weights = ";
+      for (auto w : proc_weights) std::cout << (int)w << " ";
+      std::cout << std::endl;
+
+      std::cout << "MEAN   = " << mean << std::endl;
+      std::cout << "STDDEV = " << sigma << std::endl;
+      
+      for (int i = 0; i < mpi_size; i++) {
+        std::cout << i << " " << SFC::Decode(beg_keys[i]) << std::endl;
+      }
+      
+      std::cout << "Ratio = " << ratio << std::endl;
+#endif
 
       if (ratio < 0.05) break;
 
@@ -570,6 +594,11 @@ class SamplingOctree {
     auto range_end = std::lower_bound(pbeg, pend, k2);
     int nb = range_end - range_beg;
 
+    // print bodies in the leaf
+    // for (auto i = range_beg; i < range_end; i++) {
+      
+    // }
+
     // Checks if the cell is (completely) included in the process or strides over two processes.
     // If the cell strides over multiple processes, it's never a leaf and must be split, even if nb <= ncrit.
     bool included = SFC::Includes(proc_first_keys_[rank], proc_first_keys_[rank+1], k);
@@ -610,7 +639,8 @@ class SamplingOctree {
     } else {
       if (SFC::GetDepth(k) == SFC::MaxDepth()) {
         // FATAL: the depth reached the maximum. We need to use larger type for KeyType.
-        std::cerr << "FATAL: The depth of the tree reached the maximum of Morton keys.\n"
+        std::cerr << "FATAL: The depth of the tree reached the maximum (" << SFC::GetDepth(k)  << ") of Morton keys.\n"
+                  << "       There are " << nb << " bodies in the leaf\n"
                   << "       Suggestion: \n"
                   << "         * Use larger max_nb (an argument to Partition())\n"
                   << "         * Use larger key type (an template argument to tapas::HOT).\n"
