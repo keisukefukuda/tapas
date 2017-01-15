@@ -594,6 +594,11 @@ class SamplingOctree {
     auto range_end = std::lower_bound(pbeg, pend, k2);
     int nb = range_end - range_beg;
 
+    // print bodies in the leaf
+    // for (auto i = range_beg; i < range_end; i++) {
+      
+    // }
+
     // Checks if the cell is (completely) included in the process or strides over two processes.
     // If the cell strides over multiple processes, it's never a leaf and must be split, even if nb <= ncrit.
     bool included = SFC::Includes(proc_first_keys_[rank], proc_first_keys_[rank+1], k);
@@ -634,7 +639,8 @@ class SamplingOctree {
     } else {
       if (SFC::GetDepth(k) == SFC::MaxDepth()) {
         // FATAL: the depth reached the maximum. We need to use larger type for KeyType.
-        std::cerr << "FATAL: The depth of the tree reached the maximum of Morton keys.\n"
+        std::cerr << "FATAL: The depth of the tree reached the maximum (" << SFC::GetDepth(k)  << ") of Morton keys.\n"
+                  << "       There are " << nb << " bodies in the leaf\n"
                   << "       Suggestion: \n"
                   << "         * Use larger max_nb (an argument to Partition())\n"
                   << "         * Use larger key type (an template argument to tapas::HOT).\n"
