@@ -66,7 +66,7 @@ parallel: parallel.cxx $(OBJECTS)
 	$(MPICXX) $^ $(LFLAGS) -o $@
 #	mpirun -np 9 ./a.out --ncrit 256 --distribution plummer
 
-tapas: parallel_tapas parallel_tapas_mutual
+tapas: tapas.d parallel_tapas parallel_tapas_mutual
 
 # NOTE: Single node HOT code is no longer maintained.
 serial_tapas: .ALWAYS $(OBJECTS) #tapas_exafmm.cxx $(OBJECTS)
@@ -77,6 +77,9 @@ parallel_tapas: tapas_exafmm.cxx
 
 parallel_tapas_mutual: tapas_exafmm.cxx
 	$(MPICXX) $(DEBUG) $(OPT) $(LOG) -DUSE_MPI -DFMM_MUTUAL tapas_exafmm.cxx $(LFLAGS) -o $@
+
+tapas.d:
+	$(MPICXX) -DUSE_MPI -M -MQ parallel_tapas -MQ parallel_tapas_mutual tapas_exafmm.cxx $(LFLAGS) -o $@
 
 # Checking O(N) complexity
 complexity: serial.o $(OBJECTS)
@@ -104,4 +107,7 @@ ewald: ewald.o $(OBJECTS)
 
 clean:
 	rm -rf *.o *.dSYM
-	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | cut -d ":" -f 1 | xargs rm
+	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | cut -d ":" -f 1 | xargs rm -f
+
+-include tapas.d
+
