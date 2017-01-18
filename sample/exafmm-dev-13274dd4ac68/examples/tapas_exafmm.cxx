@@ -486,6 +486,7 @@ int main(int argc, char ** argv) {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
 #endif
+      logger::startTimer("Partition");
       if (root == nullptr) {
         // first timestep
         root = TapasFMM::Partition(bodies.data(), bodies.size(),
@@ -494,6 +495,7 @@ int main(int argc, char ** argv) {
         // otherwise
         root = TapasFMM::Partition(root, args.ncrit);
       }
+      logger::stopTimer("Partition");
     }
 
     // Upward (P2M + M2M)
@@ -555,8 +557,10 @@ int main(int argc, char ** argv) {
 
     // Copy BodyAttr values back to Body
 
+    logger::startTimer("CopyBackResult");
     TapasFMM::Map([](Body &b, BodyAttr &a) { b.TRG = a; }, root->Bodies());
     CopyBackResult(bodies, root);
+    logger::stopTimer("CopyBackResult");
 
     logger::printTitle("Total runtime");
     logger::stopPAPI();

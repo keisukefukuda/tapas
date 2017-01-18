@@ -57,6 +57,7 @@ class OnesideInsp2 {
 
   /**
    * Inspecting action for LET construction
+   * TODO: LET用にセルをリスト追加するアクションのクラス
    */
   class InspAction {
    public:
