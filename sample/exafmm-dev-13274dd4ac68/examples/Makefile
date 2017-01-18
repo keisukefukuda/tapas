@@ -102,3 +102,6 @@ ewald: ewald.o $(OBJECTS)
 	$(CXX) $? $(LFLAGS)
 	mpirun -np 2 ./a.out --numBodies 1000 --ncrit 32 --images 3
 
+clean:
+	rm -rf *.o *.dSYM
+	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | cut -d ":" -f 1 | xargs rm
