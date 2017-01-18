@@ -1,6 +1,8 @@
 #ifndef EXAFMM_TAPAS_H_
 #define EXAFMM_TAPAS_H_
 
+#include <cstddef> // offsteOf
+
 #include "types.h" // exafmm/include/types.h
 #include "tapas/debug_util.h"
 #include "tapas/util.h"
@@ -22,28 +24,6 @@ struct CellAttr {
 // Body is defined in types.h
 using BodyAttr = kvec4;
 
-template<class T, class U>
-constexpr size_t MemberOffset(U T::*pmem) {
-  return (char*)&((T*)nullptr->*pmem) - (char*)nullptr;
-}
-
-//
-// Offset of coordinate values in Body
-// ex.
-// If body type is
-//   struct MyBody {
-//     vec3 X;
-//   };
-// then it's 0.
-//
-#ifdef TAPAS_COMPILER_CLANG
-// The MemberOffset functions is not constepxr in clang.
-const constexpr size_t kBodyCoordOffset = 0;
-#else
-const constexpr size_t kBodyCoordOffset = MemberOffset(&Body::X);
-#endif
-
-// Select MPI or single-process
 #include "tapas/hot.h"
 
 #ifdef MTHREADS
@@ -68,7 +48,7 @@ using FMM_Threading = tapas::threading::Serial;
 
 #endif
 
-struct FMM_Params : public tapas::HOT<3, real_t, Body, kBodyCoordOffset, kvec4, CellAttr> {
+struct FMM_Params : public tapas::HOT<3, real_t, Body, offsetof(Body, X), kvec4, CellAttr> {
   using Threading = FMM_Threading;
 };
 
