@@ -78,7 +78,7 @@ class ProxyCell : public _POLICY {
   template<class...Args>
   ProxyCell(const Data &data, int *clock, Args...args)
       : Base(data, args...), data_(data)
-      , marked_touched_(false), marked_split_(false), marked_body_(false), marked_modified_(false), clock_(clock)
+      , marked_attr_(false), marked_split_(false), marked_nb_(false), marked_modified_(false), clock_(clock)
       , is_local_(false), attr_(this), children_()
   {
     CellType *c = this->Base::RealCell();
@@ -99,9 +99,9 @@ class ProxyCell : public _POLICY {
   }
 
   void ClearFlags() {
-    marked_touched_ = false;
+    marked_attr_ = false;
     marked_split_ = false;
-    marked_body_ = false;
+    marked_nb_ = false;
     marked_modified_ = false;
   }
   
@@ -135,15 +135,14 @@ class ProxyCell : public _POLICY {
       flag.Add(IntrFlag::SplitL);
     } else if (src_cell.marked_split_) {
       flag.Add(IntrFlag::SplitR);
-    } else if (src_cell.marked_body_) {
+    } else if (src_cell.marked_nb_) {
       flag.Add(IntrFlag::ReadNbR);
-    } else if (trg_cell.marked_body_) {
+    } else if (trg_cell.marked_nb_) {
       flag.Add(IntrFlag::ReadNbL);
-#if 0
-      // TODO
-    } else if (!src_cell.marked_touched_) {
-      return InteractionType::None;
-#endif
+    } else if (src_cell.marked_attr_) {
+      flag.Add(IntrFlag::ReadAttrR);
+    } else if (trg_cell.marked_attr_) {
+      flag.Add(IntrFlag::ReadAttrL);
     }
 
     return flag;
@@ -188,7 +187,6 @@ class ProxyCell : public _POLICY {
    * \fn FP ProxyCell::width(FP d) const
    */
   inline FP width(FP d) const {
-    Touched();
     return this->Base::width(d);
   }
 
@@ -196,7 +194,6 @@ class ProxyCell : public _POLICY {
    * \fn FP ProxyCell::width() const
    */
   inline VecT width() const {
-    Touched();
     return this->Base::width();
   }
 
@@ -204,13 +201,12 @@ class ProxyCell : public _POLICY {
    * \fn bool ProxyCell::IsLeaf() const
    */
   inline bool IsLeaf() const {
-    Touched();
     return this->Base::IsLeaf();
   }
   
   inline index_t nb() const {
     TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
-    Touched();
+    MarkNb();
     return this->Base::nb();
   }
 
@@ -252,7 +248,7 @@ class ProxyCell : public _POLICY {
    * \fn ProxyCell::attr
    */
   const CellAttr &attr() const {
-    Touched();
+    ReadAttr();
     return attr_;
   }
 
@@ -260,17 +256,20 @@ class ProxyCell : public _POLICY {
    * \fn ProxyCell::bodies()
    */
   ProxyBodyIterator<ProxyCell> bodies() {
-    Touched();
+    MarkNb();
     return ProxyBodyIterator<ProxyCell>(this);
   }
     
   ProxyBodyIterator<ProxyCell> bodies() const {
-    Touched();
+    MarkNb();
     return ProxyBodyIterator<ProxyCell>(const_cast<ProxyCell*>(this));
   }
 
   const Body &body(index_t idx) const { // returns ProxyBody
-    Touched();
+    // This function is inhibited.
+    // Users should use Map()/Reduce() and Cell::bodies() instead.
+    std::cerr << "Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
+    exit(-1);
 
     TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");
     TAPAS_ASSERT(idx < nb() && "Body index out of bound. Check nb()." );
@@ -279,7 +278,10 @@ class ProxyCell : public _POLICY {
   }
   
   BodyAttr &body_attr(index_t idx) {
-    Touched();
+    // This function is inhibited.
+    // Users should use Map()/Reduce() and Cell::bodies() instead.
+    std::cerr << "Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
+    exit(-1);
     
     TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
     TAPAS_ASSERT(idx < nb());
@@ -299,14 +301,14 @@ class ProxyCell : public _POLICY {
   }
 
   //protected:
-  void Touched() const {
-    marked_touched_ = IncIfNotNull(clock_);
+  void ReadAttr() const {
+    marked_attr_ = IncIfNotNull(clock_);
   }
   void Split() const {
     marked_split_ = IncIfNotNull(clock_);
   }
-  void MarkBody() const {
-    marked_body_ = IncIfNotNull(clock_);
+  void MarkNb() const {
+    marked_nb_ = IncIfNotNull(clock_);
   }
   void MarkModified() {
     marked_modified_ = IncIfNotNull(clock_);
@@ -317,16 +319,13 @@ class ProxyCell : public _POLICY {
     return marked_modified_;
   }
 
- public:
-  //ProxyCell(const ProxyCell &rhs);
-  
  private:
   
   const Data &data_;
 
-  mutable int marked_touched_;
-  mutable int marked_split_;
-  mutable int marked_body_;
+  mutable int marked_attr_;  // attribute is read
+  mutable int marked_split_; // split
+  mutable int marked_nb_;    // member function nb() is called
   int marked_modified_;
   mutable int *clock_;
 
