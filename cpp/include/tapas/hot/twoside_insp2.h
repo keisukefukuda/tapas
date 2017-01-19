@@ -117,6 +117,8 @@ class TwosideInsp2 {
     // Approx/Split branch
     IntrFlag split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
 
+    std::cout << "src_key=" << src_key << " trg_key=" << trg_key << " " << split.ToString() << std::endl;
+
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
     to_spawn = false;
