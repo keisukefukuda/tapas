@@ -118,7 +118,19 @@ class TwosideInsp2 {
     IntrFlag split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
 
     if (tapas::mpi::Rank() == 0) {
-      std::cout << "src_key=" << src_key << " trg_key=" << trg_key << " " << split.ToString() << std::endl;
+      std::cout << "src_key=" << src_key << " trg_key=" << trg_key << " ";
+
+      if (split.IsSplit()) {
+        std::cout << "Split" << std::endl;
+      } else {
+        if (split.IsSplitR()) {
+          std::cout << "SplitR" << std::endl;
+        } else if (split.IsSplitL()) {
+          std::cout << "SplitL" << std::endl;
+        } else {
+          std::cout << "Approx" << std::endl;
+        }
+      }
     }
 
     const constexpr int kNspawn = 3;
