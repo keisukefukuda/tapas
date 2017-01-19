@@ -61,19 +61,19 @@ class OnesideInsp2 {
    */
   class InspAction {
    public:
-    inline void operator()(KeyType trg, KeyType src, InteractionType s) {
+    inline void operator()(KeyType trg, KeyType src, IntrFlag s) {
       (void)trg; (void)src; (void)s;
     }
   };
   
   template<class UserFunct, class...Args>
-  static InteractionType TryInteraction(Data &data,
-                                  const Reg &trg_reg, const Reg &src_reg,
-                                  int trg_dep, int src_dep, bool is_left_leaf,
-                                  UserFunct f, Args... args) {
+  static IntrFlag TryInteraction(Data &data,
+                                 const Reg &trg_reg, const Reg &src_reg,
+                                 int trg_dep, int src_dep, bool is_left_leaf,
+                                 UserFunct f, Args... args) {
     auto sw = data.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
     auto tw = data.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
-        
+    
     GCell src_gc = GCell(data, nullptr, src_reg, sw, src_dep);
     GCell trg_gc = GCell(data, nullptr, trg_reg, tw, trg_dep);
 
@@ -83,10 +83,10 @@ class OnesideInsp2 {
   }
   
   template<class UserFunct, class...Args>
-  static InteractionType TryInteractionOnSameLevel(Data &data,
-                                             const Reg &trg_reg, const Reg &src_reg,
-                                             int trg_dep, int src_dep,
-                                             UserFunct f, Args... args) {
+  static IntrFlag TryInteractionOnSameLevel(Data &data,
+                                            const Reg &trg_reg, const Reg &src_reg,
+                                            int trg_dep, int src_dep,
+                                            UserFunct f, Args... args) {
     // By the nature of octrees, if the traget and source depth are equal,
     // target and source cells have the same width theoretically.
     // In practice, however, the floating point values are sometimes
@@ -102,7 +102,7 @@ class OnesideInsp2 {
     VecT sw = data.region_.width() / pow(2, src_dep);
     VecT tw = sw;
 
-    InteractionType split1, split2, split3; // split decision result
+    IntrFlag split1, split2, split3; // split decision result
 
     {
       GCell src_gc(data, nullptr, src_reg, sw, src_dep);
@@ -130,20 +130,9 @@ class OnesideInsp2 {
       GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
       split3 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
     }
-
+    
     // merge the result.
-    int sp = static_cast<int>(split1)
-             | static_cast<int>(split2)
-             | static_cast<int>(split3);
-
-    // Note: We don't think about leaf-case in this function
-    //       because if one or both of the trg & src cell is/are leaf,
-    //       the 'slight difference' issue doesn't occur.
-    if      (sp & static_cast<int>(InteractionType::SplitBoth))  { return InteractionType::SplitBoth; }
-    else if (sp & static_cast<int>(InteractionType::SplitLeft))  { return InteractionType::SplitLeft; }
-    else if (sp & static_cast<int>(InteractionType::SplitRight)) { return InteractionType::SplitRight; }
-
-    return InteractionType::Approx;
+    return split1 | split2 | split3;
   }
 
   /**
@@ -156,7 +145,7 @@ class OnesideInsp2 {
    * \param args Arguments to the user function
    */
   template<class UserFunct, class...Args>
-  static std::vector<InteractionType> BuildTable(Data &data, KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
+  static std::vector<IntrFlag> BuildTable(Data &data, KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
     const int max_depth = data.max_depth_;
     const int src_depth = SFC::GetDepth(src_root_key);
     const int trg_depth = SFC::GetDepth(trg_root_key);
@@ -166,11 +155,11 @@ class OnesideInsp2 {
 
     const int ncol = max_depth - src_depth + 1;
     const int nrow = max_depth - trg_depth + 1;
-    std::vector<InteractionType> table(ncol * nrow);
+    std::vector<IntrFlag> table(ncol * nrow);
 
     for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
-        InteractionType split;
+        IntrFlag split;
         
         if (td == sd) {
           split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
@@ -181,17 +170,15 @@ class OnesideInsp2 {
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
         // Thus, there is possibility that the source cell is split
-        // even if the `split` value above is not SplitRight if the target cell is a leaf.
-        if (split != InteractionType::SplitRight
-            && split != InteractionType::SplitBoth
+        // even if the `split` value above is not SplitR if the target(left) cell is a leaf.
+        if (!split.IsSplitR()
             && td >= data.min_leaf_level_[trg_root_key]) {
-          InteractionType split2 = TryInteraction(data, trg_reg, src_reg, td, sd, true, f, args...);
+          IntrFlag split2 = TryInteraction(data, trg_reg, src_reg, td, sd, true, f, args...);
           
-          TAPAS_ASSERT(split2 != InteractionType::SplitBoth); // because left cell (target) is a leaf.
-          TAPAS_ASSERT(split2 != InteractionType::SplitLeft);
+          TAPAS_ASSERT(!split2.IsSplitL()); // because left cell (target) is a leaf.
 
-          if (split2 == InteractionType::SplitRight) {
-            split = InteractionType::SplitRightILL;
+          if (split2.IsSplitR()) {
+            split = IntrFlag(IntrFlag::SplitILL);
           }
         }
         int idx = (td - trg_depth) * ncol + (sd - src_depth);
@@ -202,7 +189,7 @@ class OnesideInsp2 {
     return table;
   }
 
-  static void DumpTable(const std::vector<InteractionType> &table, int nrow, int ncol) {
+  static void DumpTable(const std::vector<IntrFlag> &table, int nrow, int ncol) {
     // debug dump
     std::cout << " ";
     for (int i = 0; i < ncol; i++) {
@@ -213,27 +200,19 @@ class OnesideInsp2 {
     for (int i = 0; i < nrow; i++) {
       std::cout << i;
       for (int j = 0; j < ncol; j++) {
-        InteractionType split = table[i * ncol + j];
-        switch(split) {
-          case InteractionType::SplitBoth:
-            std::cout << "\\";
-            break;
-          case InteractionType::SplitLeft:
-            std::cout << "|";
-            break;
-          case InteractionType::SplitRight:
-            std::cout << "-";
-            break;
-          case InteractionType::SplitRightILL:
-            std::cout << "+";
-            break;
-          case InteractionType::Approx:
-          case InteractionType::Body:
-            std::cout << "*";
-            break;
-          default:
-            std::cout << "?";
-            break;
+        IntrFlag split = table[i * ncol + j];
+        if (split.IsSplit()) {
+          // split both
+          std::cout << "\\";
+        } else if (split.IsSplitL()) {
+          // split left
+          std::cout << "|";
+        } else if (split.IsSplitR) {
+          // split right
+          std::cout << "-";
+        } else {
+          // seems to be approx.
+          std::cout << "*";
         }
       }
       std::cout << std::endl;
@@ -245,7 +224,7 @@ class OnesideInsp2 {
    * \brief Traverse the soruce tree and collect 
    */
   template<class UserFunct, class...Args>
-  static void TraverseSource(Data &data, std::vector<InteractionType> &table,
+  static void TraverseSource(Data &data, std::vector<IntrFlag> &table,
                              KeySet &req_keys_attr, KeySet &req_keys_body,
                              KeyType trg_root_key, // key of the root of the target local tree
                              KeyType src_root_key, // key of the root of the source local tree
@@ -268,9 +247,7 @@ class OnesideInsp2 {
     for (int r = 0; r < nrows; r++) {
       auto sp = table[r * ncols + c];
 
-      if (sp == InteractionType::SplitRight
-          || sp == InteractionType::SplitBoth
-          || sp == InteractionType::SplitRightILL) {
+      if (sp.IsSplitR() || sp.IsSplitILL()) {
         // We found the source cell (closest ghost source cell) is split.
         // We need to check if the real cell (src_key) is split.
         // The real cell is farther from the target cell than the ghost cell,
@@ -282,11 +259,11 @@ class OnesideInsp2 {
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
-        InteractionType sp2 = (src_depth == trg_depth)
-                        ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
-                        : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp == InteractionType::SplitRightILL, f, args...);
+        IntrFlag sp2 = (src_depth == trg_depth)
+                       ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
+                       : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
         
-        if (sp2 == InteractionType::SplitRight || sp2 == InteractionType::SplitBoth) {
+        if (sp2.IsSplitR()) {
           // source side is still split.
           cnt++;
         }
@@ -341,14 +318,14 @@ class OnesideInsp2 {
             int ncol = max_depth - src_depth + 1;
             int nrow = max_depth - trg_depth + 1;
 
-            std::vector<InteractionType> table = BuildTable(data, src_key, trg_key, f, args...);
+            std::vector<IntrFlag> table = BuildTable(data, src_key, trg_key, f, args...);
 
             TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
             // If table[0] is "approximate", We don't need to traverse the source local tree.
             // (NOTE: all local roots are leaves of the global tree, thus all local roots are shared
             // among all processes, no need to transfer)
-            if (table[0] == InteractionType::Approx) {
+            if (table[0].IsApprox()) {
               continue;
             }
 

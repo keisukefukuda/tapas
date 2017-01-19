@@ -214,33 +214,19 @@ using uset = std::unordered_set<T>;
 // new Traverse
 template<class TSP>
 void ReportInteractionType(typename Cell<TSP>::KeyType trg_key,
-                     typename Cell<TSP>::KeyType src_key,
-                     InteractionType by_pred, InteractionType orig) {
+                           typename Cell<TSP>::KeyType src_key,
+                           IntrFlag by_pred, IntrFlag orig) {
   using SFC = typename Cell<TSP>::SFC;
 
   tapas::debug::DebugStream e("check");
   e.out() << SFC::Simplify(trg_key) << " - " << SFC::Simplify(src_key) << "  ";
 
-  e.out() << "Pred:";
-  switch(by_pred) {
-    case InteractionType::Approx:     e.out() << "Approx";     break;
-    case InteractionType::Body:       e.out() << "Body";       break;
-    case InteractionType::SplitLeft:  e.out() << "SplitLeft";  break;
-    case InteractionType::SplitRight: e.out() << "SplitRight"; break;
-    case InteractionType::None:       e.out() << "None:";      break;
-    default: assert(0);
-  }
+  e.out() << "Pred: ";
+  e.out() << by_pred.ToString() << std::endl;
 
-  e.out() << " Orig:";
-  switch(orig) {
-    case InteractionType::Approx:     e.out() << "Approx";     break;
-    case InteractionType::Body:       e.out() << "Body";       break;
-    case InteractionType::SplitLeft:  e.out() << "SplitLeft";  break;
-    case InteractionType::SplitRight: e.out() << "SplitRight"; break;
-    case InteractionType::None:       e.out() << "None:";      break;
-    default: assert(0);
-  }
-
+  e.out() << " Orig: ";
+  e.out() << orig.ToString() << std::endl;
+  
   e.out() << " " << (by_pred == orig ? "OK" : "NG") << std::endl;
 }
 

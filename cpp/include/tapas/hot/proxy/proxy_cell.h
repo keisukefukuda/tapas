@@ -126,29 +126,32 @@ class ProxyCell : public _POLICY {
   }
 
   template<class UserFunct, class...Args>
-  static InteractionType PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
+  static IntrFlag PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
 
-    if (trg_cell.marked_split_ && src_cell.marked_split_) {
-      return InteractionType::SplitBoth;
-    } else if (trg_cell.marked_split_) {
-      return InteractionType::SplitLeft;
+    IntrFlag flag;
+
+    if (trg_cell.marked_split_) {
+      flag.Add(IntrFlag::SplitL);
     } else if (src_cell.marked_split_) {
-      return InteractionType::SplitRight;
+      flag.Add(IntrFlag::SplitR);
     } else if (src_cell.marked_body_) {
-      return InteractionType::Body;
+      flag.Add(IntrFlag::ReadNbR);
+    } else if (trg_cell.marked_body_) {
+      flag.Add(IntrFlag::ReadNbL);
 #if 0
+      // TODO
     } else if (!src_cell.marked_touched_) {
       return InteractionType::None;
 #endif
-    } else {
-      return InteractionType::Approx;
     }
+
+    return flag;
   }
 
   // Check if cells are split or not in 2-parameter Map
   template<class UserFunct, class...Args>
-  static InteractionType PredSplit2(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
+  static IntrFlag PredSplit2(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
     ProxyCell trg_cell(data, nullptr, trg_key);
     ProxyCell src_cell(data, nullptr, src_key);
     

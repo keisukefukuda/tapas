@@ -79,7 +79,7 @@ class TwosideInsp2 {
 
     // (A) check if the trg cell is local (kept in this function)
     if (ht.count(trg_key) == 0) {
-      return; // InteractionType::None;
+      return;
     }
 
     // Maximum depth of the tree.
@@ -94,7 +94,7 @@ class TwosideInsp2 {
     if (is_src_local_leaf) {
       // the cell is local. everythig's fine. nothing to do.
       //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_local_leaf" << std::endl;
-      return; // InteractionType::None;
+      return;
     }
     
     if (is_src_remote_leaf) {
@@ -107,7 +107,7 @@ class TwosideInsp2 {
       list_body.insert(src_key);
       list_body_mutex.unlock();
       //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_remote_leaf" << std::endl;
-      return; // InteractionType::Body;
+      return;
     }
     TAPAS_ASSERT(SFC::GetDepth(src_key) <= SFC::MAX_DEPTH);
     list_attr_mutex.lock();
@@ -115,84 +115,74 @@ class TwosideInsp2 {
     list_attr_mutex.unlock();
 
     // Approx/Split branch
-    InteractionType split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
+    IntrFlag split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
 
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
     to_spawn = false;
-    
-    switch(split) {
-      case InteractionType::SplitBoth:
-        if (to_spawn) {
-          typename Th::TaskGroup tg;
-          for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(trg_ch) > 0) {
-              for (KeyType src_ch : SFC::GetChildren(src_key)) {
-                tg.createTask([&]() mutable {
-                    Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-                  });
-              }
-            }
-          }
-          tg.wait();
-        } else {
-          for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(trg_ch) > 0) {
-              for (KeyType src_ch : SFC::GetChildren(src_key)) {
-                Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
-              }
-            }
-          }
-        }
-        break;
-      case InteractionType::SplitLeft:
-        if (to_spawn) {
-          typename Th::TaskGroup tg;
-          for (KeyType ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(ch) > 0) {
+
+    if (split.IsSplit()) {
+      if (to_spawn) {
+        typename Th::TaskGroup tg;
+        for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
+          if (ht.count(trg_ch) > 0) {
+            for (KeyType src_ch : SFC::GetChildren(src_key)) {
               tg.createTask([&]() mutable {
-                  Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+                  Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
                 });
             }
           }
-          tg.wait();
-        } else {
-          for (KeyType ch : SFC::GetChildren(trg_key)) {
-            if (ht.count(ch) > 0) {
-              Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+        }
+        tg.wait();
+      } else {
+        for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
+          if (ht.count(trg_ch) > 0) {
+            for (KeyType src_ch : SFC::GetChildren(src_key)) {
+              Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
             }
           }
         }
-        break;
-
-      case InteractionType::None:
-        break;
-
-      case InteractionType::SplitRight:
-        if (to_spawn) {
-          typename Th::TaskGroup tg;
-          for (KeyType src_ch : SFC::GetChildren(src_key)) {
+      }
+    } else if (split.IsSplitL()) {
+      if (to_spawn) {
+        typename Th::TaskGroup tg;
+        for (KeyType ch : SFC::GetChildren(trg_key)) {
+          if (ht.count(ch) > 0) {
             tg.createTask([&]() mutable {
-                Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+                Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
               });
           }
-          tg.wait();
-        } else {
-          for (KeyType src_ch : SFC::GetChildren(src_key)) {
-            Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+        }
+        tg.wait();
+      } else {
+        for (KeyType ch : SFC::GetChildren(trg_key)) {
+          if (ht.count(ch) > 0) {
+            Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
           }
         }
-        break;
-
-      case InteractionType::Approx:
-        list_attr_mutex.lock();
-        list_attr.insert(src_key);
-        list_attr_mutex.unlock();
-        break;
-
-      default: assert(0); // Never happens
+      }
+    } else if (split.IsSplitR()) {
+      if (to_spawn) {
+        typename Th::TaskGroup tg;
+        for (KeyType src_ch : SFC::GetChildren(src_key)) {
+          tg.createTask([&]() mutable {
+              Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+            });
+        }
+        tg.wait();
+      } else {
+        for (KeyType src_ch : SFC::GetChildren(src_key)) {
+          Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+        }
+      }
+    } else {
+      // Approximate
+      assert(split.IsApprox());
+      list_attr_mutex.lock();
+      list_attr.insert(src_key);
+      list_attr_mutex.unlock();
     }
-    return; // split;
+    return;
   }
 };
 
