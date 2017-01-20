@@ -45,7 +45,7 @@ class IntrFlag {
   inline bool IsSplitR() const { return flag_ & SplitR; }
   inline bool IsSplitL() const { return flag_ & SplitL; }
   inline bool IsSplitILL() const { return flag_ & SplitILL; }
-  inline bool IsSplit() const { return IsSplitR() || IsSplitL() || IsSplitILL(); }
+  inline bool IsSplitBoth() const { return IsSplitR() && IsSplitL(); }
         
   inline bool IsReadAttrR() const { return flag_ & ReadAttrR; }
   inline bool IsReadAttrL() const { return flag_ & ReadAttrL; }

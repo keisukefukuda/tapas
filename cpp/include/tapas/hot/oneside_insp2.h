@@ -201,7 +201,7 @@ class OnesideInsp2 {
       std::cout << i;
       for (int j = 0; j < ncol; j++) {
         IntrFlag split = table[i * ncol + j];
-        if (split.IsSplit()) {
+        if (split.IsSplitBoth()) {
           // split both
           std::cout << "\\";
         } else if (split.IsSplitL()) {

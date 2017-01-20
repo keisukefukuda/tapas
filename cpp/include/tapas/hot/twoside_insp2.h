@@ -117,20 +117,18 @@ class TwosideInsp2 {
     // Approx/Split branch
     IntrFlag split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
 
-    if (tapas::mpi::Rank() == 0) {
-      if (SFC::GetDepth(trg_key) <= 1 && SFC::GetDepth(src_key) <= 1) {
-        std::cout << "src_key=" << src_key << " trg_key=" << trg_key << " ";
+    if (trg_key == 1152921504606846977 && src_key == 1) {
+      std::cout << "src_key=" << src_key << " trg_key=" << trg_key << " ";
 
-        if (split.IsSplit()) {
-          std::cout << "Split" << std::endl;
+      if (split.IsSplitBoth()) {
+        std::cout << "Split" << std::endl;
+      } else {
+        if (split.IsSplitR()) {
+          std::cout << "SplitR" << std::endl;
+        } else if (split.IsSplitL()) {
+          std::cout << "SplitL" << std::endl;
         } else {
-          if (split.IsSplitR()) {
-            std::cout << "SplitR" << std::endl;
-          } else if (split.IsSplitL()) {
-            std::cout << "SplitL" << std::endl;
-          } else {
-            std::cout << "Approx" << std::endl;
-          }
+          std::cout << "Approx" << std::endl;
         }
       }
     }
@@ -139,7 +137,7 @@ class TwosideInsp2 {
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
     to_spawn = false;
 
-    if (split.IsSplit()) {
+    if (split.IsSplitBoth()) {
       if (to_spawn) {
         typename Th::TaskGroup tg;
         for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
