@@ -449,11 +449,13 @@ struct ExactInsp2 {
     // One side traverse is much faster but it requires certain condition in user function f.
 #ifdef TAPAS_TWOSIDE_LET
 #warning "Using 2-sided LET"
+    if (tapas::mpi::Rank() == 0) std::cout << "Using 2-sided LET" << std::endl;
     TwosideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
+    if (tapas::mpi::Rank() == 0) std::cout << "Using 1-sided LET" << std::endl;
     OnesideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #endif
-    
+
     double et = MPI_Wtime();
     if (root.data().mpi_rank_ == 0) {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;

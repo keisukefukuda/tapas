@@ -295,16 +295,16 @@ function build_fmm() {
     fi
 
     # Build single-threaded, without-weighted-repartitioning version
-    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
+    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug USE_TWOSIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug USE_TWOSIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
 
     mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
     mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
 
 
     # Build single-threaded, without-weighted-repartitioning version
-    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
+    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
+    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
 
     mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_oneside
     mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_oneside
