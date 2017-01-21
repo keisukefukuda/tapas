@@ -123,6 +123,7 @@ class OnesideTraversePolicy {
 
   inline void SetIsLeaf(bool b) {
     is_leaf_ = b;
+    InitBodies();
   }
 
   // Cell-Cell, Center
@@ -269,6 +270,11 @@ class OnesideTraversePolicy {
   }
 
   const Body &body(index_t idx) const {
+    if (idx >= (index_t)bodies_.size()) {
+      std::cerr << "assertion failed. idx=" << idx << ", bodies.size()=" << bodies_.size()
+                << ", nb()=" << nb() << ", isleaf=" << is_leaf_
+                << std::endl;
+    }
     TAPAS_ASSERT(idx < (index_t)bodies_.size());
     return bodies_[idx];
   }

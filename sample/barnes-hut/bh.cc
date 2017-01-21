@@ -173,6 +173,11 @@ struct interact {
     if (!c1.IsLeaf()) {
       TapasBH::Map(*this, tapas::Product(c1.subcells(), c2), theta);
     } else if (c1.IsLeaf() && c1.nb() == 0) {
+      if (tapas::mpi::Rank() == 1 && !Cell::Inspector) {
+        std::cout << "interact: c1.key()=" << c1.key() << " c2.key()=" << c2.key() << " "
+                  << "but c1 is empty."
+                  << std::endl;
+      }
       return;
     } else if (c2.IsLeaf()) {
       if (c2.nb() == 0) {
@@ -192,6 +197,13 @@ struct interact {
       real_t d = std::sqrt(TapasBH::Distance2(c2, p1, tapas::Center));
       //real_t d = std::sqrt(distR2(c2.attr(), p1));
       real_t s = c2.width(0);
+
+      if (tapas::mpi::Rank() == 0 && !Cell::Inspector && c2.key() == 4035225266123964418) {
+        std::cerr << "*** Executor: c1.key()=" << c1.key() << " c2.key()=" << c2.key() << " "
+                  << "d=" << d << " s=" << s << (s/d < theta ? " => Approximate" : " => Split")
+                  << std::endl;
+      }
+
 
       if ((s/ d) < theta) {
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.attr(), EPS2);

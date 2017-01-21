@@ -278,8 +278,10 @@ class ProxyCell : public _POLICY {
   const Body &body(index_t idx) const { // returns ProxyBody
     // This function is inhibited.
     // Users should use Map()/Reduce() and Cell::bodies() instead.
-    std::cerr << "Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
-    exit(-1);
+#if 0
+    std::cerr << __FILE__ << ":" << __LINE__
+              << " [Warning] Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
+#endif
 
     TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");
     TAPAS_ASSERT(idx < nb() && "Body index out of bound. Check nb()." );
