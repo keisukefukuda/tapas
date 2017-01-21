@@ -161,11 +161,25 @@ class OnesideInsp2 {
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
         IntrFlag split;
         
+        if (tapas::mpi::Rank() == 2 && trg_root_key == 3458764513820540931 && src_root_key == 1297036692682702850) {
+          if (sd == src_depth && td == trg_depth) {
+            setenv("TAPAS_DEBUG", "1", 1);
+          }
+        }
+        
         if (td == sd) {
           split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
         } else {
           split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
         }
+        
+        if (tapas::mpi::Rank() == 2 && trg_root_key == 3458764513820540931 && src_root_key == 1297036692682702850) {
+          if (sd == src_depth && td == trg_depth) {
+            std::cout << "Inspector: td == sd => " << (td == sd ? "true" : "false") << std::endl;
+            std::cout << "Inspector: split = " << split.ToString() << std::endl;
+          }
+        }
+        unsetenv("TAPAS_DEBUG");
 
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
@@ -234,7 +248,7 @@ class OnesideInsp2 {
       req_keys_body.insert(src_key);
       return;
     }
-    
+
     int src_root_depth = SFC::GetDepth(src_root_key);
     int trg_root_depth = SFC::GetDepth(trg_root_key);
     int src_depth = SFC::GetDepth(src_key);
@@ -244,8 +258,12 @@ class OnesideInsp2 {
     int c = src_depth - src_root_depth;
 
     int cnt = 0;
-    for (int r = 0; r < nrows; r++) {
+    for (int r = 0; r < nrows; r++) { // rows are target depth
       auto sp = table[r * ncols + c];
+
+      if (src_key == 1297036692682702850) {
+        std::cout << "Inspector: src_key = " << src_key << std::endl;
+      }
 
       if (sp.IsSplitR() || sp.IsSplitILL()) {
         // We found the source cell (closest ghost source cell) is split.
@@ -262,7 +280,7 @@ class OnesideInsp2 {
         IntrFlag sp2 = (src_depth == trg_depth)
                        ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
                        : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
-        
+
         if (sp2.IsSplitR()) {
           // source side is still split.
           cnt++;
@@ -307,14 +325,22 @@ class OnesideInsp2 {
 
     // Repeat over all pairs target and source local trees
     for (KeyType src_key : data.gleaves_) {
+      if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
+        std::cout << "Inspector: starting traversing 1297036692682702850" << std::endl;
+      }
       if (data.ht_.count(src_key) == 0) {
+        if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
+          std::cout << "Inspector: it's not in local. OK." << std::endl;
+        }
+
+        // ここがまずい。trg側をrootから始めるべき
         for (KeyType trg_key : data.lroots_) {
           if (src_key != trg_key) {
             //double bt = MPI_Wtime();
             const int max_depth = data.max_depth_;
             const int src_depth = SFC::GetDepth(src_key);
             const int trg_depth = SFC::GetDepth(trg_key);
-
+            
             int ncol = max_depth - src_depth + 1;
             int nrow = max_depth - trg_depth + 1;
 
@@ -322,9 +348,15 @@ class OnesideInsp2 {
 
             TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
-            // If table[0] is "approximate", We don't need to traverse the source local tree.
+            // If table[0] (which is the upper-left-most cell) is "approximate", We don't need to traverse the source local tree.
             // (NOTE: all local roots are leaves of the global tree, thus all local roots are shared
             // among all processes, no need to transfer)
+            
+            // if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
+            //   std::cout << "Inspector: " << trg_key << " && " << src_key << "  => "
+            //             << (table[0].IsApprox() ? "Approx" : "Not approx")
+            //             << std::endl;
+            // }
             if (table[0].IsApprox()) {
               continue;
             }

@@ -157,9 +157,65 @@ struct FMM_DTT {
     Ri = (Ri / 2 * 1.00001) / theta;
     Rj = (Rj / 2 * 1.00001) / theta;
 
+    if (getenv("TAPAS_DEBUG") != nullptr) {
+      std::cout << "Inspector: " << Cell::SFC::Decode(Ci.key()) << std::endl;
+      std::cout << "Inspector: " << Cell::SFC::Decode(Cj.key()) << std::endl;
+      std::cout << "Inspector: " << Ci.IsLeaf() << "," << Cj.IsLeaf() << std::endl;
+      std::cout << "Inspector: " << Ci.key() << " - " << Cj.key() << " " << std::endl;
+      std::cout << "Inspector: Ri = " << Ri << std::endl;
+      std::cout << "Inspector: Rj = " << Rj << std::endl;
+      std::cout << "Inspector: R2 = " << R2 << std::endl;
+      std::cout << "Inspector: ";
+      if (R2 > (Ri + Rj) * (Ri + Rj)) {
+        std::cout << "M2L (1)" << std::endl;
+      } else if (Ci.IsLeaf() && Cj.IsLeaf()) {
+        std::cout << "P2P (2)" << std::endl;
+      } else if (Cj.IsLeaf()) {
+        std::cout << "SplitLeft (3)" << std::endl;
+      } else if (Ci.IsLeaf()) {
+        std::cout << "SplitRight (4)" << std::endl;
+      } else if (Ci == Cj) {
+        std::cout << "SplitBoth (5)" << std::endl;
+      } else if (Ri >= Rj) {
+        std::cout << "SplitLeft (6)" << std::endl;
+      } else {
+        std::cout << "SplitRight (7)" << std::endl;
+      }
+    }
+
+    if (tapas::mpi::Rank() == 2 && !Cell::Inspector) {
+      if (Ci.key() == 3458764513820540930 && Cj.key() == 1297036692682702850) {
+        std::cout << "Executor: " << Cell::SFC::Decode(Ci.key()) << std::endl;
+        std::cout << "Executor: " << Cell::SFC::Decode(Cj.key()) << std::endl;
+        std::cout << "Executor: " << Ci.IsLeaf() << "," << Cj.IsLeaf() << std::endl;
+        std::cout << "Executor: " << Ci.key() << " - " << Cj.key() << " " << std::endl;;
+        std::cout << "Executor: " << "Ri = " << Ri << std::endl;
+        std::cout << "Executor: " << "Rj = " << Rj << std::endl;
+        std::cout << "Executor: " << "R2 = " << R2 << std::endl;
+        std::cout << "Executor: " ;
+        if (R2 > (Ri + Rj) * (Ri + Rj)) {
+          std::cout << "M2L (1)" << std::endl;
+        } else if (Ci.IsLeaf() && Cj.IsLeaf()) {
+          std::cout << "P2P (2)" << std::endl;
+        } else if (Cj.IsLeaf()) {
+          std::cout << "SplitLeft (3)" << std::endl;
+        } else if (Ci.IsLeaf()) {
+          std::cout << "SplitRight (4)" << std::endl;
+        } else if (Ci == Cj) {
+          std::cout << "SplitBoth (5)" << std::endl;
+        } else if (Ri >= Rj) {
+          std::cout << "SplitLeft (6)" << std::endl;
+        } else {
+          std::cout << "SplitRight (7)" << std::endl;
+        }
+      }
+    }
+      
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
+      if (Ci.key() == 3458764513820540930 && Cj.key() == 1297036692682702850) std::cout << "M2L" << std::endl;
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
+      if (Ci.key() == 3458764513820540930 && Cj.key() == 1297036692682702850) std::cout << "P2P" << std::endl;
 #ifdef FMM_MUTUAL
       TapasFMM::Map(P2P_mutual(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
 #else
