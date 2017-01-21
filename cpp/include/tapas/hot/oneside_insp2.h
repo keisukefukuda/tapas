@@ -313,7 +313,6 @@ class OnesideInsp2 {
   static void Inspect(CellType &root,
                       KeySet &req_keys_attr, KeySet &req_keys_body,
                       UserFunct f, Args...args) {
-
     auto &data = root.data();
     req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
     req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
@@ -323,7 +322,11 @@ class OnesideInsp2 {
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
 
-    // Repeat over all pairs target and source local trees
+    // Start source-side traverse from
+    //   traget key : root
+    //   source key : global leaves
+    KeyType trg_key = 0; // root
+    
     for (KeyType src_key : data.gleaves_) {
       if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
         std::cout << "Inspector: starting traversing 1297036692682702850" << std::endl;
@@ -333,39 +336,34 @@ class OnesideInsp2 {
           std::cout << "Inspector: it's not in local. OK." << std::endl;
         }
 
-        // ここがまずい。trg側をrootから始めるべき
-        for (KeyType trg_key : data.lroots_) {
-          if (src_key != trg_key) {
-            //double bt = MPI_Wtime();
-            const int max_depth = data.max_depth_;
-            const int src_depth = SFC::GetDepth(src_key);
-            const int trg_depth = SFC::GetDepth(trg_key);
+        //double bt = MPI_Wtime();
+        const int max_depth = data.max_depth_;
+        const int src_depth = SFC::GetDepth(src_key);
+        const int trg_depth = SFC::GetDepth(trg_key);
             
-            int ncol = max_depth - src_depth + 1;
-            int nrow = max_depth - trg_depth + 1;
+        int ncol = max_depth - src_depth + 1;
+        int nrow = max_depth - trg_depth + 1;
 
-            std::vector<IntrFlag> table = BuildTable(data, src_key, trg_key, f, args...);
+        std::vector<IntrFlag> table = BuildTable(data, src_key, trg_key, f, args...);
 
-            TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
+        TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
-            // If table[0] (which is the upper-left-most cell) is "approximate", We don't need to traverse the source local tree.
-            // (NOTE: all local roots are leaves of the global tree, thus all local roots are shared
-            // among all processes, no need to transfer)
+        // If table[0] (which is the upper-left-most cell) is "approximate", We don't need to traverse the source local tree.
+        // (NOTE: all local roots are leaves of the global tree, thus all local roots are shared
+        // among all processes, no need to transfer)
             
-            // if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
-            //   std::cout << "Inspector: " << trg_key << " && " << src_key << "  => "
-            //             << (table[0].IsApprox() ? "Approx" : "Not approx")
-            //             << std::endl;
-            // }
-            if (table[0].IsApprox()) {
-              continue;
-            }
-
-            //double et = MPI_Wtime();
-            //std::cout << "Inner-most loop took " << std::scientific << (et-bt) << std::endl;
-            TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
-          }
+        // if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
+        //   std::cout << "Inspector: " << trg_key << " && " << src_key << "  => "
+        //             << (table[0].IsApprox() ? "Approx" : "Not approx")
+        //             << std::endl;
+        // }
+        if (table[0].IsApprox()) {
+          continue;
         }
+
+        //double et = MPI_Wtime();
+        //std::cout << "Inner-most loop took " << std::scientific << (et-bt) << std::endl;
+        TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
       }
     }
     // construct v_map, a map from source level to the most conservative target level

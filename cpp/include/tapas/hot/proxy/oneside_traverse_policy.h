@@ -83,6 +83,10 @@ class OnesideTraversePolicy {
   void Init() {
     is_leaf_ = (depth_ >= data_.max_depth_);
 
+    // We want to delay the call to InitBodies() for performance reasons.
+    // However, we call it here for now because of const-consistency.
+    InitBodies();
+
 #ifdef TAPAS_DEBUG
     for (int d = 0; d < Dim; d++) {
       if (width_[d] > region_.width(d)) {
@@ -253,8 +257,8 @@ class OnesideTraversePolicy {
   }
 
   void InitBodies() {
-    if (nb() > 0) {
-      auto num_bodies = nb();
+    if (is_leaf_ && nb() > 0) {
+      size_t num_bodies = nb();
       if (bodies_.size() != num_bodies) {
         bodies_.resize(num_bodies);
         body_attrs_.resize(num_bodies);
@@ -264,19 +268,12 @@ class OnesideTraversePolicy {
     }
   }
 
-  const Body &body(index_t idx) {
-    if (bodies_.size() != nb()) {
-      InitBodies();
-    }
-    
+  const Body &body(index_t idx) const {
     TAPAS_ASSERT(idx < (index_t)bodies_.size());
     return bodies_[idx];
   }
 
   BodyAttr &body_attr(index_t idx) {
-    if (body_attrs_.size() != nb()) {
-      InitBodies();
-    }
     return body_attrs_[idx];
   }
   
