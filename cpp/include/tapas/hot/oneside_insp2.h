@@ -326,7 +326,7 @@ class OnesideInsp2 {
     //   traget key : root
     //   source key : global leaves
     KeyType trg_key = 0; // root
-    
+
     for (KeyType src_key : data.gleaves_) {
       if (data.ht_.count(src_key) == 0) {
         //double bt = MPI_Wtime();
