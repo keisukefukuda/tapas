@@ -447,11 +447,12 @@ struct ExactInsp2 {
 
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
-#ifdef TAPAS_TWOSIDE_LET
-#warning "Using 2-sided LET"
-    TwosideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
-#else
+#ifdef TAPAS_ONESIDE_LET
+    std::cout << "1-side inespector" << std::endl;
     OnesideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+#else
+    std::cout << "2-side inespector" << std::endl;
+    TwosideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #endif
     
     double et = MPI_Wtime();
