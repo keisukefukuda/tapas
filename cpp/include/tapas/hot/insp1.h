@@ -2,6 +2,7 @@
 #define TAPAS_HOT_INSP1_H_
 
 #include <tapas/hot/proxy/proxy_cell.h>
+
 #include <tapas/hot/proxy/full_traverse_policy.h>
 
 namespace tapas {

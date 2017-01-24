@@ -19,7 +19,7 @@ class FullTraversePolicy {
   using RealBody = typename TSP::Body;
   using RealBodyAttr = typename TSP::BodyAttr;
   
-  using Body = ProxyBody<RealBody, RealBodyAttr>;
+  using Body = ProxyBody<RealBody, RealBodyAttr, FullTraversePolicy<TSP>>;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;

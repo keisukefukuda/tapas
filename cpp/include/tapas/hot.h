@@ -468,11 +468,20 @@ struct Tapas {
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
   using BodyAttr = typename TSP::BodyAttr;
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
-  using ProxyCell2 = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;
-  using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
-  using ProxyBodyIterator = tapas::hot::proxy::ProxyBodyIterator<ProxyCell>;
+
+  // Proxy cell for one-side traverse
+  using ProxyCell1 = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;
+  using ProxyAttr1 = tapas::hot::proxy::ProxyAttr<ProxyCell1>;
+  using ProxyBody1 = tapas::hot::proxy::ProxyBody<Body, BodyAttr, typename ProxyCell1::Policy>;
+  using ProxyBodyIterator1 = tapas::hot::proxy::ProxyBodyIterator<ProxyCell1>;
+
+  // Proxy cell for two-side traversepolicy
+  
+  using ProxyCell2 = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
+  using ProxyAttr2 = tapas::hot::proxy::ProxyAttr<ProxyCell2>;
+  using ProxyBody2 = tapas::hot::proxy::ProxyBody<Body, BodyAttr, typename ProxyCell2::Policy>;
   using ProxyBodyIterator2 = tapas::hot::proxy::ProxyBodyIterator<ProxyCell2>;
+
   using VecT = tapas::Vec<Dim, FP>;
 
   /**
@@ -599,7 +608,7 @@ struct Tapas {
       cell.mapper().MapP2(f, prod, std::forward<Args>(args)...);
     }
   }
-
+  
   template <class Funct, class T1_Iter, class...Args>
   static inline void Map(Funct f, ProductIterator<T1_Iter> prod, Args&&...args) {
     //TAPAS_LOG_DEBUG() << "map product iterator size: "
@@ -617,7 +626,8 @@ struct Tapas {
   }
 
   template <class Funct, class...Args>
-  static inline void Map(Funct f, tapas::iterator::SubCellIterator<ProxyCell> iter, Args&&...args) {
+  static inline void Map(Funct f, tapas::iterator::SubCellIterator<ProxyCell2> iter, Args&&...args) {
+    // NOTE two-side (full) traversal ProxyCell is used for a single-parameter Map.
     iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
@@ -627,7 +637,7 @@ struct Tapas {
   }
 
   template <class Funct, class ...Args>
-  static inline void Map(Funct f, ProxyBodyIterator iter, Args&&...args) {
+  static inline void Map(Funct f, ProxyBodyIterator1 iter, Args&&...args) {
     iter.cell().mapper().Map(f, iter, std::forward<Args>(args)...);
   }
 
@@ -648,7 +658,7 @@ struct Tapas {
   }
 
   template<typename T, typename ReduceFunc>
-  static inline void Reduce(ProxyCell &cell, const T&, const T&, ReduceFunc) {
+  static inline void Reduce(ProxyCell2 &cell, const T&, const T&, ReduceFunc) {
     //std::cout << "Reduce: mark 'modified' to cell " << cell.key()  << " [" << cell.depth() << "]" << std::endl;
     cell.MarkModified();
     // nop.
@@ -666,6 +676,41 @@ struct Tapas {
 
   template<class CellType, class DistanceType>
   static inline VecT dX(const Body &b, const CellType &c1, DistanceType t) {
+    if (getenv("TAPAS_DEBUG")) {
+      std::cout << "tapas::dX(Cell, RealBody) is called" << std::endl;
+    }
+    return c1.dX(b, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const CellType &c1, const ProxyBody1 &b, DistanceType t) {
+    if (getenv("TAPAS_DEBUG")) {
+      std::cout << "tapas::dX(Cell, ProxyBody1) is called" << std::endl;
+    }
+    return c1.dX(b, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const CellType &c1, const ProxyBody2 &b, DistanceType t) {
+    if (getenv("TAPAS_DEBUG")) {
+      std::cout << "tapas::dX(Cell, ProxyBody2) is called" << std::endl;
+    }
+    return c1.dX(b, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const ProxyBody1 &b, const CellType &c1, DistanceType t) {
+    if (getenv("TAPAS_DEBUG")) {
+      std::cout << "tapas::dX(ProxyBody, ProxyBody) is called" << std::endl;
+    }
+    return c1.dX(b, t);
+  }
+
+  template<class CellType, class DistanceType>
+  static inline VecT dX(const ProxyBody2 &b, const CellType &c1, DistanceType t) {
+    if (getenv("TAPAS_DEBUG")) {
+      std::cout << "tapas::dX(ProxyBody, ProxyBody) is called" << std::endl;
+    }
     return c1.dX(b, t);
   }
 
@@ -687,6 +732,26 @@ struct Tapas {
 
   template<class CellType, class DistanceType>
   static inline FP Distance2(const Body &b, const CellType &c1, DistanceType t) {
+    return dX(c1, b, t).norm();
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const CellType &c1, const ProxyBody1 &b, DistanceType t) {
+    return dX(c1, b, t).norm();
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const CellType &c1, const ProxyBody2 &b, DistanceType t) {
+    return dX(c1, b, t).norm();
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const ProxyBody1 &b, const CellType &c1, DistanceType t) {
+    return dX(c1, b, t).norm();
+  }
+
+  template<class CellType, class DistanceType>
+  static inline FP Distance2(const ProxyBody2 &b, const CellType &c1, DistanceType t) {
     return dX(c1, b, t).norm();
   }
 

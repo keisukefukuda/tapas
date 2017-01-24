@@ -47,6 +47,8 @@ class ProxyCell : public _POLICY {
   using Base = _POLICY;
 
  public:
+  using Policy = _POLICY;
+
   using TSP = _TSP;
   static const constexpr bool Inspector = true;
   static const constexpr int Dim = TSP::Dim;
@@ -58,11 +60,9 @@ class ProxyCell : public _POLICY {
   using RealBodyAttr = typename TSP::BodyAttr;
   
   using CellAttr = ProxyAttr<ProxyCell>;
-  using Body = ProxyBody<RealBody, RealBodyAttr>;
+  using Body = ProxyBody<RealBody, RealBodyAttr, Policy>;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   Body& local_body(int) { static Body b; return b; }
-
-  using Policy = _POLICY;
 
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;
   using SFC = typename tapas::hot::Cell<TSP>::SFC;
@@ -181,8 +181,16 @@ class ProxyCell : public _POLICY {
    */
   template<class DistanceType>
   inline VecT dX(const Body &b, DistanceType t) const {
-    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::dX(body_pos, t);
+    if (getenv("TAPAS_DEBUG")) {
+      std::cout << "ProxyCell::dX(ProxyBody) is called" << std::endl;
+      std::cout << "I'm fixing this!!" << std::endl;
+    }
+
+    // VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    // std::cout << "body_pos = " << body_pos << std::endl;
+    // return this->Base::dX(body_pos, t);
+    const Base &rhs = *(b.Parent());
+    return this->Base::dX(rhs, t);
   }
 
   /**
@@ -278,10 +286,6 @@ class ProxyCell : public _POLICY {
   const Body &body(index_t idx) const { // returns ProxyBody
     // This function is inhibited.
     // Users should use Map()/Reduce() and Cell::bodies() instead.
-#if 0
-    std::cerr << __FILE__ << ":" << __LINE__
-              << " [Warning] Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
-#endif
 
     TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");
     TAPAS_ASSERT(idx < nb() && "Body index out of bound. Check nb()." );

@@ -24,7 +24,7 @@ class OnesideTraversePolicy {
   using RealBody = typename Data::BodyType;
   using RealBodyAttr = typename Data::BodyAttrType;
 
-  using Body = ProxyBody<RealBody, RealBodyAttr>;
+  using Body = ProxyBody<RealBody, RealBodyAttr, OnesideTraversePolicy<_DIM, _FP, Data>>;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   OnesideTraversePolicy(const Data &data, Reg region, VecT width, int depth)
@@ -265,6 +265,10 @@ class OnesideTraversePolicy {
         body_attrs_.resize(num_bodies);
         memset((void*)bodies_.data(), 0, sizeof(bodies_[0]) * bodies_.size());
         memset((void*)body_attrs_.data(), 0, sizeof(body_attrs_[0]) * body_attrs_.size());
+
+        for (size_t i = 0; i < bodies_.size(); i++) {
+          bodies_[i].SetParent(this);
+        }
       }
     }
   }

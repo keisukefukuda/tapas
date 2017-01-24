@@ -8,8 +8,12 @@
 #include <tapas/geometry.h>
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/let_common.h>
-#include <tapas/hot/oneside_insp2.h>
+
+#ifdef TAPAS_TWOSIDE_LET
 #include <tapas/hot/twoside_insp2.h>
+#else
+#include <tapas/hot/oneside_insp2.h>
+#endif
 
 using tapas::debug::BarrierExec;
 
@@ -54,7 +58,11 @@ struct ExactInsp2 {
   //using ProxyBody = tapas::hot::proxy::ProxyBody<TSP>;
   //using ProxyBodyAttr = tapas::hot::proxy::ProxyBodyAttr<TSP>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
+#ifdef TAPAS_TWOSIDE_LET
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
+#else
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;
+#endif
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<TSP>;
 
   // Note for UserFunct template parameter:

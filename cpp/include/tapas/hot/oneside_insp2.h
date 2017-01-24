@@ -9,9 +9,9 @@
   アクション = リストを作成する
   
   作業順
-  [ ] InteractionTypeを拡張する．attrの読み取り，bodyの読み取りについても変数を定義する
-  [ ] 複数に分かれている分割種類の定数を，InteractionTypeに統合
-  [ ] Inspector用のルーチンが，ReadAttr, ReadBodies についても正しい結果を返すように変更する
+  [x] InteractionTypeを拡張する．attrの読み取り，bodyの読み取りについても変数を定義する
+  [x] 複数に分かれている分割種類の定数を，InteractionTypeに統合
+  [x] Inspector用のルーチンが，ReadAttr, ReadBodies についても正しい結果を返すように変更する
   [ ] Actionクラスを定義し，class InspActionLET を定義する．req_attr, req_body をメンバー変数として持つクラスとして定義する
 */
 
@@ -23,6 +23,7 @@
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/proxy/oneside_traverse_policy.h>
 #include <tapas/hot/proxy/proxy_cell.h>
+#include <tapas/hot/proxy/proxy_body.h>
 #include <tapas/iterator.h>
 
 namespace tapas {
@@ -50,10 +51,8 @@ class OnesideInsp2 {
 
   using TravPolicy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
   using GCell = tapas::hot::proxy::ProxyCell<TSP, TravPolicy>;
-
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
-  using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
-  using ProxyMapper = tapas::hot::proxy::ProxyMapper<ProxyCell>;
+  using ProxyAttr = tapas::hot::proxy::ProxyAttr<GCell>;
+  using ProxyMapper = tapas::hot::proxy::ProxyMapper<GCell>;
 
   /**
    * Inspecting action for LET construction
@@ -78,6 +77,7 @@ class OnesideInsp2 {
     GCell trg_gc = GCell(data, nullptr, trg_reg, tw, trg_dep);
 
     trg_gc.SetIsLeaf(is_left_leaf);
+    src_gc.SetIsLeaf(false);
     
     return GCell::PredSplit2(trg_gc, src_gc, f, args...);
   }
@@ -158,14 +158,9 @@ class OnesideInsp2 {
     std::vector<IntrFlag> table(ncol * nrow);
 
     for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
+
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
         IntrFlag split;
-        
-        if (tapas::mpi::Rank() == 2 && trg_root_key == 3458764513820540931 && src_root_key == 1297036692682702850) {
-          if (sd == src_depth && td == trg_depth) {
-            setenv("TAPAS_DEBUG", "1", 1);
-          }
-        }
         
         if (td == sd) {
           split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
@@ -173,13 +168,9 @@ class OnesideInsp2 {
           split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
         }
         
-        if (tapas::mpi::Rank() == 2 && trg_root_key == 3458764513820540931 && src_root_key == 1297036692682702850) {
-          if (sd == src_depth && td == trg_depth) {
-            std::cout << "Inspector: td == sd => " << (td == sd ? "true" : "false") << std::endl;
-            std::cout << "Inspector: split = " << split.ToString() << std::endl;
-          }
-        }
-        unsetenv("TAPAS_DEBUG");
+        // if (tapas::mpi::Rank() == 0 && src_depth == 1 && src_root_key == 4035225266123964417) {
+        //   std::cout << "** BuildTable trg_depth = " << td << "  split = " << split.ToString() << std::endl;
+        // }
 
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
@@ -187,7 +178,15 @@ class OnesideInsp2 {
         // even if the `split` value above is not SplitR if the target(left) cell is a leaf.
         if (!split.IsSplitR()
             && td >= data.min_leaf_level_[trg_root_key]) {
+
+          bool cond = tapas::mpi::Rank() == 0 && td == 2 && sd == 1 && src_root_key == 4035225266123964417;
+
+          if (cond) { setenv("TAPAS_DEBUG", "1", 1); }
           IntrFlag split2 = TryInteraction(data, trg_reg, src_reg, td, sd, true, f, args...);
+          if (cond) {
+            std::cout << "** BuildTable Checking if-leaf" << "  split2 = " << split2.ToString() << std::endl;
+          }
+          if (cond) { unsetenv("TAPAS_DEBUG"); }
           
           TAPAS_ASSERT(!split2.IsSplitL()); // because left cell (target) is a leaf.
 
@@ -259,12 +258,14 @@ class OnesideInsp2 {
 
     int cnt = 0;
     for (int r = 0; r < nrows; r++) { // rows are target depth
+      int trg_depth = trg_root_depth + r;
       auto sp = table[r * ncols + c];
 
-      if (src_key == 1297036692682702850) {
+      if (tapas::mpi::Rank() == 0 && src_key == 4035225266123964417) {
         std::cout << "Inspector: src_key = " << src_key << std::endl;
+        std::cout << "           trg_depth = " << trg_depth << " split = " << sp.ToString() << std::endl;
       }
-
+        
       if (sp.IsSplitR() || sp.IsSplitILL()) {
         // We found the source cell (closest ghost source cell) is split.
         // We need to check if the real cell (src_key) is split.
@@ -273,7 +274,6 @@ class OnesideInsp2 {
         //     Near(T, Ghost cell) => Near or Far <- it's the case here.
         // If they are Far, we don't need to split the cell and transfer the children of the source cell.
         
-        int trg_depth = trg_root_depth + r;
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
@@ -328,14 +328,7 @@ class OnesideInsp2 {
     KeyType trg_key = 0; // root
     
     for (KeyType src_key : data.gleaves_) {
-      if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
-        std::cout << "Inspector: starting traversing 1297036692682702850" << std::endl;
-      }
       if (data.ht_.count(src_key) == 0) {
-        if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
-          std::cout << "Inspector: it's not in local. OK." << std::endl;
-        }
-
         //double bt = MPI_Wtime();
         const int max_depth = data.max_depth_;
         const int src_depth = SFC::GetDepth(src_key);
@@ -348,15 +341,6 @@ class OnesideInsp2 {
 
         TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
-        // If table[0] (which is the upper-left-most cell) is "approximate", We don't need to traverse the source local tree.
-        // (NOTE: all local roots are leaves of the global tree, thus all local roots are shared
-        // among all processes, no need to transfer)
-            
-        // if (tapas::mpi::Rank() == 2 && src_key == 1297036692682702850) {
-        //   std::cout << "Inspector: " << trg_key << " && " << src_key << "  => "
-        //             << (table[0].IsApprox() ? "Approx" : "Not approx")
-        //             << std::endl;
-        // }
         if (table[0].IsApprox()) {
           continue;
         }

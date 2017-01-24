@@ -25,7 +25,7 @@ class TwosideInsp2 {
   using Reg = Region<Dim, FP>;
 
   using TravPolicy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
-
+  
   using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<ProxyCell>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<ProxyCell>;
