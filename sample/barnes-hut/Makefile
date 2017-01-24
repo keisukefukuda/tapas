@@ -19,7 +19,8 @@ CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors -fopenmp -Wno-unuse
 LDFLAGS := -fopenmp
 
 ifneq (,$(USE_ONESIDE_LET))
-	CXXFLAGS += -DTAPAS_ONESIDE_LET
+else
+	CXXFLAGS += -DTAPAS_TWOSIDE_LET
 endif
 
 #PROF := -pg
