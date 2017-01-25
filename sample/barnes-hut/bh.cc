@@ -118,7 +118,7 @@ struct ComputeForce {
     real_t R2 = dx * dx + dy * dy + dz * dz + eps2;
     real_t invR = 1.0 / std::sqrt(R2);
     real_t invR3 = invR * invR * invR;
-    
+
     auto tmp = p1_attr;  // const ProxyBodyAttrType &BodyIterator::attr() const;
     tmp.x += dx * invR3 * approx.w;
     tmp.y += dy * invR3 * approx.w;
@@ -137,6 +137,9 @@ struct Approximate {
   inline void operator()(Cell &parent, Cell &child) {
     if (child.IsLeaf()) {
       if (child.nb() == 0) {
+        if (tapas::mpi::Rank() == 0) {
+          std::cerr << "In Approximate():" << __LINE__ << " " << child.attr().x << ", " << child.attr().y << ", " << child.attr().z << ", " << child.attr().w << std::endl;
+        }
         float4 attr = child.attr();
         attr.w = 0.0;
 #if 0
@@ -145,6 +148,9 @@ struct Approximate {
         attr.z = 0.0;
 #endif
         child.attr() = attr;
+        if (tapas::mpi::Rank() == 0) {
+          std::cerr << "In Approximate():" << __LINE__ << " " << child.attr().x << ", " << child.attr().y << ", " << child.attr().z << ", " << child.attr().w << std::endl;
+        }
       } else if (child.nb() == 1) {
         child.attr() = child.body(0);
       }
@@ -155,11 +161,18 @@ struct Approximate {
       // child is not leaf
       TapasBH::Map(*this, child.subcells());
       float4 attr = child.attr();
+      if (tapas::mpi::Rank() == 0) {
+        std::cerr << "In Approximate():" << __LINE__ << " " << attr.x << ", " << attr.y << ", " << attr.z << ", " << attr.w << std::endl;
+      }
       attr.x /= attr.w;
       attr.y /= attr.w;
       attr.z /= attr.w;
+      if (tapas::mpi::Rank() == 0) {
+        std::cerr << "In Approximate():" << __LINE__ << " " << attr.x << ", " << attr.y << ", " << attr.z << ", " << attr.w << std::endl;
+      }
       child.attr() = attr;
     }
+    
     TapasBH::Reduce(parent, parent.attr().w, child.attr().w, Sum);
     TapasBH::Reduce(parent, parent.attr().x, child.attr().x * child.attr().w, Sum);
     TapasBH::Reduce(parent, parent.attr().y, child.attr().y * child.attr().w, Sum);
@@ -201,16 +214,11 @@ struct interact {
     }
 #endif
 
-    std::cerr << __FILE__ << ":" << __LINE__ << " " << "Branching" << std::endl;
-    
     if (!c1.IsLeaf()) {
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#1" << std::endl;
       TapasBH::Map(*this, tapas::Product(c1.subcells(), c2), theta);
     } else if (c1.IsLeaf() && c1.nb() == 0) {
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#2" << std::endl;
       return;
     } else if (c2.IsLeaf()) {
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#3" << std::endl;
       if (c2.nb() == 0) {
         return;
       } else {
@@ -219,32 +227,18 @@ struct interact {
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.body(0), EPS2);
       }
     } else {
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4-0" << std::endl;
-      std::cerr << c1.IsLeaf() << std::endl;
-      std::cerr << c2.IsLeaf() << std::endl;
-      std::cerr << c1.nb() << std::endl;
-      
       // c1 is a leaf, and c2 is not a leaf
       assert(c1.IsLeaf() && !c2.IsLeaf());
       assert(c1.nb() == 1);
     
       // use apploximation
       const auto &p1 = c1.body(0);
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4" << std::endl;
       real_t d = std::sqrt(TapasBH::Distance2(c2, p1, tapas::Center));
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4" << std::endl;
-      //real_t d = std::sqrt(distR2(c2.attr(), p1));
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4" << std::endl;
       real_t s = c2.width(0);
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4" << std::endl;
-
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4" << std::endl;
-
+      
       if ((s/ d) < theta) {
-        std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4-b1" << std::endl;
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.attr(), EPS2);
       } else {
-        std::cerr << __FILE__ << ":" << __LINE__ << " " << "#4-b2" << std::endl;
         TapasBH::Map(*this, tapas::Product(c1, c2.subcells()), theta);
       }
     }

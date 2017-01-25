@@ -176,7 +176,6 @@ class ProxyCell : public _POLICY {
    */
   template<class DistanceType>
   inline VecT dX(const Body &b, DistanceType t) const {
-    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     // VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
     // std::cout << "body_pos = " << body_pos << std::endl;
     // return this->Base::dX(body_pos, t);

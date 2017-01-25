@@ -103,7 +103,6 @@ class FullTraversePolicy {
 
   // Cell-Cell, Shortest
   inline VecT dX(const FullTraversePolicy& rhs, tapas::ShortestClass) const {
-    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     Reg reg1 = region();
     Reg reg2 = rhs.region();
     VecT dx = {0.0};
@@ -129,8 +128,6 @@ class FullTraversePolicy {
 
   // Cell-Cell, Center
   inline VecT dX(const FullTraversePolicy& rhs, tapas::CenterClass) const {
-    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
-    std::cout << __FILE__ << ":" << __LINE__ << " " << rhs.center() << std::endl;
     return center() - rhs.center();
   }
 
@@ -146,13 +143,11 @@ class FullTraversePolicy {
   
   // Cell-Body, Shortest
   inline VecT dX(const VecT& body_pos, tapas::ShortestClass) const {
-    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     return center() - body_pos;
   }
 
   // Cell-Cell, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
-    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     return center() - body_pos;
   }
 

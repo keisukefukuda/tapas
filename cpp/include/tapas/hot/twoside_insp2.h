@@ -50,9 +50,6 @@ class TwosideInsp2 {
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << __FILE__ << ":" << __LINE__ << " " << "Starting Traverse()" << std::endl;
-    }
     Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
 
     double end = MPI_Wtime();
@@ -83,12 +80,6 @@ class TwosideInsp2 {
     // (A) check if the trg cell is local (kept in this function)
     if (ht.count(trg_key) == 0) {
       return;
-    }
-
-    if (tapas::mpi::Rank() == 0) {
-      std::cerr << __FILE__ << ":" << __LINE__ << " " << "Running: depth: "
-                << SFC::GetDepth(trg_key) << " " << SFC::GetDepth(src_key)
-                << std::endl;
     }
 
     // Maximum depth of the tree.
