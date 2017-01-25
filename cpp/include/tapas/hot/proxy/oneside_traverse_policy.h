@@ -25,6 +25,7 @@ class OnesideTraversePolicy {
   using RealBodyAttr = typename Data::BodyAttrType;
 
   using Body = ProxyBody<RealBody, RealBodyAttr, OnesideTraversePolicy<_DIM, _FP, Data>>;
+  using PxBody = Body;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   OnesideTraversePolicy(const Data &data, Reg region, VecT width, int depth)
@@ -206,6 +207,18 @@ class OnesideTraversePolicy {
     return dx;
   }
 
+  inline VecT dX(const PxBody& body, tapas::ShortestClass) const {
+    //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    auto &rhs = *(body.Parent());
+    return dX(rhs, tapas::ShortestClass());
+  }
+
+  inline VecT dX(const PxBody& body, tapas::CenterClass) const {
+    //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    auto &rhs = *(body.Parent());
+    return dX(rhs, tapas::ShortestClass());
+  }
+  
   // Cell-Body, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
