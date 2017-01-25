@@ -7,7 +7,7 @@
   SrcSideInspectorと，リスト作成のロジックを分離する
   まず，アクションを関数として分離する
   アクション = リストを作成する
-  
+
   作業順
   [x] InteractionTypeを拡張する．attrの読み取り，bodyの読み取りについても変数を定義する
   [x] 複数に分かれている分割種類の定数を，InteractionTypeに統合
@@ -64,7 +64,7 @@ class OnesideInsp2 {
       (void)trg; (void)src; (void)s;
     }
   };
-  
+
   template<class UserFunct, class...Args>
   static IntrFlag TryInteraction(Data &data,
                                  const Reg &trg_reg, const Reg &src_reg,
@@ -72,16 +72,16 @@ class OnesideInsp2 {
                                  UserFunct f, Args... args) {
     auto sw = data.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
     auto tw = data.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
-    
+
     GCell src_gc = GCell(data, nullptr, src_reg, sw, src_dep);
     GCell trg_gc = GCell(data, nullptr, trg_reg, tw, trg_dep);
 
     trg_gc.SetIsLeaf(is_left_leaf);
     src_gc.SetIsLeaf(false);
-    
+
     return GCell::PredSplit2(trg_gc, src_gc, f, args...);
   }
-  
+
   template<class UserFunct, class...Args>
   static IntrFlag TryInteractionOnSameLevel(Data &data,
                                             const Reg &trg_reg, const Reg &src_reg,
@@ -97,7 +97,7 @@ class OnesideInsp2 {
     //  (1) the two cells are of exactly equal size
     //  (2) the target cell is `slightly' bigger
     //  (3) the source cell is `slightly' bigger
-    
+
     // case 1.
     VecT sw = data.region_.width() / pow(2, src_dep);
     VecT tw = sw;
@@ -109,7 +109,7 @@ class OnesideInsp2 {
       GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
       split1 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
     }
-    
+
     // case 2.
     for (int d = 0; d < Dim; d++) {
       tw[d] = sw[d] + tapas::util::NearZeroValue<FP>(sw[d]);
@@ -130,7 +130,7 @@ class OnesideInsp2 {
       GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
       split3 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
     }
-    
+
     // merge the result.
     return split1 | split2 | split3;
   }
@@ -149,7 +149,7 @@ class OnesideInsp2 {
     const int max_depth = data.max_depth_;
     const int src_depth = SFC::GetDepth(src_root_key);
     const int trg_depth = SFC::GetDepth(trg_root_key);
-    
+
     const Reg src_reg = SFC::CalcRegion(src_root_key, data.region_);
     const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
 
@@ -161,13 +161,13 @@ class OnesideInsp2 {
 
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
         IntrFlag split;
-        
+
         if (td == sd) {
           split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
         } else {
           split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
         }
-        
+
         // if (tapas::mpi::Rank() == 0 && src_depth == 1 && src_root_key == 4035225266123964417) {
         //   std::cout << "** BuildTable trg_depth = " << td << "  split = " << split.ToString() << std::endl;
         // }
@@ -187,7 +187,7 @@ class OnesideInsp2 {
             std::cout << "** BuildTable Checking if-leaf" << "  split2 = " << split2.ToString() << std::endl;
           }
           if (cond) { unsetenv("TAPAS_DEBUG"); }
-          
+
           TAPAS_ASSERT(!split2.IsSplitL()); // because left cell (target) is a leaf.
 
           if (split2.IsSplitR()) {
@@ -209,7 +209,7 @@ class OnesideInsp2 {
       std::cout << i;
     }
     std::cout << " S" << std::endl;
-    
+
     for (int i = 0; i < nrow; i++) {
       std::cout << i;
       for (int j = 0; j < ncol; j++) {
@@ -234,7 +234,7 @@ class OnesideInsp2 {
   }
 
   /**
-   * \brief Traverse the soruce tree and collect 
+   * \brief Traverse the soruce tree and collect
    */
   template<class UserFunct, class...Args>
   static void TraverseSource(Data &data, std::vector<IntrFlag> &table,
@@ -261,11 +261,6 @@ class OnesideInsp2 {
       int trg_depth = trg_root_depth + r;
       auto sp = table[r * ncols + c];
 
-      if (tapas::mpi::Rank() == 0 && src_key == 4035225266123964417) {
-        std::cout << "Inspector: src_key = " << src_key << std::endl;
-        std::cout << "           trg_depth = " << trg_depth << " split = " << sp.ToString() << std::endl;
-      }
-        
       if (sp.IsSplitR() || sp.IsSplitILL()) {
         // We found the source cell (closest ghost source cell) is split.
         // We need to check if the real cell (src_key) is split.
@@ -273,7 +268,7 @@ class OnesideInsp2 {
         // So  Far(T, Ghost cell) => Far
         //     Near(T, Ghost cell) => Near or Far <- it's the case here.
         // If they are Far, we don't need to split the cell and transfer the children of the source cell.
-        
+
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
@@ -287,9 +282,9 @@ class OnesideInsp2 {
         }
       }
     }
- 
+
     req_keys_attr.insert(src_key);
-    
+
     if (cnt == 0 && data.ht_.count(src_key) == 0) {
       if (src_depth == data.max_depth_) {
         req_keys_body.insert(src_key);
@@ -297,8 +292,10 @@ class OnesideInsp2 {
         req_keys_attr.insert(src_key);
       }
     } else {
-      for (auto ch_key : SFC::GetChildren(src_key)) {
-        TraverseSource(data, table, req_keys_attr, req_keys_body, trg_root_key, src_root_key, ch_key, f, args...);
+      if (SFC::GetDepth(src_key) < data.max_depth_) {
+        for (auto ch_key : SFC::GetChildren(src_key)) {
+          TraverseSource(data, table, req_keys_attr, req_keys_body, trg_root_key, src_root_key, ch_key, f, args...);
+        }
       }
     }
 
@@ -306,7 +303,7 @@ class OnesideInsp2 {
   }
 
   /**
-   * \brief Inspector for Map-2. Traverse hypothetical global tree and 
+   * \brief Inspector for Map-2. Traverse hypothetical global tree and
    *        construct a cell list to be exchanged between processes.
    */
   template<class UserFunct, class...Args>
@@ -333,7 +330,7 @@ class OnesideInsp2 {
         const int max_depth = data.max_depth_;
         const int src_depth = SFC::GetDepth(src_key);
         const int trg_depth = SFC::GetDepth(trg_key);
-            
+
         int ncol = max_depth - src_depth + 1;
         int nrow = max_depth - trg_depth + 1;
 
@@ -345,8 +342,6 @@ class OnesideInsp2 {
           continue;
         }
 
-        //double et = MPI_Wtime();
-        //std::cout << "Inner-most loop took " << std::scientific << (et-bt) << std::endl;
         TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
       }
     }
