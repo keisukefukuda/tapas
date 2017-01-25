@@ -137,9 +137,6 @@ struct Approximate {
   inline void operator()(Cell &parent, Cell &child) {
     if (child.IsLeaf()) {
       if (child.nb() == 0) {
-        if (tapas::mpi::Rank() == 0) {
-          std::cerr << "In Approximate():" << __LINE__ << " " << child.attr().x << ", " << child.attr().y << ", " << child.attr().z << ", " << child.attr().w << std::endl;
-        }
         float4 attr = child.attr();
         attr.w = 0.0;
 #if 0
@@ -148,9 +145,6 @@ struct Approximate {
         attr.z = 0.0;
 #endif
         child.attr() = attr;
-        if (tapas::mpi::Rank() == 0) {
-          std::cerr << "In Approximate():" << __LINE__ << " " << child.attr().x << ", " << child.attr().y << ", " << child.attr().z << ", " << child.attr().w << std::endl;
-        }
       } else if (child.nb() == 1) {
         child.attr() = child.body(0);
       }
@@ -161,14 +155,10 @@ struct Approximate {
       // child is not leaf
       TapasBH::Map(*this, child.subcells());
       float4 attr = child.attr();
-      if (tapas::mpi::Rank() == 0) {
-        std::cerr << "In Approximate():" << __LINE__ << " " << attr.x << ", " << attr.y << ", " << attr.z << ", " << attr.w << std::endl;
-      }
-      attr.x /= attr.w;
-      attr.y /= attr.w;
-      attr.z /= attr.w;
-      if (tapas::mpi::Rank() == 0) {
-        std::cerr << "In Approximate():" << __LINE__ << " " << attr.x << ", " << attr.y << ", " << attr.z << ", " << attr.w << std::endl;
+      if (attr.w > 0) {
+        attr.x /= attr.w;
+        attr.y /= attr.w;
+        attr.z /= attr.w;
       }
       child.attr() = attr;
     }
