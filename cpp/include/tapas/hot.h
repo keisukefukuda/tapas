@@ -732,35 +732,31 @@ struct Tapas {
 
   template<class CellType, class DistanceType>
   static inline FP Distance2(const Body &b, const CellType &c1, DistanceType t) {
-    std::cout << __FILE__ << ":" << __LINE__ << __PRETTY_FUNCTION__ << std::endl;
     return dX(c1, b, t).norm();
   }
 
   // Distance of ProxyBody(1) - Cell
   template<class CellType, class DistanceType>
   static inline FP Distance2(const CellType &c1, const ProxyBody1 &b, DistanceType t) {
-    std::cout << __FILE__ << ":" << __LINE__ << __PRETTY_FUNCTION__ << std::endl;
+    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     return dX(c1, b, t).norm();
   }
 
   // Distance of ProxyBody(1) - Cell
   template<class CellType, class DistanceType>
   static inline FP Distance2(const ProxyBody1 &b, const CellType &c1, DistanceType t) {
-    std::cout << __FILE__ << ":" << __LINE__ << __PRETTY_FUNCTION__ << std::endl;
     return dX(c1, b, t).norm();
   }
 
   // Distance of ProxyBody(2) - Cell
   template<class CellType, class DistanceType>
   static inline FP Distance2(const CellType &c1, const ProxyBody2 &b, DistanceType t) {
-    std::cout << __FILE__ << ":" << __LINE__ << __PRETTY_FUNCTION__ << std::endl;
     return dX(c1, b, t).norm();
   }
 
   // Distance of ProxyBody(2) - Cell
   template<class CellType, class DistanceType>
   static inline FP Distance2(const ProxyBody2 &b, const CellType &c1, DistanceType t) {
-    std::cout << __FILE__ << ":" << __LINE__ << __PRETTY_FUNCTION__ << std::endl;
     return dX(c1, b, t).norm();
   }
 

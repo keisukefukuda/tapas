@@ -176,24 +176,23 @@ class ProxyCell : public _POLICY {
    */
   template<class DistanceType>
   inline VecT dX(const Body &b, DistanceType t) const {
-    if (getenv("TAPAS_DEBUG")) {
-      std::cout << "ProxyCell::dX(ProxyBody) is called" << std::endl;
-      std::cout << "I'm fixing this!!" << std::endl;
-    }
-
+    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     // VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
     // std::cout << "body_pos = " << body_pos << std::endl;
     // return this->Base::dX(body_pos, t);
-    const Base &rhs = *(b.Parent());
-    return this->Base::dX(rhs, t);
+    //const Base &rhs = *(b.Parent());
+    //return this->Base::dX(rhs, t);
+    return this->Base::dX(b, t);
   }
 
   /**
    * \brief Distance Function
    */
   inline VecT dX(const RealBody &b, tapas::CenterClass) const {
-    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::dX(body_pos, tapas::Center);
+    //std::ccout << __FILE__ << ":" << __LINE__ << std::endl;
+    //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    //return this->Base::dX(body_pos, tapas::Center);
+    return this->Base::dX(b, tapas::Center);
   }
 
   /**

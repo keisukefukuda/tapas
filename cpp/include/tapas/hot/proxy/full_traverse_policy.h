@@ -18,8 +18,9 @@ class FullTraversePolicy {
   using RealCellType = CellType;
   using RealBody = typename TSP::Body;
   using RealBodyAttr = typename TSP::BodyAttr;
-  
+
   using Body = ProxyBody<RealBody, RealBodyAttr, FullTraversePolicy<TSP>>;
+  using PxBody = Body;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;
@@ -102,6 +103,7 @@ class FullTraversePolicy {
 
   // Cell-Cell, Shortest
   inline VecT dX(const FullTraversePolicy& rhs, tapas::ShortestClass) const {
+    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     Reg reg1 = region();
     Reg reg2 = rhs.region();
     VecT dx = {0.0};
@@ -127,16 +129,30 @@ class FullTraversePolicy {
 
   // Cell-Cell, Center
   inline VecT dX(const FullTraversePolicy& rhs, tapas::CenterClass) const {
+    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
+    std::cout << __FILE__ << ":" << __LINE__ << " " << rhs.center() << std::endl;
     return center() - rhs.center();
   }
 
+  inline VecT dX(const PxBody& body, tapas::ShortestClass) const {
+    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    return dX(body_pos, tapas::ShortestClass());
+  }
+  
+  inline VecT dX(const PxBody& body, tapas::CenterClass) const {
+    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    return dX(body_pos, tapas::CenterClass());
+  }
+  
   // Cell-Body, Shortest
   inline VecT dX(const VecT& body_pos, tapas::ShortestClass) const {
+    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     return center() - body_pos;
   }
 
   // Cell-Cell, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
+    std::cout << __FILE__ << ":" << __LINE__ << " " << __PRETTY_FUNCTION__ << std::endl;
     return center() - body_pos;
   }
 
@@ -184,7 +200,7 @@ class FullTraversePolicy {
       }
     }
   }
-  
+
  public:
   const Body &body(index_t idx) const {
     return *bodies_[idx];
