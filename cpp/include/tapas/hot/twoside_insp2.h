@@ -73,6 +73,10 @@ class TwosideInsp2 {
 
     using Th = typename CellType::Threading;
 
+    // if (tapas::mpi::Rank() == 0) {
+    //   std::cout << "Traverse: src_key=" << SFC::Decode(src_key) << std::endl;
+    // }
+
     // Traverse traverses the hypothetical global tree and constructs a list of
     // necessary cells required by the local process.
     auto &ht = data.ht_; // hash table

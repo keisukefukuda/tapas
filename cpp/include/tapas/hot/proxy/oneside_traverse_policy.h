@@ -210,20 +210,26 @@ class OnesideTraversePolicy {
   inline VecT dX(const PxBody& body, tapas::ShortestClass) const {
     //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
     auto &rhs = *(body.Parent());
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "#2 " << dX(rhs, tapas::ShortestClass()).norm() << std::endl;
+    }
     return dX(rhs, tapas::ShortestClass());
   }
 
   inline VecT dX(const PxBody& body, tapas::CenterClass) const {
     //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
     auto &rhs = *(body.Parent());
-    return dX(rhs, tapas::ShortestClass());
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "#1 " << dX(rhs, tapas::ShortestClass()).norm() << std::endl;
+    }
+    return dX(rhs, tapas::ShortestClass()); // using Shortest distnace: not mistake.
   }
   
   // Cell-Body, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
     VecT dx = {0.0};
-    
+
     for (int d = 0; d < Dim; d++) {
       if (body_pos[d] < region_.min(d)) {
         dx[d] = region_.min(d) - body_pos[d] + width_[d]/2;

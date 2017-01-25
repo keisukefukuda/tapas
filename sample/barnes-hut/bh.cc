@@ -173,37 +173,6 @@ struct Approximate {
 struct interact {
   template<class Cell>
   inline void operator()(Cell &c1, const Cell &c2, real_t theta) {
-
-#if 0
-    if (Cell::Inspector && getenv("TAPAS_DEBUG") && strcmp(getenv("TAPAS_DEBUG"), "1") == 0) {
-      std::cout << "**** In interact::operator(). TAPAS_DEBUG is activated." << std::endl;
-      if (!c1.IsLeaf()) {
-        std::cout << "**** #1" << std::endl;
-      } else if (c1.IsLeaf() && c1.nb() == 0) {
-        std::cout << "**** #2" << std::endl;
-      } else if (c2.IsLeaf()) {
-        if (c2.nb() == 0) {
-          std::cout << "**** #3-1" << std::endl;
-        } else {
-          std::cout << "**** #3-2" << std::endl;
-        }
-      } else {
-        const auto &p1 = c1.body(0);
-        real_t d = std::sqrt(TapasBH::Distance2(c2, p1, tapas::Center));
-        //real_t d = std::sqrt(distR2(c2.attr(), p1));
-        real_t s = c2.width(0);
-        std::cout << "**** s=" << s << "  d=" << d << std::endl;
-        std::cout << "**** p1.pos = [" << p1.x << "," << p1.y << "," << p1.z << "]" << std::endl;
-        std::cout << "**** td=" << c1.depth() << " sd=" << c2.depth() << std::endl;
-        if ((s/ d) < theta) {
-          std::cout << "**** #4-1" << std::endl;
-        } else {
-          std::cout << "**** #4-2" << std::endl;
-        }
-      }
-    }
-#endif
-
     if (!c1.IsLeaf()) {
       TapasBH::Map(*this, tapas::Product(c1.subcells(), c2), theta);
     } else if (c1.IsLeaf() && c1.nb() == 0) {
@@ -225,7 +194,7 @@ struct interact {
       const auto &p1 = c1.body(0);
       real_t d = std::sqrt(TapasBH::Distance2(c2, p1, tapas::Center));
       real_t s = c2.width(0);
-      
+
       if ((s/ d) < theta) {
         TapasBH::Map(ComputeForce(), c1.bodies(), c2.attr(), EPS2);
       } else {
