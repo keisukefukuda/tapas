@@ -86,7 +86,7 @@ class ProxyCell : public _POLICY {
       attr_ = ProxyAttr<ProxyCell>(this, c->attr());
     }
   }
-  
+
   ~ProxyCell() {
     if (children_.size() > 0) {
       for (ProxyCell *ch : children_) {
@@ -97,7 +97,7 @@ class ProxyCell : public _POLICY {
       children_.clear();
     }
   }
-
+  
   void ClearFlags() {
     marked_attr_ = false;
     marked_split_ = false;
@@ -128,6 +128,10 @@ class ProxyCell : public _POLICY {
   template<class UserFunct, class...Args>
   static IntrFlag PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
+
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "PredSplit2: " << trg_cell.depth() << " " << src_cell.depth() << std::endl;
+    }
     
     IntrFlag flag;
 
@@ -176,11 +180,6 @@ class ProxyCell : public _POLICY {
    */
   template<class DistanceType>
   inline VecT dX(const Body &b, DistanceType t) const {
-    // VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    // std::cout << "body_pos = " << body_pos << std::endl;
-    // return this->Base::dX(body_pos, t);
-    //const Base &rhs = *(b.Parent());
-    //return this->Base::dX(rhs, t);
     return this->Base::dX(b, t);
   }
 

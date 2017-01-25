@@ -70,11 +70,11 @@ class OnesideInsp2 {
                                  const Reg &trg_reg, const Reg &src_reg,
                                  int trg_dep, int src_dep, bool is_left_leaf,
                                  UserFunct f, Args... args) {
-    auto sw = data.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
     auto tw = data.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
-
-    GCell src_gc = GCell(data, nullptr, src_reg, sw, src_dep);
+    auto sw = data.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
+    
     GCell trg_gc = GCell(data, nullptr, trg_reg, tw, trg_dep);
+    GCell src_gc = GCell(data, nullptr, src_reg, sw, src_dep);
 
     trg_gc.SetIsLeaf(is_left_leaf);
     src_gc.SetIsLeaf(false);
@@ -135,6 +135,13 @@ class OnesideInsp2 {
     return split1 | split2 | split3;
   }
 
+  // Build a map.
+  // depth::int -> BB :: Region
+  static std::unordered_map<int, Reg> BuildDepthBB(const Data &data) {
+    (void) data;
+    return std::unordered_map<int, Reg>();
+  }
+
   /**
    * \brief Do inspection between a single pair of target (local) root and source (remote) root
    *
@@ -157,8 +164,10 @@ class OnesideInsp2 {
     const int nrow = max_depth - trg_depth + 1;
     std::vector<IntrFlag> table(ncol * nrow);
 
-    for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
+    // 階層ごとのtrg_Regのリストを作成
+    auto trg_bb = BuildDepthBB(data);
 
+    for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
         IntrFlag split;
 
@@ -167,11 +176,7 @@ class OnesideInsp2 {
         } else {
           split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
         }
-
-        // if (tapas::mpi::Rank() == 0 && src_depth == 1 && src_root_key == 4035225266123964417) {
-        //   std::cout << "** BuildTable trg_depth = " << td << "  split = " << split.ToString() << std::endl;
-        // }
-
+        
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
         // Thus, there is possibility that the source cell is split
@@ -272,9 +277,15 @@ class OnesideInsp2 {
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
+        std::cout << "src_key = " << SFC::Decode(src_key)
+                  << " " << src_reg.width()
+                  << std::endl;
+
+        setenv("TAPAS_DEBUG_SP", "1", 1);
         IntrFlag sp2 = (src_depth == trg_depth)
                        ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
                        : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
+        unsetenv("TAPAS_DEBUG_SP");
 
         if (sp2.IsSplitR()) {
           // source side is still split.

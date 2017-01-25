@@ -19,7 +19,8 @@ class OnesideTraversePolicy {
   using FP = _FP;
   using VecT = Vec<Dim, FP>;
   using Reg = tapas::Region<Dim, FP>;
-  
+  using KeyType = typename Data::KeyType;  
+
   using CellType = typename Data::CellType;
   using RealBody = typename Data::BodyType;
   using RealBodyAttr = typename Data::BodyAttrType;
@@ -151,14 +152,6 @@ class OnesideTraversePolicy {
         c = d;
       }
 
-      if (a < b) {
-        std::cerr << "dim = " << dim << std::endl;
-        std::cerr << "r1 = [" << r1.max()[dim] << " , " << r2.min()[dim] << "]" << std::endl;
-        std::cerr << "w1 = " << w1 << std::endl;
-        std::cerr << "a = " << a << std::endl;
-        std::cerr << "b = " << b << std::endl;
-      }
-
       TAPAS_ASSERT(a >= b);
       TAPAS_ASSERT(c >= d);
 
@@ -190,15 +183,30 @@ class OnesideTraversePolicy {
     for (int d = 0; d < Dim; d++) {
       FP a_min = region_.min(d), a_max = region_.max(d);
       FP b_min = rhs.region_.min(d), b_max = rhs.region_.max(d);
+
+      if (tapas::mpi::Rank() == 0 && getenv("TAPAS_DEBUG_SP")) {
+        std::cout << "dX(): dim "  << d << " "
+                  << "a_min=" << a_min << " a_max=" << a_max << " "
+                  << "b_min=" << b_min << " b_max=" << b_max << " "
+                  << "width(a)=" << (a_max - a_min) << " width(b)=" << (b_max - b_min)
+            ;
+      }
+            
+      
       if ((b_min <= a_min && a_min <= b_max) || (b_min <= a_max && a_max <= b_max)) {
+        if (tapas::mpi::Rank() == 0) { std::cout << " case #1" << std::endl; }
         dx[d] = 0;
       } else if (a_min <= b_min && b_max <= a_max) {
+        if (tapas::mpi::Rank() == 0) { std::cout << " case #2" << std::endl; }
         dx[d] = 0;
       } else if (b_min <= a_min && a_max <= b_max) {
+        if (tapas::mpi::Rank() == 0) { std::cout << " case #3" << std::endl; }
         dx[d] = 0;
       } else if (a_max < b_min) {
+        if (tapas::mpi::Rank() == 0) { std::cout << " case #4" << std::endl; }
         dx[d] = b_min - a_max;
       } else if (b_max < a_min) {
+        if (tapas::mpi::Rank() == 0) { std::cout << " case #5" << std::endl; }
         dx[d] = a_min - b_max;
       } else {
         assert(0);
@@ -210,21 +218,19 @@ class OnesideTraversePolicy {
   inline VecT dX(const PxBody& body, tapas::ShortestClass) const {
     //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
     auto &rhs = *(body.Parent());
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "#2 " << dX(rhs, tapas::ShortestClass()).norm() << std::endl;
-    }
     return dX(rhs, tapas::ShortestClass());
   }
 
   inline VecT dX(const PxBody& body, tapas::CenterClass) const {
     //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
     auto &rhs = *(body.Parent());
+    auto dx = dX(rhs, tapas::ShortestClass());
     if (tapas::mpi::Rank() == 0) {
-      std::cout << "#1 " << dX(rhs, tapas::ShortestClass()).norm() << std::endl;
+      std::cout << "dX(): distance = " << dx.norm() << std::endl;
     }
-    return dX(rhs, tapas::ShortestClass()); // using Shortest distnace: not mistake.
+    return dx; // using Shortest distnace: not mistake.
   }
-  
+
   // Cell-Body, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
@@ -313,6 +319,9 @@ class OnesideTraversePolicy {
 
 
  protected:
+  // About GHOST or REAL:
+  //  * GHOST: region_ is possible area that the cell can 'float' around.
+  //  * REAL : region_ is the exact region of the cell. width_ is just simply calculated from regin_.
   Reg region_;
   VecT width_;
   const Data &data_;
