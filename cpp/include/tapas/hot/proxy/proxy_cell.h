@@ -128,12 +128,7 @@ class ProxyCell : public _POLICY {
   template<class UserFunct, class...Args>
   static IntrFlag PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
-
-    if (trg_cell.key() == 1152921504606846977 && src_cell.key() == 1) {
-      std::cout << "trg_cell.marked_split_ = " << trg_cell.marked_split_ << std::endl;
-      std::cout << "src_cell.marked_split_ = " << src_cell.marked_split_ << std::endl;
-    }
-
+    
     IntrFlag flag;
 
     if (trg_cell.marked_split_) {

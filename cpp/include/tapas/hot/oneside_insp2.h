@@ -350,7 +350,6 @@ class OnesideInsp2 {
         TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
       }
     }
-    // construct v_map, a map from source level to the most conservative target level
   }
 };
 

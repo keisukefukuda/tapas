@@ -50,6 +50,9 @@ class TwosideInsp2 {
     // Construct request lists of necessary cells
     req_keys_attr.insert(root.key());
 
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << __FILE__ << ":" << __LINE__ << " " << "Starting Traverse()" << std::endl;
+    }
     Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
 
     double end = MPI_Wtime();
@@ -82,6 +85,12 @@ class TwosideInsp2 {
       return;
     }
 
+    if (tapas::mpi::Rank() == 0) {
+      std::cerr << __FILE__ << ":" << __LINE__ << " " << "Running: depth: "
+                << SFC::GetDepth(trg_key) << " " << SFC::GetDepth(src_key)
+                << std::endl;
+    }
+
     // Maximum depth of the tree.
     const int max_depth = data.max_depth_;
 
@@ -89,11 +98,8 @@ class TwosideInsp2 {
     bool is_src_local_leaf = is_src_local && ht[src_key]->IsLeaf();
     bool is_src_remote_leaf = !is_src_local && SFC::GetDepth(src_key) >= max_depth;
 
-    //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << std::endl;
-
     if (is_src_local_leaf) {
       // the cell is local. everythig's fine. nothing to do.
-      //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_local_leaf" << std::endl;
       return;
     }
     
@@ -116,22 +122,6 @@ class TwosideInsp2 {
 
     // Approx/Split branch
     IntrFlag split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
-
-    if (trg_key == 1152921504606846977 && src_key == 1) {
-      std::cout << "src_key=" << src_key << " trg_key=" << trg_key << " ";
-
-      if (split.IsSplitBoth()) {
-        std::cout << "Split" << std::endl;
-      } else {
-        if (split.IsSplitR()) {
-          std::cout << "SplitR" << std::endl;
-        } else if (split.IsSplitL()) {
-          std::cout << "SplitL" << std::endl;
-        } else {
-          std::cout << "Approx" << std::endl;
-        }
-      }
-    }
 
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
