@@ -10,9 +10,9 @@
 #include <tapas/hot/let_common.h>
 
 #ifdef TAPAS_TWOSIDE_LET
-#include <tapas/hot/twoside_insp2.h>
+#include <tapas/hot/inspector/twoside_on_target.h>
 #else
-#include <tapas/hot/oneside_insp2.h>
+#include <tapas/hot/inspector/oneside_on_target.h>
 #endif
 
 using tapas::debug::BarrierExec;
@@ -443,6 +443,7 @@ struct TargetSideLET {
    public:
     inline bool operator()(KeyType trg, KeyType src, IntrFlag s) {
       (void)trg; (void)src; (void)s;
+      return true;
     }
   };
 

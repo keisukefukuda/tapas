@@ -56,7 +56,7 @@
 #endif
 
 #include "tapas/hot/target_side_let.h"
-#include "tapas/hot/oneside_insp2.h"
+#include "tapas/hot/inspector/oneside_on_target.h"
 
 using tapas::debug::BarrierExec;
 

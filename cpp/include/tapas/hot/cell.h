@@ -8,7 +8,7 @@
 #include "tapas/hot/report.h"
 #include "tapas/hot/shared_data.h"
 #include "tapas/hot/target_side_let.h"
-#include "tapas/hot/oneside_insp2.h"
+#include "tapas/hot/inspector/oneside_on_target.h"
 #include "tapas/iterator.h"
 
 namespace {
