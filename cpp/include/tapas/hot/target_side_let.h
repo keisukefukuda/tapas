@@ -439,14 +439,30 @@ struct TargetSideLET {
    * Inspecting action for LET construction
    * TODO: LET用にセルをリスト追加するアクションのクラス
    */
-  class InspAction {
+  class LetInspectorAction {
+    KeySet &attr_keys_; // cell keys
+    KeySet &leaf_keys_; // leaf keys
    public:
-    inline bool operator()(KeyType trg, KeyType src, IntrFlag s) {
-      (void)trg; (void)src; (void)s;
+    LetInspectorAction(KeySet &attr_keys, KeySet &leaf_keys)
+        : attr_keys_(attr_keys)
+        , leaf_keys_(leaf_keys)
+    { }
+    
+    inline bool operator()(KeyType trg_key, bool is_trg_leaf, KeyType src_key, bool is_src_leaf, IntrFlag splt) {
+      attr_keys_.insert(src_key); // maybe not neceessary?
+      
+      if (is_src_leaf) {
+        leaf_keys_.insert(src_key);
+      }
+
+      if (splt.IsApprox()) {
+        attr_keys_.insert(src_key);
+      }
+
       return true;
     }
   };
-
+  
   /**
    * \brief Build Locally essential tree
    */
@@ -462,6 +478,7 @@ struct TargetSideLET {
     // Traverse
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
+    LetInspectorAction callback(req_cell_attr_keys, req_leaf_keys);
 
     double bt = MPI_Wtime();
 
@@ -470,10 +487,10 @@ struct TargetSideLET {
 #ifdef TAPAS_TWOSIDE_LET
 #warning "Using 2-sided LET"
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
-    TwosideOnTarget<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    TwosideOnTarget<TSP>::Inspect(root, callback, f, args...);
 #else
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
-    OnesideOnTarget<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    OnesideOnTarget<TSP>::Inspect(root, callback, f, args...);
 #endif
 
     double et = MPI_Wtime();

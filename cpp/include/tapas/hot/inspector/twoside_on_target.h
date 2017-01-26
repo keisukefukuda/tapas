@@ -34,25 +34,27 @@ class TwosideOnTarget {
   
   /**
    * \brief Inspector for Map-2. Traverse hypothetical global tree and construct a cell list.
+   * 
+   * Inspect() function takes a callback function and it is invoked on each interaction
+   * with results of interaction as an argument.
    */
-  template<class UserFunct, class...Args>
-  static void Inspect(CellType &root,
-                      KeySet &req_keys_attr, KeySet &req_keys_body,
+  template<class Callback, class UserFunct, class...Args>
+  static void Inspect(CellType &root, Callback &callback,
                       UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
     MPI_Barrier(MPI_COMM_WORLD);
-
+    
     double beg = MPI_Wtime();
     auto & data = root.data();
-    req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
-    req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
+    //req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
+    //req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
 
     std::mutex list_attr_mutex, list_body_mutex;
 
     // Construct request lists of necessary cells
-    req_keys_attr.insert(root.key());
+    //req_keys_attr.insert(root.key());
 
-    Traverse(root.key(), root.key(), root.data(), req_keys_attr, req_keys_body, list_attr_mutex, list_body_mutex, f, args...);
+    Traverse(root.key(), root.key(), root.data(), callback, list_attr_mutex, list_body_mutex, f, args...);
 
     double end = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-insp", end - beg);
@@ -66,9 +68,8 @@ class TwosideOnTarget {
    * \param list_attr (output) Set of request keys of which attrs are to be sent
    * \param list_body (output) Set of request keys of which bodies are to be sent
    */
-  template<class UserFunct, class...Args>
-  static void Traverse(KeyType trg_key, KeyType src_key, Data &data,
-                       KeySet &list_attr, KeySet &list_body,
+  template<class Callback, class UserFunct, class...Args>
+  static void Traverse(KeyType trg_key, KeyType src_key, Data &data, Callback &callback,
                        std::mutex &list_attr_mutex, std::mutex &list_body_mutex,
                        UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-Traverse", SCOREP_USER_REGION_TYPE_FUNCTION);
@@ -94,44 +95,50 @@ class TwosideOnTarget {
     bool is_src_local = ht.count(src_key) != 0; // CAUTION: even if is_src_local, the children are not necessarily all local.
     bool is_src_local_leaf = is_src_local && ht[src_key]->IsLeaf();
     bool is_src_remote_leaf = !is_src_local && SFC::GetDepth(src_key) >= max_depth;
+    bool is_src_leaf = is_src_local_leaf || is_src_remote_leaf;
 
-    if (is_src_local_leaf) {
-      // the cell is local. everythig's fine. nothing to do.
-      return;
-    }
+    //if (is_src_local_leaf) {
+    // the cell is local. everythig's fine. nothing to do.
+    //return;
+    //}
+
+    // if (is_src_remote_leaf) {
+    //   // If the source cell is a remote leaf, we need it (with it's bodies).
+    //   list_attr_mutex.lock();
+    //   list_attr.insert(src_key);
+    //   list_attr_mutex.unlock();
+
+    //   list_body_mutex.lock();
+    //   list_body.insert(src_key);
+    //   list_body_mutex.unlock();
+    //   return;
+    // }
     
-    if (is_src_remote_leaf) {
-      // If the source cell is a remote leaf, we need it (with it's bodies).
-      list_attr_mutex.lock();
-      list_attr.insert(src_key);
-      list_attr_mutex.unlock();
-
-      list_body_mutex.lock();
-      list_body.insert(src_key);
-      list_body_mutex.unlock();
-      //tapas::debug::DebugStream("traverse_count").out() << SFC::Simplify(trg_key) << " " << SFC::Simplify(src_key) << " is_src_remote_leaf" << std::endl;
-      return;
-    }
     TAPAS_ASSERT(SFC::GetDepth(src_key) <= SFC::MAX_DEPTH);
-    list_attr_mutex.lock();
-    list_attr.insert(src_key);
-    list_attr_mutex.unlock();
+    // list_attr_mutex.lock();
+    // list_attr.insert(src_key);
+    // list_attr_mutex.unlock();
 
     // Approx/Split branch
     IntrFlag split = ProxyCell::PredSplit2(trg_key, src_key, data, f, args...); // automated predicator object
+
+    bool cont = callback(trg_key, ht[trg_key]->IsLeaf(), src_key, is_src_leaf, split);
+
+    // if cont is false, stop the traversal
 
     const constexpr int kNspawn = 3;
     bool to_spawn = SFC::GetDepth(trg_key) < kNspawn && SFC::GetDepth(src_key) < kNspawn;
     to_spawn = false;
 
-    if (split.IsSplitBoth()) {
+    if (split.IsSplitBoth() && cont) {
       if (to_spawn) {
         typename Th::TaskGroup tg;
         for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
           if (ht.count(trg_ch) > 0) {
             for (KeyType src_ch : SFC::GetChildren(src_key)) {
               tg.createTask([&]() mutable {
-                  Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+                  Traverse(trg_ch, src_ch, data, callback, list_attr_mutex, list_body_mutex, f, args...);
+                  //Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
                 });
             }
           }
@@ -141,18 +148,20 @@ class TwosideOnTarget {
         for (KeyType trg_ch : SFC::GetChildren(trg_key)) {
           if (ht.count(trg_ch) > 0) {
             for (KeyType src_ch : SFC::GetChildren(src_key)) {
-              Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+              Traverse(trg_ch, src_ch, data, callback, list_attr_mutex, list_body_mutex, f, args...);
+              //Traverse(trg_ch, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
             }
           }
         }
       }
-    } else if (split.IsSplitL()) {
+    } else if (split.IsSplitL() && cont) {
       if (to_spawn) {
         typename Th::TaskGroup tg;
         for (KeyType ch : SFC::GetChildren(trg_key)) {
           if (ht.count(ch) > 0) {
             tg.createTask([&]() mutable {
-                Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+                Traverse(ch, src_key, data, callback, list_attr_mutex, list_body_mutex, f, args...);
+                //Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
               });
           }
         }
@@ -160,30 +169,33 @@ class TwosideOnTarget {
       } else {
         for (KeyType ch : SFC::GetChildren(trg_key)) {
           if (ht.count(ch) > 0) {
-            Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+            Traverse(ch, src_key, data, callback, list_attr_mutex, list_body_mutex, f, args...);
+            //Traverse(ch, src_key, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
           }
         }
       }
-    } else if (split.IsSplitR()) {
+    } else if (split.IsSplitR() && cont) {
       if (to_spawn) {
         typename Th::TaskGroup tg;
         for (KeyType src_ch : SFC::GetChildren(src_key)) {
           tg.createTask([&]() mutable {
-              Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+              Traverse(trg_key, src_ch, data, callback, list_attr_mutex, list_body_mutex, f, args...);
+              //Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
             });
         }
         tg.wait();
       } else {
         for (KeyType src_ch : SFC::GetChildren(src_key)) {
-          Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
+          Traverse(trg_key, src_ch, data, callback, list_attr_mutex, list_body_mutex, f, args...);
+          //Traverse(trg_key, src_ch, data, list_attr, list_body, list_attr_mutex, list_body_mutex, f, args...);
         }
       }
     } else {
-      // Approximate
-      assert(split.IsApprox());
-      list_attr_mutex.lock();
-      list_attr.insert(src_key);
-      list_attr_mutex.unlock();
+      // // Approximate
+      // assert(split.IsApprox());
+      // list_attr_mutex.lock();
+      // list_attr.insert(src_key);
+      // list_attr_mutex.unlock();
     }
     return;
   }

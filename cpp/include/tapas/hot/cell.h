@@ -824,6 +824,14 @@ inline void Cell<TSP>::CheckBodyIndex(index_t idx) const {
   TAPAS_ASSERT(this->IsLeaf() && "body or body attribute access is not allowed for non-leaf cells.");
 
   if (is_local_) {
+    if (!(bid_ + idx < data_->local_bodies_.size())) {
+      std::cerr << "key = " << SFC::Decode(this->key()) << " " << this->key() << std::endl;
+      std::cerr << "rank = " << tapas::mpi::Rank() << " "
+                << "bid_=" << bid_ << "  "
+                << "idx =" << idx << "  "
+                << "data_->local_bodies_.size() = " << data_->local_bodies_.size()
+                << std::endl;
+    }
     TAPAS_ASSERT(bid_ + idx < data_->local_bodies_.size());
   } else {
     TAPAS_ASSERT(bid_ + idx < data_->let_bodies_.size());

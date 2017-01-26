@@ -129,10 +129,6 @@ class ProxyCell : public _POLICY {
   static IntrFlag PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "PredSplit2: " << trg_cell.depth() << " " << src_cell.depth() << std::endl;
-    }
-    
     IntrFlag flag;
 
     if (trg_cell.marked_split_) {
