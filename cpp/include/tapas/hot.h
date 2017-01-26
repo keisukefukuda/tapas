@@ -55,7 +55,7 @@
 # include "tapas/vectormap.h"
 #endif
 
-#include "tapas/hot/exact_let.h"
+#include "tapas/hot/target_side_let.h"
 #include "tapas/hot/oneside_insp2.h"
 
 using tapas::debug::BarrierExec;

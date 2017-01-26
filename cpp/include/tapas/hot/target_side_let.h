@@ -1,5 +1,5 @@
-#ifndef TAPAS_HOT_EXACT_LET_
-#define TAPAS_HOT_EXACT_LET_
+#ifndef TAPAS_HOT_TARGET_SIDE_LET_H__
+#define TAPAS_HOT_TARGET_SIDE_LET_H__
 
 #include<vector>
 
@@ -25,12 +25,9 @@ template<class TSP> class Partitioner;
 
 /**
  * A set of static functions to construct LET (Locally Essential Tree)
- *
- * ExactInsp2 puts no assumption on user's function but has more overhead instead.
- * It emulates all the behavior of user's function.
  */
 template<class TSP>
-struct ExactInsp2 {
+struct TargetSideLET {
   // typedefs
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -549,4 +546,4 @@ struct ExactInsp2 {
 
 } // namespace tapas
 
-#endif // TAPAS_HOT_EXACT_LET_
+#endif // TAPAS_HOT_TARGET_SIDE_LET_H__

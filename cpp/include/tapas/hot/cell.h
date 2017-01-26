@@ -7,7 +7,7 @@
 #include "tapas/hot/mapper.h"
 #include "tapas/hot/report.h"
 #include "tapas/hot/shared_data.h"
-#include "tapas/hot/exact_let.h"
+#include "tapas/hot/target_side_let.h"
 #include "tapas/hot/oneside_insp2.h"
 #include "tapas/iterator.h"
 
@@ -84,9 +84,8 @@ class Cell {
   //========================================================
  public: // public type usings
 
-  friend struct ExactInsp2<TSP>;
-  using Inspector2 = ExactInsp2<TSP>;
-  using Inspector2_2 = OnesideInsp2<TSP>;
+  friend struct TargetSideLET<TSP>;
+  using LET = TargetSideLET<TSP>;
 
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -107,7 +106,7 @@ class Cell {
   using Body = BodyType;
   using BodyAttr = BodyAttrType;
   using Inspector1 = Insp1<TSP>;
-  using Mapper = typename TSP::template Mapper<CellType, Body, Inspector2, Inspector1>;
+  using Mapper = typename TSP::template Mapper<CellType, Body, LET, Inspector1>;
 
   using BodyIterator = iter::BodyIterator<Cell>;
   using SubCellIterator = iter::SubCellIterator<Cell>;
