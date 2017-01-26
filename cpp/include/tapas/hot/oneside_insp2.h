@@ -31,9 +31,11 @@ namespace hot {
 
 /**
  * \brief Inspector implementation for Map-2
+ * 
+ * One-sided inspector on target processes
  */
 template<class TSP>
-class OnesideInsp2 {
+class OnesideOnTarget {
  public:
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -53,17 +55,6 @@ class OnesideInsp2 {
   using GCell = tapas::hot::proxy::ProxyCell<TSP, TravPolicy>;
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<GCell>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<GCell>;
-
-  /**
-   * Inspecting action for LET construction
-   * TODO: LET用にセルをリスト追加するアクションのクラス
-   */
-  class InspAction {
-   public:
-    inline void operator()(KeyType trg, KeyType src, IntrFlag s) {
-      (void)trg; (void)src; (void)s;
-    }
-  };
 
   template<class UserFunct, class...Args>
   static IntrFlag TryInteraction(Data &data,

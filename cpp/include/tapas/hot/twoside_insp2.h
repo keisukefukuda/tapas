@@ -6,9 +6,11 @@ namespace hot {
 
 /**
  * \brief Two-side LET inspector
+ *
+ * Two-sided inpsector on target side process
  */
 template<class TSP>
-class TwosideInsp2 {
+class TwosideOnTarget {
  public:
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;

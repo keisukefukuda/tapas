@@ -24,7 +24,10 @@ template<class TSP> class Cell;
 template<class TSP> class Partitioner;
 
 /**
- * A set of static functions to construct LET (Locally Essential Tree)
+ * A set of static functions to construct LET (Locally Essential Tree) in a target-side manner,
+ * which means that target side processes run inspectors and request necessary data to 
+ * owner (remote, source-side) processes.
+ * 
  */
 template<class TSP>
 struct TargetSideLET {
@@ -433,6 +436,17 @@ struct TargetSideLET {
   }
 
   /**
+   * Inspecting action for LET construction
+   * TODO: LET用にセルをリスト追加するアクションのクラス
+   */
+  class InspAction {
+   public:
+    inline bool operator()(KeyType trg, KeyType src, IntrFlag s) {
+      (void)trg; (void)src; (void)s;
+    }
+  };
+
+  /**
    * \brief Build Locally essential tree
    */
   template<class UserFunct, class...Args>
@@ -454,11 +468,11 @@ struct TargetSideLET {
     // One side traverse is much faster but it requires certain condition in user function f.
 #ifdef TAPAS_TWOSIDE_LET
 #warning "Using 2-sided LET"
-    if (tapas::mpi::Rank() == 0) std::cout << "Using 2-sided LET" << std::endl;
-    TwosideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
+    TwosideOnTarget<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #else
-    if (tapas::mpi::Rank() == 0) std::cout << "Using 1-sided LET" << std::endl;
-    OnesideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
+    OnesideOnTarget<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
 #endif
 
     double et = MPI_Wtime();
