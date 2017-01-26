@@ -213,6 +213,10 @@ class Cell {
     return region_.width(i);
   }
 
+  const Reg& GetRegion() const {
+    return region_;
+  }
+
   /**
    * @brief Returns the parent cell if it's local.
    *

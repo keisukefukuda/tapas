@@ -92,6 +92,7 @@ class Region {
     return (max_[d] + min_[d]) / 2;
   }
 
+  // old & deprecated. Used only in single_node_hot.h
   Region PartitionBSP(int pos) const {
     Region sr = *this;
     for (int i = 0; i < Dim; ++i) {
@@ -104,6 +105,16 @@ class Region {
       pos >>= 1;
     }
     return sr;
+  }
+
+  static Region BB(const Region &lhs, const Region &rhs) {
+    Vec<Dim, FP> max, min;
+    for (int d = 0; d < Dim; d++) {
+      max[d] = std::max(lhs.max_[d], rhs.max_[d]);
+      min[d] = std::min(lhs.min_[d], rhs.min_[d]);
+    }
+    
+    return Region(min, max);
   }
 
   std::ostream &Print(std::ostream &os) const {

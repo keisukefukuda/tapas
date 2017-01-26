@@ -135,11 +135,36 @@ class OnesideInsp2 {
     return split1 | split2 | split3;
   }
 
-  // Build a map.
-  // depth::int -> BB :: Region
+  // Build a map of  map[int depth -> Region BB]
   static std::unordered_map<int, Reg> BuildDepthBB(const Data &data) {
-    (void) data;
-    return std::unordered_map<int, Reg>();
+    std::unordered_map<int, Reg> m;
+    int dmax = 0;
+    
+    for (auto &&entry : data.ht_) {
+      const CellType *c = entry.second;
+      int d = c->depth();
+      
+      if (m.count(d) == 0) {
+        m[d] = c->GetRegion();
+      } else {
+        m[d] = Reg::BB(m[d], c->GetRegion());
+      }
+
+      dmax = std::max(dmax, d);
+    }
+
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "BuildDepthBB:" << std::endl;
+      std::cout << "max_depth = " << data.max_depth_ << std::endl;
+      for (int d = 0; d < dmax; d++) {
+        std::cout << d << "  ["
+                  << m[d].max(0) << "," << m[d].min(0) << "] ["
+                  << m[d].max(1) << "," << m[d].min(1) << "] ["
+                  << m[d].max(2) << "," << m[d].min(2) << "]" << std::endl;
+      }
+    }
+        
+    return m;
   }
 
   /**
@@ -158,7 +183,7 @@ class OnesideInsp2 {
     const int trg_depth = SFC::GetDepth(trg_root_key);
 
     const Reg src_reg = SFC::CalcRegion(src_root_key, data.region_);
-    const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
+    const Reg trg_reg_root = SFC::CalcRegion(trg_root_key, data.region_);
 
     const int ncol = max_depth - src_depth + 1;
     const int nrow = max_depth - trg_depth + 1;
@@ -169,6 +194,18 @@ class OnesideInsp2 {
 
     for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
+        assert(trg_bb.count(td) > 0);
+        const Reg trg_reg = trg_bb[td];
+
+        if (tapas::mpi::Rank() == 0) {
+          for (int d = 0; d < Dim; d++) {
+            std::cout << "Dim " << d << std::endl;
+            std::cout << "trg_bb[" << td << "]    = " << trg_reg.min(d) << "," << trg_reg.max(d) << std::endl;
+            std::cout << "trg_root_reg = " << trg_reg_root.min(d) << "," << trg_reg_root.max(d) << std::endl;
+            std::cout << "trg_root_key = " << SFC::Decode(trg_root_key) << std::endl;
+          }
+        }
+        
         IntrFlag split;
 
         if (td == sd) {
