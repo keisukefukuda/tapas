@@ -144,15 +144,8 @@ class OnesideOnTarget {
       dmax = std::max(dmax, d);
     }
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "BuildDepthBB:" << std::endl;
-      std::cout << "max_depth = " << data.max_depth_ << std::endl;
-      for (int d = 0; d < dmax; d++) {
-        std::cout << d << "  ["
-                  << m[d].max(0) << "," << m[d].min(0) << "] ["
-                  << m[d].max(1) << "," << m[d].min(1) << "] ["
-                  << m[d].max(2) << "," << m[d].min(2) << "]" << std::endl;
-      }
+    for (int d = dmax + 1; d <= data.max_depth_; d++) {
+      m[d] = m[dmax];
     }
         
     return m;
@@ -188,14 +181,14 @@ class OnesideOnTarget {
         assert(trg_bb.count(td) > 0);
         const Reg trg_reg = trg_bb[td];
 
-        if (tapas::mpi::Rank() == 0) {
-          for (int d = 0; d < Dim; d++) {
-            std::cout << "Dim " << d << std::endl;
-            std::cout << "trg_bb[" << td << "]    = " << trg_reg.min(d) << "," << trg_reg.max(d) << std::endl;
-            std::cout << "trg_root_reg = " << trg_reg_root.min(d) << "," << trg_reg_root.max(d) << std::endl;
-            std::cout << "trg_root_key = " << SFC::Decode(trg_root_key) << std::endl;
-          }
-        }
+        // if (tapas::mpi::Rank() == 0) {
+        //   for (int d = 0; d < Dim; d++) {
+        //     std::cout << "Dim " << d << std::endl;
+        //     std::cout << "trg_bb[" << td << "]    = " << trg_reg.min(d) << "," << trg_reg.max(d) << std::endl;
+        //     std::cout << "trg_root_reg = " << trg_reg_root.min(d) << "," << trg_reg_root.max(d) << std::endl;
+        //     std::cout << "trg_root_key = " << SFC::Decode(trg_root_key) << std::endl;
+        //   }
+        // }
         
         IntrFlag split;
 
@@ -269,17 +262,18 @@ class OnesideOnTarget {
   /**
    * \brief Traverse the soruce tree and collect
    */
-  template<class UserFunct, class...Args>
+  template<class Callback, class UserFunct, class...Args>
   static void TraverseSource(Data &data, std::vector<IntrFlag> &table,
-                             KeySet &req_keys_attr, KeySet &req_keys_body,
+                             Callback &callback,
                              KeyType trg_root_key, // key of the root of the target local tree
                              KeyType src_root_key, // key of the root of the source local tree
                              KeyType src_key,
                              UserFunct f, Args...args) {
-    if (data.shallow_leaves_.count(src_key) > 0) {
-      req_keys_body.insert(src_key);
-      return;
-    }
+    
+    // if (data.shallow_leaves_.count(src_key) > 0) {
+    //   req_keys_body.insert(src_key);
+    //   return;
+    // }
 
     int src_root_depth = SFC::GetDepth(src_root_key);
     int trg_root_depth = SFC::GetDepth(trg_root_key);
@@ -289,6 +283,8 @@ class OnesideOnTarget {
 
     int c = src_depth - src_root_depth;
 
+    IntrFlag flag; // split type flag
+    
     int cnt = 0;
     for (int r = 0; r < nrows; r++) { // rows are target depth
       int trg_depth = trg_root_depth + r;
@@ -305,9 +301,9 @@ class OnesideOnTarget {
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
-        std::cout << "src_key = " << SFC::Decode(src_key)
-                  << " " << src_reg.width()
-                  << std::endl;
+        // std::cout << "src_key = " << SFC::Decode(src_key)
+        //           << " " << src_reg.width()
+        //           << std::endl;
 
         setenv("TAPAS_DEBUG_SP", "1", 1);
         IntrFlag sp2 = (src_depth == trg_depth)
@@ -315,29 +311,20 @@ class OnesideOnTarget {
                        : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
         unsetenv("TAPAS_DEBUG_SP");
 
-        if (sp2.IsSplitR()) {
-          // source side is still split.
-          cnt++;
-        }
-      }
-    }
-
-    req_keys_attr.insert(src_key);
-
-    if (cnt == 0 && data.ht_.count(src_key) == 0) {
-      if (src_depth == data.max_depth_) {
-        req_keys_body.insert(src_key);
+        flag.Add(sp2);
       } else {
-        req_keys_attr.insert(src_key);
-      }
-    } else {
-      if (SFC::GetDepth(src_key) < data.max_depth_) {
-        for (auto ch_key : SFC::GetChildren(src_key)) {
-          TraverseSource(data, table, req_keys_attr, req_keys_body, trg_root_key, src_root_key, ch_key, f, args...);
-        }
+        flag.Add(sp);
       }
     }
 
+    bool is_src_leaf = src_depth == data.max_depth_;
+    bool cont = callback(trg_root_key, false, src_key, is_src_leaf, flag);
+
+    if (cont && SFC::GetDepth(src_key) < data.max_depth_) {
+      for (auto ch_key : SFC::GetChildren(src_key)) {
+        TraverseSource(data, table, callback, trg_root_key, src_root_key, ch_key, f, args...);
+      }
+    }
     return;
   }
 
@@ -345,18 +332,12 @@ class OnesideOnTarget {
    * \brief Inspector for Map-2. Traverse hypothetical global tree and
    *        construct a cell list to be exchanged between processes.
    */
-  template<class UserFunct, class...Args>
-  static void Inspect(CellType &root,
-                      KeySet &req_keys_attr, KeySet &req_keys_body,
+  template<class Callback, class UserFunct, class...Args>
+  static void Inspect(CellType &root, Callback &callback,
                       UserFunct f, Args...args) {
     auto &data = root.data();
-    req_keys_attr.clear(); // cells of which attributes are to be transfered from remotes to local
-    req_keys_body.clear(); // cells of which bodies are to be transfered from remotes to local
-
-    std::mutex list_attr_mutex, list_body_mutex;
 
     // Construct request lists of necessary cells
-    req_keys_attr.insert(root.key());
 
     // Start source-side traverse from
     //   traget key : root
@@ -381,9 +362,10 @@ class OnesideOnTarget {
           continue;
         }
 
-        TraverseSource(data, table, req_keys_attr, req_keys_body, trg_key, src_key, src_key, f, args...);
+        TraverseSource(data, table, callback, trg_key, src_key, src_key, f, args...);
       }
     }
+    std::cout << "finished inspect loop" << std::endl;
   }
 };
 

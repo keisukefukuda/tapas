@@ -415,41 +415,21 @@ struct TargetSideLET {
       Cell<TSP> *c = nullptr;
 
       if (data->ht_let_.count(k) > 0) {
-        if (k == 2332864606977916931 && tapas::mpi::Rank() == 2) {
-          std::cout << "type #1" << std::endl;
-        }
         // If the cell is already registered to ht_let_, the cell has attributes but not body info.
         c = data->ht_let_.at(k);
       } else if (data->ht_gtree_.count(k) > 0) {
         // The cell is included in the global tree, but actually
         // it is a leaf in remote cell.
-        if (k == 2332864606977916931 && tapas::mpi::Rank() == 2) {
-          std::cout << "type #2" << std::endl;
-        }
         c = data->ht_gtree_.at(k);
         c->is_local_ = false;
       } else {
-        if (k == 2332864606977916931 && tapas::mpi::Rank() == 2) {
-          std::cout << "type #3" << std::endl;
-        }
         c = Cell<TSP>::CreateRemoteCell(k, 1, data);
         data->ht_let_[k] = c;
       }
 
-      if (tapas::mpi::Rank() == 2) {
-        std::cout << "reeived_leaf[" << i << "] : " << "nb = " << nb << " "
-                  << "body_offset = " << body_offset
-                  << std::endl;
-      }
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->bid_ = body_offset;
-
-      if (k == 2332864606977916931 && tapas::mpi::Rank() == 2) {
-        std::cout << "*** key=" << k << " " << "c->bid_=" << body_offset << std::endl;
-        std::cout << "    data->local_bodies.size()=" << data->local_bodies_.size() << std::endl;
-        std::cout << "    data->let_bodies.size()="   << data->let_bodies_.size() << std::endl;
-      }
 
       body_offset += nb;
     }

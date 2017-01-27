@@ -28,6 +28,14 @@ class IntrFlag {
     flag_ |= f;
   }
 
+  void Add(IntrFlag &f) {
+    flag_ |= f.flag_;
+  }
+
+  void Remove(type f) {
+    flag_ &= !f;
+  }
+
   IntrFlag operator|(const IntrFlag &rhs) {
     return IntrFlag(flag_ | rhs.flag_);
   }
