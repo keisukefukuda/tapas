@@ -167,21 +167,6 @@ struct FMM_DTT {
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
       TapasFMM::Map(P2P_Kernel(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
-      
-      if (!Cell::Inspector && Cj.key() == 2305843009213693953) {
-        if (tapas::mpi::Rank() == 0) {
-          std::cout << "DTT: " << "nb=" << Cj.nb() << " "
-                    << "body_offset=" << Cj.body_offset() << " "
-                    << "IsLocal=" << Cj.IsLocal()
-                    << std::endl;
-          for (size_t i = 0; i < Cj.nb(); i++) {
-            std::cout << "DTT: "
-                      << Cj.body(i).X << " "
-                      << Cj.body(i).SRC << " "
-                      << std::endl;
-          }
-        }
-      }
     } else {                                 // Else if cells are close but not bodies
       tapas_splitCell(Ci, Cj, Ri, Rj, theta);//  Split cell and call function recursively for child
     }                                        // End if for multipole acceptance
@@ -535,12 +520,6 @@ int main(int argc, char ** argv) {
     dumpM(*root);
 #endif
 
-    TapasFMM::Map([](Body &b, BodyAttr &a) {
-        if (tapas::mpi::Rank() == 0) {
-          std::cout << "Bodies: before " << b.X << " " << a << std::endl;
-        }
-      }, root->Bodies());
-
     {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
@@ -552,12 +531,6 @@ int main(int argc, char ** argv) {
 
       logger::stopTimer("Traverse");
     }
-
-    TapasFMM::Map([](Body &b, BodyAttr &a) {
-        if (tapas::mpi::Rank() == 0) {
-          std::cout << "Bodies: after " << b.X << " " << a << std::endl;
-        }
-      }, root->Bodies());
 
     TAPAS_LOG_DEBUG() << "Dual Tree Traversal done\n";
 

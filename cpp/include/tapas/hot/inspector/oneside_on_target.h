@@ -285,7 +285,6 @@ class OnesideOnTarget {
 
     IntrFlag flag; // split type flag
     
-    int cnt = 0;
     for (int r = 0; r < nrows; r++) { // rows are target depth
       int trg_depth = trg_root_depth + r;
       auto sp = table[r * ncols + c];

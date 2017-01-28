@@ -368,26 +368,6 @@ struct TargetSideLET {
     // Now we assume body_attrs from remote process is all "0" data.
 
 
-    tapas::debug::BarrierExec([&](int,int) {
-        int offset = 0;
-        for (size_t i = 0; i < req_leaf_keys.size(); i++) {
-          int nb = res_nb[i];
-          KeyType k = req_leaf_keys[i];
-          if (k == 2305843009213693953) {
-            std::cout << "Response: " << std::endl;
-            std::cout << "Response: res_nb=" << res_nb[i] << std::endl;
-            std::cout << "Response: offset=" << offset << std::endl;
-            for (size_t j = 0; j < nb; j++) {
-              std::cout << "Response: "
-                        << res_bodies[offset + j].X << " "
-                        << res_bodies[offset + j].SRC << " "
-                        << std::endl;
-            }
-          }
-          offset += nb;
-        }
-      });
-    
     data.let_bodies_.assign(std::begin(res_bodies), std::end(res_bodies));
     data.let_body_attrs_.resize(res_bodies.size());
     bzero(&data.let_body_attrs_[0], data.let_body_attrs_.size() * sizeof(data.let_body_attrs_[0]));
@@ -432,12 +412,6 @@ struct TargetSideLET {
 
     TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
 
-    // Register received leaf cells to local ht_let_ hash table.
-    for (size_t i = 0; i < data->let_bodies_.size(); i++) {
-      auto &b = data->let_bodies_[i];
-      std::cout << "Register: let_bodies[" << i << "]=" << b.X << " " << b.SRC << std::endl;
-    }
-
     index_t body_offset = 0;
     for (size_t i = 0; i < res_leaf_keys.size(); i++) {
       KeyType k = res_leaf_keys[i];
@@ -451,27 +425,6 @@ struct TargetSideLET {
         continue;
       }
 
-      if (tapas::mpi::Rank() == 0) {
-        std::cout << "Register: nb=" << nb << " "
-                  << "offset=" << cur_body_offset
-                  << std::endl;
-      }
-
-      if (k == 2305843009213693953) {
-        std::cout << "Register: i=" << i << " res_leaf_keys.size()=" << res_leaf_keys.size() << std::endl;
-        std::cout << "Register: rank=" << tapas::mpi::Rank() << std::endl;
-        std::cout << "Register: key=" << k << std::endl;
-        std::cout << "Register: nb=" << nb << std::endl;
-        std::cout << "Register: offst=" << cur_body_offset << std::endl;
-        std::cout << "Register: is_local=" << data->ht_.count(k) << std::endl;
-        for (size_t i = 0; i < nb; i++) {
-          std::cout << "Register: "
-                    << data->let_bodies_[cur_body_offset].X << " "
-                    << data->let_bodies_[cur_body_offset].SRC << " "
-                    << std::endl;
-        }
-      }
-      
       Cell<TSP> *c = nullptr;
       if (data->ht_let_.count(k) > 0) {
         // If the cell is already registered to ht_let_, the cell has attributes but not body info.
@@ -492,23 +445,6 @@ struct TargetSideLET {
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->bid_ = cur_body_offset;
-
-#if 1
-      if (k == 2305843009213693953) {
-        std::cout << "Register: rank=" << tapas::mpi::Rank() << std::endl;
-        std::cout << "Register: key=" << k << std::endl;
-        std::cout << "Register: nb=" << nb << std::endl;
-        std::cout << "Register: offst=" << cur_body_offset << std::endl;
-        std::cout << "Register: is_local=" << data->ht_.count(k) << std::endl;
-        for (size_t i = 0; i < c->nb(); i++) {
-          std::cout << "Register: "
-                    << c->body(i).X << " "
-                    << c->body(i).SRC << " "
-                    << std::endl;
-        }
-      }
-#endif
-
     }
 
     double end = MPI_Wtime();
@@ -528,7 +464,7 @@ struct TargetSideLET {
         , leaf_keys_(leaf_keys)
     { }
     
-    inline bool operator()(KeyType trg_key, bool is_trg_leaf,
+    inline bool operator()(KeyType /* trg_key */, bool /* is_trg_leaf */,
                            KeyType src_key, bool is_src_leaf,
                            IntrFlag splt) {
       if (splt.IsReadAttrR()) {
@@ -604,9 +540,7 @@ struct TargetSideLET {
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
     // Register
-    tapas::debug::BarrierExec([&](int,int) {
-        Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
-      });
+    Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
 
 #ifdef TAPAS_DEBUG_DUMP
     DebugDumpCells(root.data());
