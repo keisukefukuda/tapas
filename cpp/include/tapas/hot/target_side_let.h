@@ -442,17 +442,18 @@ struct TargetSideLET {
     for (size_t i = 0; i < res_leaf_keys.size(); i++) {
       KeyType k = res_leaf_keys[i];
       index_t nb = res_nb[i];
+      index_t cur_body_offset = body_offset;
+      body_offset += nb;
 
       if (data->ht_.count(k) > 0) {
         // received data already exists in local memory.
         // should be a warning?
-        body_offset += nb;
         continue;
       }
 
       if (tapas::mpi::Rank() == 0) {
         std::cout << "Register: nb=" << nb << " "
-                  << "offset=" << body_offset
+                  << "offset=" << cur_body_offset
                   << std::endl;
       }
 
@@ -461,12 +462,12 @@ struct TargetSideLET {
         std::cout << "Register: rank=" << tapas::mpi::Rank() << std::endl;
         std::cout << "Register: key=" << k << std::endl;
         std::cout << "Register: nb=" << nb << std::endl;
-        std::cout << "Register: offst=" << body_offset << std::endl;
+        std::cout << "Register: offst=" << cur_body_offset << std::endl;
         std::cout << "Register: is_local=" << data->ht_.count(k) << std::endl;
         for (size_t i = 0; i < nb; i++) {
           std::cout << "Register: "
-                    << data->let_bodies_[body_offset].X << " "
-                    << data->let_bodies_[body_offset].SRC << " "
+                    << data->let_bodies_[cur_body_offset].X << " "
+                    << data->let_bodies_[cur_body_offset].SRC << " "
                     << std::endl;
         }
       }
@@ -481,7 +482,6 @@ struct TargetSideLET {
         if (!c->IsLeaf()) {
           c->is_local_ = false;
         } else {
-          body_offset += nb;
           continue;
         }
       } else {
@@ -491,14 +491,14 @@ struct TargetSideLET {
 
       c->is_leaf_ = true;
       c->nb_ = nb;
-      c->bid_ = body_offset;
+      c->bid_ = cur_body_offset;
 
 #if 1
       if (k == 2305843009213693953) {
         std::cout << "Register: rank=" << tapas::mpi::Rank() << std::endl;
         std::cout << "Register: key=" << k << std::endl;
         std::cout << "Register: nb=" << nb << std::endl;
-        std::cout << "Register: offst=" << body_offset << std::endl;
+        std::cout << "Register: offst=" << cur_body_offset << std::endl;
         std::cout << "Register: is_local=" << data->ht_.count(k) << std::endl;
         for (size_t i = 0; i < c->nb(); i++) {
           std::cout << "Register: "
@@ -509,7 +509,6 @@ struct TargetSideLET {
       }
 #endif
 
-      body_offset += nb;
     }
 
     double end = MPI_Wtime();
