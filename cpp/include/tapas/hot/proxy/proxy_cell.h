@@ -209,6 +209,17 @@ class ProxyCell : public _POLICY {
   inline bool IsLeaf() const {
     return this->Base::IsLeaf();
   }
+
+#ifdef TAPAS_DEBUG
+  inline bool IsLocal() const {
+    return false; // meaningless
+  }
+
+  inline index_t body_offset() const {
+    return 0;
+  }
+#endif
+  
   
   inline index_t nb() const {
     TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
@@ -284,8 +295,7 @@ class ProxyCell : public _POLICY {
   BodyAttr &body_attr(index_t idx) {
     // This function is inhibited.
     // Users should use Map()/Reduce() and Cell::bodies() instead.
-    std::cerr << "Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
-    exit(-1);
+    std::cerr << "[Warning] Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
     
     TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
     TAPAS_ASSERT(idx < nb());

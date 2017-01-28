@@ -23,11 +23,13 @@ extern uint64_t numP2P;
 struct P2P {
   bool dump;
   P2P(bool d) : dump(d) { }
-  P2P() : dump(true) { }
+  P2P() : dump(false) { }
   
   template<typename _Body, typename _BodyAttr>
   TAPAS_KERNEL
-  void operator()(_Body &Bi, _BodyAttr &Bi_attr, const _Body &Bj, const _BodyAttr &, vec3 Xperiodic) {
+  void operator()(_Body &Bi, _BodyAttr &Bi_attr,
+                  const _Body &Bj, const _BodyAttr &,
+                  vec3 Xperiodic) {
     INC_P2P;
     SCOREP_USER_REGION("P2P", SCOREP_USER_REGION_TYPE_FUNCTION);
 
@@ -39,7 +41,7 @@ struct P2P {
       real_t invR = Bi.SRC * Bj.SRC * sqrt(invR2);
       dX *= invR2 * invR;
 
-#if 0
+#if 1
       if (dump) {
         std::cout << "P2P: "
                   << "Bi " << Bi.X << " " << Bi.SRC << " "
@@ -54,8 +56,13 @@ struct P2P {
       TapasFMM::Reduce(Bi, Bi_attr[1], -dX[0]);
       TapasFMM::Reduce(Bi, Bi_attr[2], -dX[1]);
       TapasFMM::Reduce(Bi, Bi_attr[3], -dX[2]);
-      
-      //printf("R2 %.10f invR2 %.10f dX %.10f %.10f %.10f\n", R2, invR2, dX[0], dX[1], dX[2]);
+
+#if 0
+      if (dump) {
+        printf("P2P: %.10f invR2 %.10f dX %.10f %.10f %.10f\n",
+               R2, invR2, dX[0], dX[1], dX[2]);
+      }
+#endif
     }
   }
 };

@@ -138,6 +138,12 @@ struct FMM_Downward {
 
 // Perform ExaFMM's Dual Tree Traversal (M2L & P2P)
 struct FMM_DTT {
+#ifdef FMM_MUTUAL
+  using P2P_Kernel = P2P_mutual;
+#else
+  using P2P_Kernel = P2P;
+#endif
+  
   std::string label() const { return "FMM-DTT"; }
 
   template<class Cell>
@@ -157,73 +163,28 @@ struct FMM_DTT {
     Ri = (Ri / 2 * 1.00001) / theta;
     Rj = (Rj / 2 * 1.00001) / theta;
 
-    if (getenv("TAPAS_DEBUG") != nullptr) {
-      std::cout << "Inspector: " << Cell::SFC::Decode(Ci.key()) << std::endl;
-      std::cout << "Inspector: " << Cell::SFC::Decode(Cj.key()) << std::endl;
-      std::cout << "Inspector: " << Ci.IsLeaf() << "," << Cj.IsLeaf() << std::endl;
-      std::cout << "Inspector: " << Ci.key() << " - " << Cj.key() << " " << std::endl;
-      std::cout << "Inspector: Ri = " << Ri << std::endl;
-      std::cout << "Inspector: Rj = " << Rj << std::endl;
-      std::cout << "Inspector: R2 = " << R2 << std::endl;
-      std::cout << "Inspector: ";
-      if (R2 > (Ri + Rj) * (Ri + Rj)) {
-        std::cout << "M2L (1)" << std::endl;
-      } else if (Ci.IsLeaf() && Cj.IsLeaf()) {
-        std::cout << "P2P (2)" << std::endl;
-      } else if (Cj.IsLeaf()) {
-        std::cout << "SplitLeft (3)" << std::endl;
-      } else if (Ci.IsLeaf()) {
-        std::cout << "SplitRight (4)" << std::endl;
-      } else if (Ci == Cj) {
-        std::cout << "SplitBoth (5)" << std::endl;
-      } else if (Ri >= Rj) {
-        std::cout << "SplitLeft (6)" << std::endl;
-      } else {
-        std::cout << "SplitRight (7)" << std::endl;
-      }
-    }
-
-    if (tapas::mpi::Rank() == 2 && !Cell::Inspector) {
-      if (Ci.key() == 3458764513820540930 && Cj.key() == 1297036692682702850) {
-        std::cout << "Executor: " << Cell::SFC::Decode(Ci.key()) << std::endl;
-        std::cout << "Executor: " << Cell::SFC::Decode(Cj.key()) << std::endl;
-        std::cout << "Executor: " << Ci.IsLeaf() << "," << Cj.IsLeaf() << std::endl;
-        std::cout << "Executor: " << Ci.key() << " - " << Cj.key() << " " << std::endl;;
-        std::cout << "Executor: " << "Ri = " << Ri << std::endl;
-        std::cout << "Executor: " << "Rj = " << Rj << std::endl;
-        std::cout << "Executor: " << "R2 = " << R2 << std::endl;
-        std::cout << "Executor: " ;
-        if (R2 > (Ri + Rj) * (Ri + Rj)) {
-          std::cout << "M2L (1)" << std::endl;
-        } else if (Ci.IsLeaf() && Cj.IsLeaf()) {
-          std::cout << "P2P (2)" << std::endl;
-        } else if (Cj.IsLeaf()) {
-          std::cout << "SplitLeft (3)" << std::endl;
-        } else if (Ci.IsLeaf()) {
-          std::cout << "SplitRight (4)" << std::endl;
-        } else if (Ci == Cj) {
-          std::cout << "SplitBoth (5)" << std::endl;
-        } else if (Ri >= Rj) {
-          std::cout << "SplitLeft (6)" << std::endl;
-        } else {
-          std::cout << "SplitRight (7)" << std::endl;
-        }
-      }
-    }
-      
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
-      if (Ci.key() == 3458764513820540930 && Cj.key() == 1297036692682702850) std::cout << "M2L" << std::endl;
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-      if (Ci.key() == 3458764513820540930 && Cj.key() == 1297036692682702850) std::cout << "P2P" << std::endl;
-#ifdef FMM_MUTUAL
-      TapasFMM::Map(P2P_mutual(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
-#else
-      TapasFMM::Map(P2P(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
-#endif
-    } else {                                                    // Else if cells are close but not bodies
-      tapas_splitCell(Ci, Cj, Ri, Rj, theta);   //  Split cell and call function recursively for child
-    }                                                           // End if for multipole acceptance
+      TapasFMM::Map(P2P_Kernel(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
+      
+      if (!Cell::Inspector && Cj.key() == 2305843009213693953) {
+        if (tapas::mpi::Rank() == 0) {
+          std::cout << "DTT: " << "nb=" << Cj.nb() << " "
+                    << "body_offset=" << Cj.body_offset() << " "
+                    << "IsLocal=" << Cj.IsLocal()
+                    << std::endl;
+          for (size_t i = 0; i < Cj.nb(); i++) {
+            std::cout << "DTT: "
+                      << Cj.body(i).X << " "
+                      << Cj.body(i).SRC << " "
+                      << std::endl;
+          }
+        }
+      }
+    } else {                                 // Else if cells are close but not bodies
+      tapas_splitCell(Ci, Cj, Ri, Rj, theta);//  Split cell and call function recursively for child
+    }                                        // End if for multipole acceptance
   }
 
   template<class Cell>
@@ -318,7 +279,9 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
 
             for (int i = 0; i < Ci->NBODY; i++) {
               for (int j = 0; j < Cj->NBODY; j++) {
-                P2P(false)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
+                // By passing true to thte ctor of P2P class,
+                // debug print in P2P::operator() is enabled. See LaplhaseP2PCPU_tapas.cxx
+                P2P(true)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
               }
             }
           }
@@ -572,6 +535,12 @@ int main(int argc, char ** argv) {
     dumpM(*root);
 #endif
 
+    TapasFMM::Map([](Body &b, BodyAttr &a) {
+        if (tapas::mpi::Rank() == 0) {
+          std::cout << "Bodies: before " << b.X << " " << a << std::endl;
+        }
+      }, root->Bodies());
+
     {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
@@ -583,6 +552,12 @@ int main(int argc, char ** argv) {
 
       logger::stopTimer("Traverse");
     }
+
+    TapasFMM::Map([](Body &b, BodyAttr &a) {
+        if (tapas::mpi::Rank() == 0) {
+          std::cout << "Bodies: after " << b.X << " " << a << std::endl;
+        }
+      }, root->Bodies());
 
     TAPAS_LOG_DEBUG() << "Dual Tree Traversal done\n";
 
@@ -614,7 +589,9 @@ int main(int argc, char ** argv) {
     // Copy BodyAttr values back to Body
 
     logger::startTimer("CopyBackResult");
-    TapasFMM::Map([](Body &b, BodyAttr &a) { b.TRG = a; }, root->Bodies());
+    TapasFMM::Map([](Body &b, BodyAttr &a) {
+        b.TRG = a;
+      }, root->Bodies());
     CopyBackResult(bodies, root);
     logger::stopTimer("CopyBackResult");
 
@@ -639,7 +616,7 @@ int main(int argc, char ** argv) {
     logger::stopDAG();
     
     root->Report();
-    
+
     if (t == args.repeat - 1) { // Final Timesteps
       if (args.check) {
         const int numTargets = 10;

@@ -244,7 +244,7 @@ class Cell {
   const BodyType &body(index_t idx) const;
 
   // Internal use only
-  inline index_t body_offset() {
+  inline index_t body_offset() const {
     // returns body offset in the local_bodies or let_bodies_
     return bid_;
   }

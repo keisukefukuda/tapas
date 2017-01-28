@@ -99,6 +99,7 @@ class Partitioner {
       if (hash.at(k)->IsLeaf()) {
         res_body.insert(std::make_pair(src_pid, k));
       }
+
     }
 
     for (size_t i = 0; i < leaf_keys.size(); i++) {

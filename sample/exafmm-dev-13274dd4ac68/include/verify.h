@@ -1,5 +1,6 @@
 #ifndef verify_h
 #define verify_h
+#include <tapas/mpi_util.h>
 #include "logger.h"
 
 //! Verify results
@@ -25,10 +26,18 @@ public:
 
   //! Get difference between scalar component of two vectors of target bodies
   double getDifScalar(Bodies & bodies, Bodies & bodies2) {
+		if (tapas::mpi::Rank()==0) {
+			std::cout << "getDifScalar: bodies.size() =" << bodies.size() << std::endl;
+			std::cout << "getDifScalar: bodies2.size()=" << bodies2.size() << std::endl;
+		}
     double v = 0;                                               // Initialize difference
     B_iter B2 = bodies2.begin();                                // Set iterator of bodies2
     for (B_iter B=bodies.begin(); B!=bodies.end(); B++, B2++) { // Loop over bodies & bodies2
       v += (B->TRG[0] - B2->TRG[0]) * (B->TRG[0] - B2->TRG[0]); //  Difference of scalar component
+			if (tapas::mpi::Rank()==0) {
+				std::cout << "getDifScalar: B->TRG[0] =" << B->TRG[0] << std::endl;
+				std::cout << "getDifScalar: B2->TRG[0]=" << B2->TRG[0] << std::endl;
+			}
     }                                                           // End loop over bodies & bodies2
     return v;                                                   // Return difference
   }

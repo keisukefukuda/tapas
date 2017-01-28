@@ -33,12 +33,14 @@ function accuracyCheck() {
     echo "PERR='$PERR'"
     echo "AERR='$AERR'"
 
+
     if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
     else
         echoGreen pot check OK
     fi
+
     if [[ $(python -c "print(float('$AERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
@@ -128,7 +130,7 @@ build
 for NP in 1 2 4; do
 for NB in 1000 2000 4000; do
 for NC in 32 64; do
-for D in c s p l; do
+for D in c s l; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
     echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} TWOSIDE_LET=${TWOSIDE_LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
     run
 done

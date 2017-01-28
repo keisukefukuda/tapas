@@ -38,7 +38,7 @@ ifneq (,$(PAPI))
 	MPICXX += -DPAPI -lpapi
 endif
 
-ifneq (,$(USE_TWOSIDE_LET))
+ifeq (1,$(USE_TWOSIDE_LET))
 	CXX += -DTAPAS_TWOSIDE_LET
 	MPICXX += -DTAPAS_TWOSIDE_LET
 endif
@@ -107,7 +107,7 @@ ewald: ewald.o $(OBJECTS)
 
 clean:
 	rm -rf *.o *.dSYM
-	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | cut -d ":" -f 1 | xargs rm -f
+	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | grep parallel_tapas | cut -d ":" -f 1 | xargs rm -f
 
 -include tapas.d
 

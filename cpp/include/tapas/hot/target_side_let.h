@@ -57,12 +57,14 @@ struct TargetSideLET {
 
   //using ProxyBody = tapas::hot::proxy::ProxyBody<TSP>;
   //using ProxyBodyAttr = tapas::hot::proxy::ProxyBodyAttr<TSP>;
-  using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
 #ifdef TAPAS_TWOSIDE_LET
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
+  using Policy = tapas::hot::proxy::FullTraversePolicy<TSP>;
 #else
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;
+  using Policy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
 #endif
+
+  using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, Policy>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<TSP>;
 
   // Note for UserFunct template parameter:
@@ -228,7 +230,8 @@ struct TargetSideLET {
   static void Response(Data &data,
                        std::vector<KeyType> &req_attr_keys, std::vector<int> &attr_src_ranks,
                        std::vector<KeyType> &req_leaf_keys, std::vector<int> &leaf_src_ranks,
-                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
+                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies,
+                       std::vector<index_t> &res_nb){
 
     SCOREP_USER_REGION("LET-Response", SCOREP_USER_REGION_TYPE_FUNCTION);
     // req_attr_keys : list of cell keys of which cell attributes are requested
@@ -269,8 +272,10 @@ struct TargetSideLET {
     // Send response keys and attributes
     bt = MPI_Wtime();
 
-    tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks, req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks,
+                           req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks,
+                           res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
@@ -338,8 +343,7 @@ struct TargetSideLET {
     // leaf_src_ranks_ranks and res_nb.
     std::vector<int> leaf_recvcnt; // we don't use this
     std::vector<int> body_recvcnt; // we don't use this
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    
     bt = MPI_Wtime();
 
     // Send response keys and bodies
@@ -363,6 +367,27 @@ struct TargetSideLET {
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
 
+
+    tapas::debug::BarrierExec([&](int,int) {
+        int offset = 0;
+        for (size_t i = 0; i < req_leaf_keys.size(); i++) {
+          int nb = res_nb[i];
+          KeyType k = req_leaf_keys[i];
+          if (k == 2305843009213693953) {
+            std::cout << "Response: " << std::endl;
+            std::cout << "Response: res_nb=" << res_nb[i] << std::endl;
+            std::cout << "Response: offset=" << offset << std::endl;
+            for (size_t j = 0; j < nb; j++) {
+              std::cout << "Response: "
+                        << res_bodies[offset + j].X << " "
+                        << res_bodies[offset + j].SRC << " "
+                        << std::endl;
+            }
+          }
+          offset += nb;
+        }
+      });
+    
     data.let_bodies_.assign(std::begin(res_bodies), std::end(res_bodies));
     data.let_body_attrs_.resize(res_bodies.size());
     bzero(&data.let_body_attrs_[0], data.let_body_attrs_.size() * sizeof(data.let_body_attrs_[0]));
@@ -374,7 +399,7 @@ struct TargetSideLET {
   }
 
   /**
-   * \breif Register response cells to local LET hash table
+   * \breif Register the received response cells to local LET hash table
    * \param [in,out] data Data structure (cells are registered to data->ht_lt_)
    */
   static void Register(Data *data,
@@ -390,7 +415,7 @@ struct TargetSideLET {
     for (size_t i = 0; i < res_cell_attr_keys.size(); i++) {
       KeyType k = res_cell_attr_keys[i];
       TAPAS_ASSERT(data->ht_.count(k) == 0); // Received cell must not exit in local hash.
-      
+
       Cell<TSP> *c = nullptr;
 
       if (data->ht_gtree_.count(k) > 0) {
@@ -408,20 +433,57 @@ struct TargetSideLET {
     TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
 
     // Register received leaf cells to local ht_let_ hash table.
+    for (size_t i = 0; i < data->let_bodies_.size(); i++) {
+      auto &b = data->let_bodies_[i];
+      std::cout << "Register: let_bodies[" << i << "]=" << b.X << " " << b.SRC << std::endl;
+    }
+
     index_t body_offset = 0;
     for (size_t i = 0; i < res_leaf_keys.size(); i++) {
       KeyType k = res_leaf_keys[i];
       index_t nb = res_nb[i];
-      Cell<TSP> *c = nullptr;
 
+      if (data->ht_.count(k) > 0) {
+        // received data already exists in local memory.
+        // should be a warning?
+        body_offset += nb;
+        continue;
+      }
+
+      if (tapas::mpi::Rank() == 0) {
+        std::cout << "Register: nb=" << nb << " "
+                  << "offset=" << body_offset
+                  << std::endl;
+      }
+
+      if (k == 2305843009213693953) {
+        std::cout << "Register: i=" << i << " res_leaf_keys.size()=" << res_leaf_keys.size() << std::endl;
+        std::cout << "Register: rank=" << tapas::mpi::Rank() << std::endl;
+        std::cout << "Register: key=" << k << std::endl;
+        std::cout << "Register: nb=" << nb << std::endl;
+        std::cout << "Register: offst=" << body_offset << std::endl;
+        std::cout << "Register: is_local=" << data->ht_.count(k) << std::endl;
+        for (size_t i = 0; i < nb; i++) {
+          std::cout << "Register: "
+                    << data->let_bodies_[body_offset].X << " "
+                    << data->let_bodies_[body_offset].SRC << " "
+                    << std::endl;
+        }
+      }
+      
+      Cell<TSP> *c = nullptr;
       if (data->ht_let_.count(k) > 0) {
         // If the cell is already registered to ht_let_, the cell has attributes but not body info.
         c = data->ht_let_.at(k);
       } else if (data->ht_gtree_.count(k) > 0) {
-        // The cell is included in the global tree, but actually
         // it is a leaf in remote cell.
         c = data->ht_gtree_.at(k);
-        c->is_local_ = false;
+        if (!c->IsLeaf()) {
+          c->is_local_ = false;
+        } else {
+          body_offset += nb;
+          continue;
+        }
       } else {
         c = Cell<TSP>::CreateRemoteCell(k, 1, data);
         data->ht_let_[k] = c;
@@ -430,6 +492,22 @@ struct TargetSideLET {
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->bid_ = body_offset;
+
+#if 1
+      if (k == 2305843009213693953) {
+        std::cout << "Register: rank=" << tapas::mpi::Rank() << std::endl;
+        std::cout << "Register: key=" << k << std::endl;
+        std::cout << "Register: nb=" << nb << std::endl;
+        std::cout << "Register: offst=" << body_offset << std::endl;
+        std::cout << "Register: is_local=" << data->ht_.count(k) << std::endl;
+        for (size_t i = 0; i < c->nb(); i++) {
+          std::cout << "Register: "
+                    << c->body(i).X << " "
+                    << c->body(i).SRC << " "
+                    << std::endl;
+        }
+      }
+#endif
 
       body_offset += nb;
     }
@@ -451,8 +529,12 @@ struct TargetSideLET {
         , leaf_keys_(leaf_keys)
     { }
     
-    inline bool operator()(KeyType trg_key, bool is_trg_leaf, KeyType src_key, bool is_src_leaf, IntrFlag splt) {
-      attr_keys_.insert(src_key); // maybe not neceessary?
+    inline bool operator()(KeyType trg_key, bool is_trg_leaf,
+                           KeyType src_key, bool is_src_leaf,
+                           IntrFlag splt) {
+      if (splt.IsReadAttrR()) {
+        attr_keys_.insert(src_key); // maybe not neceessary?
+      }
       
       if (is_src_leaf) {
         leaf_keys_.insert(src_key);
@@ -518,10 +600,14 @@ struct TargetSideLET {
     std::vector<CellAttr> res_cell_attrs;
     std::vector<BodyType> res_bodies;
     std::vector<index_t> res_nb; // number of bodies responded from remote processes
-    Response(root.data(), res_cell_attr_keys, attr_src, res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
+    Response(root.data(),
+             res_cell_attr_keys, attr_src,
+             res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
     // Register
-    Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
+    tapas::debug::BarrierExec([&](int,int) {
+        Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
+      });
 
 #ifdef TAPAS_DEBUG_DUMP
     DebugDumpCells(root.data());
