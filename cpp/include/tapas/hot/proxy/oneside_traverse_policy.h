@@ -37,6 +37,7 @@ class OnesideTraversePolicy {
       , depth_(depth)
       , bodies_()
       , body_attrs_()
+      , key_(0)
   {
     Init();
   }
@@ -49,6 +50,7 @@ class OnesideTraversePolicy {
       , depth_(rhs.depth_)
       , bodies_()
       , body_attrs_()
+      , key_(rhs.key_)
   {
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
@@ -62,6 +64,7 @@ class OnesideTraversePolicy {
       , depth_(rhs.depth_)
       , bodies_()
       , body_attrs_()
+      , key_(rhs.key_)
   {
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
@@ -79,7 +82,11 @@ class OnesideTraversePolicy {
   }
 
   // for debugging purpose
-  typename CellType::KeyType key() const { return 0; } 
+  KeyType key() const { return 0; }
+
+  void SetKey(KeyType k) {
+    key_ = k;
+  }
 
  protected:
   void Init() {
@@ -140,11 +147,6 @@ class OnesideTraversePolicy {
       FP a = r1.max(dim) - w1/2, b = r1.min(dim) + w1/2;
       FP c = r2.max(dim) - w2/2, d = r2.min(dim) + w2/2;
 
-      // std::cout << "Dim " << dim << " a = " << a << std::endl;
-      // std::cout << "Dim " << dim << " b = " << b << std::endl;
-      // std::cout << "Dim " << dim << " c = " << c << std::endl;
-      // std::cout << "Dim " << dim << " d = " << d << std::endl;
-
       if (a < b && ((double)a-b)*(a-b) < 1e-12) {
         a = b;
       }
@@ -163,15 +165,11 @@ class OnesideTraversePolicy {
       if (b <= c && c <= a) overlp = true;
       if (b <= d && d <= a) overlp = true;
 
-      //std::cout << "Dim " << dim << " overlap = " << overlp << std::endl;
-
       if (overlp) {
         dX[dim] = 0;
       } else {
         dX[dim] = std::min(fabs(a-d), fabs(c-b));
       }
-      //std::cout << "Dim " << dim << " dX = " << dX[dim] << std::endl;
-      //std::cout << std::endl;
     }
 
     return dX;
@@ -184,29 +182,15 @@ class OnesideTraversePolicy {
       FP a_min = region_.min(d), a_max = region_.max(d);
       FP b_min = rhs.region_.min(d), b_max = rhs.region_.max(d);
 
-      if (tapas::mpi::Rank() == 0 && getenv("TAPAS_DEBUG_SP")) {
-        std::cout << "dX(): dim "  << d << " "
-                  << "a_min=" << a_min << " a_max=" << a_max << " "
-                  << "b_min=" << b_min << " b_max=" << b_max << " "
-                  << "width(a)=" << (a_max - a_min) << " width(b)=" << (b_max - b_min)
-            ;
-      }
-            
-      
       if ((b_min <= a_min && a_min <= b_max) || (b_min <= a_max && a_max <= b_max)) {
-        if (tapas::mpi::Rank() == 0) { std::cout << " case #1" << std::endl; }
         dx[d] = 0;
       } else if (a_min <= b_min && b_max <= a_max) {
-        if (tapas::mpi::Rank() == 0) { std::cout << " case #2" << std::endl; }
         dx[d] = 0;
       } else if (b_min <= a_min && a_max <= b_max) {
-        if (tapas::mpi::Rank() == 0) { std::cout << " case #3" << std::endl; }
         dx[d] = 0;
       } else if (a_max < b_min) {
-        if (tapas::mpi::Rank() == 0) { std::cout << " case #4" << std::endl; }
         dx[d] = b_min - a_max;
       } else if (b_max < a_min) {
-        if (tapas::mpi::Rank() == 0) { std::cout << " case #5" << std::endl; }
         dx[d] = a_min - b_max;
       } else {
         assert(0);
@@ -225,9 +209,6 @@ class OnesideTraversePolicy {
     //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
     auto &rhs = *(body.Parent());
     auto dx = dX(rhs, tapas::ShortestClass());
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "dX(): distance = " << dx.norm() << std::endl;
-    }
     return dx; // using Shortest distnace: not mistake.
   }
 
@@ -329,6 +310,7 @@ class OnesideTraversePolicy {
   int depth_;
   std::vector<Body> bodies_; // a vector of proxy body
   std::vector<BodyAttr> body_attrs_; // a vector of proxy body attr
+  KeyType key_;
 };
 
 } // namespace proxy

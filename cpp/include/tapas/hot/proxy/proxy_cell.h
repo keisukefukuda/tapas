@@ -326,7 +326,6 @@ class ProxyCell : public _POLICY {
   }
   void MarkModified() {
     marked_modified_ = IncIfNotNull(clock_);
-    //std::cout << "ProxyCell::MarkModified() key=" << key() << ", marked_modified_ = " << marked_modified_ << std::endl;
   }
 
   int IsMarkedModified() const {

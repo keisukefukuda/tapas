@@ -467,8 +467,8 @@ struct TargetSideLET {
     inline bool operator()(KeyType /* trg_key */, bool /* is_trg_leaf */,
                            KeyType src_key, bool is_src_leaf,
                            IntrFlag splt) {
-      if (splt.IsReadAttrR()) {
-        attr_keys_.insert(src_key); // maybe not neceessary?
+      if (splt.IsReadAttrR() || splt.IsSplitR()) {
+        attr_keys_.insert(src_key);
       }
       
       if (is_src_leaf) {

@@ -269,12 +269,6 @@ class OnesideOnTarget {
                              KeyType src_root_key, // key of the root of the source local tree
                              KeyType src_key,
                              UserFunct f, Args...args) {
-    
-    // if (data.shallow_leaves_.count(src_key) > 0) {
-    //   req_keys_body.insert(src_key);
-    //   return;
-    // }
-
     int src_root_depth = SFC::GetDepth(src_root_key);
     int trg_root_depth = SFC::GetDepth(trg_root_key);
     int src_depth = SFC::GetDepth(src_key);
@@ -284,7 +278,7 @@ class OnesideOnTarget {
     int c = src_depth - src_root_depth;
 
     IntrFlag flag; // split type flag
-    
+
     for (int r = 0; r < nrows; r++) { // rows are target depth
       int trg_depth = trg_root_depth + r;
       auto sp = table[r * ncols + c];
@@ -300,15 +294,9 @@ class OnesideOnTarget {
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
 
-        // std::cout << "src_key = " << SFC::Decode(src_key)
-        //           << " " << src_reg.width()
-        //           << std::endl;
-
-        setenv("TAPAS_DEBUG_SP", "1", 1);
         IntrFlag sp2 = (src_depth == trg_depth)
                        ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
                        : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
-        unsetenv("TAPAS_DEBUG_SP");
 
         flag.Add(sp2);
       } else {
@@ -316,7 +304,7 @@ class OnesideOnTarget {
       }
     }
 
-    bool is_src_leaf = src_depth == data.max_depth_;
+    bool is_src_leaf = (src_depth == data.max_depth_);
     bool cont = callback(trg_root_key, false, src_key, is_src_leaf, flag);
 
     if (cont && SFC::GetDepth(src_key) < data.max_depth_) {
@@ -364,7 +352,6 @@ class OnesideOnTarget {
         TraverseSource(data, table, callback, trg_key, src_key, src_key, f, args...);
       }
     }
-    std::cout << "finished inspect loop" << std::endl;
   }
 };
 
