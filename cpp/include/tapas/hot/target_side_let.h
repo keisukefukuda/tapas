@@ -508,12 +508,11 @@ struct TargetSideLET {
 #warning "Using 2-sided LET"
     TwosideOnTarget<TSP> inspector(root.data());
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
-    //TwosideOnTarget<TSP>::Inspect(root, callback, f, args...);
 #else
     OnesideOnTarget<TSP> inspector(root.data());
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
-    //OnesideOnTarget<TSP>::Inspect(root, callback, f, args...);
 #endif
+
     inspector.Inspect(root, callback, f, args...);
 
     double et = MPI_Wtime();
