@@ -25,6 +25,7 @@
 #include <tapas/hot/proxy/proxy_cell.h>
 #include <tapas/hot/proxy/proxy_body.h>
 #include <tapas/iterator.h>
+#include <tapas/hot/inspector/region_depth_map.h>
 
 namespace tapas {
 namespace hot {
@@ -126,31 +127,6 @@ class OnesideOnTarget {
     return split1 | split2 | split3;
   }
 
-  // Build a map of  map[int depth -> Region BB]
-  static std::unordered_map<int, Reg> BuildDepthBB(const Data &data) {
-    std::unordered_map<int, Reg> m;
-    int dmax = 0;
-    
-    for (auto &&entry : data.ht_) {
-      const CellType *c = entry.second;
-      int d = c->depth();
-      
-      if (m.count(d) == 0) {
-        m[d] = c->GetRegion();
-      } else {
-        m[d] = Reg::BB(m[d], c->GetRegion());
-      }
-
-      dmax = std::max(dmax, d);
-    }
-
-    for (int d = dmax + 1; d <= data.max_depth_; d++) {
-      m[d] = m[dmax];
-    }
-        
-    return m;
-  }
-
   /**
    * \brief Do inspection between a single pair of target (local) root and source (remote) root
    *
@@ -161,7 +137,7 @@ class OnesideOnTarget {
    * \param args Arguments to the user function
    */
   template<class UserFunct, class...Args>
-  static std::vector<IntrFlag> BuildTable(Data &data, KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
+  static std::vector<IntrFlag> BuildTable(Data &data, DepthBBMap<CellType> &depth2bb, KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
     const int max_depth = data.max_depth_;
     const int src_depth = SFC::GetDepth(src_root_key);
     const int trg_depth = SFC::GetDepth(trg_root_key);
@@ -173,23 +149,10 @@ class OnesideOnTarget {
     const int nrow = max_depth - trg_depth + 1;
     std::vector<IntrFlag> table(ncol * nrow);
 
-    // 階層ごとのtrg_Regのリストを作成
-    auto trg_bb = BuildDepthBB(data);
-
     for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
-        assert(trg_bb.count(td) > 0);
-        const Reg trg_reg = trg_bb[td];
+        const Reg &trg_reg = depth2bb(td);
 
-        // if (tapas::mpi::Rank() == 0) {
-        //   for (int d = 0; d < Dim; d++) {
-        //     std::cout << "Dim " << d << std::endl;
-        //     std::cout << "trg_bb[" << td << "]    = " << trg_reg.min(d) << "," << trg_reg.max(d) << std::endl;
-        //     std::cout << "trg_root_reg = " << trg_reg_root.min(d) << "," << trg_reg_root.max(d) << std::endl;
-        //     std::cout << "trg_root_key = " << SFC::Decode(trg_root_key) << std::endl;
-        //   }
-        // }
-        
         IntrFlag split;
 
         if (td == sd) {
@@ -205,14 +168,7 @@ class OnesideOnTarget {
         if (!split.IsSplitR()
             && td >= data.min_leaf_level_[trg_root_key]) {
 
-          bool cond = tapas::mpi::Rank() == 0 && td == 2 && sd == 1 && src_root_key == 4035225266123964417;
-
-          if (cond) { setenv("TAPAS_DEBUG", "1", 1); }
           IntrFlag split2 = TryInteraction(data, trg_reg, src_reg, td, sd, true, f, args...);
-          if (cond) {
-            std::cout << "** BuildTable Checking if-leaf" << "  split2 = " << split2.ToString() << std::endl;
-          }
-          if (cond) { unsetenv("TAPAS_DEBUG"); }
 
           TAPAS_ASSERT(!split2.IsSplitL()); // because left cell (target) is a leaf.
 
@@ -331,6 +287,10 @@ class OnesideOnTarget {
     //   source key : global leaves
     KeyType trg_key = 0; // root
 
+    // 階層ごとのtrg_Regのリストを作成
+    DepthBBMap<CellType> depth2bb(data.max_depth_, data.ht_, data.mpi_comm_);
+    depth2bb.Exchange();
+
     for (KeyType src_key : data.gleaves_) {
       if (data.ht_.count(src_key) == 0) {
         //double bt = MPI_Wtime();
@@ -341,7 +301,7 @@ class OnesideOnTarget {
         int ncol = max_depth - src_depth + 1;
         int nrow = max_depth - trg_depth + 1;
 
-        std::vector<IntrFlag> table = BuildTable(data, src_key, trg_key, f, args...);
+        std::vector<IntrFlag> table = BuildTable(data, depth2bb, src_key, trg_key, f, args...);
 
         TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
