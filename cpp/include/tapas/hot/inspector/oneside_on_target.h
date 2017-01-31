@@ -57,16 +57,26 @@ class OnesideOnTarget {
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<GCell>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<GCell>;
 
+ private:
+  Data &data_;
+  DepthBBMap<CellType> depth2bb_;
+  
+ public:
+
+  OnesideOnTarget(Data &data)
+      : data_(data)
+      , depth2bb_(data.max_depth_, data.ht_, data.mpi_comm_)
+  { }
+
   template<class UserFunct, class...Args>
-  static IntrFlag TryInteraction(Data &data,
-                                 const Reg &trg_reg, const Reg &src_reg,
-                                 int trg_dep, int src_dep, bool is_left_leaf,
-                                 UserFunct f, Args... args) {
-    auto tw = data.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
-    auto sw = data.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
+  IntrFlag TryInteraction(const Reg &trg_reg, const Reg &src_reg,
+                          int trg_dep, int src_dep, bool is_left_leaf,
+                          UserFunct f, Args... args) {
+    auto tw = data_.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
+    auto sw = data_.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
     
-    GCell trg_gc = GCell(data, nullptr, trg_reg, tw, trg_dep);
-    GCell src_gc = GCell(data, nullptr, src_reg, sw, src_dep);
+    GCell trg_gc = GCell(data_, nullptr, trg_reg, tw, trg_dep);
+    GCell src_gc = GCell(data_, nullptr, src_reg, sw, src_dep);
 
     trg_gc.SetIsLeaf(is_left_leaf);
     src_gc.SetIsLeaf(false);
@@ -75,10 +85,9 @@ class OnesideOnTarget {
   }
 
   template<class UserFunct, class...Args>
-  static IntrFlag TryInteractionOnSameLevel(Data &data,
-                                            const Reg &trg_reg, const Reg &src_reg,
-                                            int trg_dep, int src_dep,
-                                            UserFunct f, Args... args) {
+  IntrFlag TryInteractionOnSameLevel(const Reg &trg_reg, const Reg &src_reg,
+                                     int trg_dep, int src_dep,
+                                     UserFunct f, Args... args) {
     // By the nature of octrees, if the traget and source depth are equal,
     // target and source cells have the same width theoretically.
     // In practice, however, the floating point values are sometimes
@@ -91,14 +100,14 @@ class OnesideOnTarget {
     //  (3) the source cell is `slightly' bigger
 
     // case 1.
-    VecT sw = data.region_.width() / pow(2, src_dep);
+    VecT sw = data_.region_.width() / pow(2, src_dep);
     VecT tw = sw;
 
     IntrFlag split1, split2, split3; // split decision result
 
     {
-      GCell src_gc(data, nullptr, src_reg, sw, src_dep);
-      GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
+      GCell src_gc(data_, nullptr, src_reg, sw, src_dep);
+      GCell trg_gc(data_, nullptr, trg_reg, tw, trg_dep);
       split1 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
     }
 
@@ -107,8 +116,8 @@ class OnesideOnTarget {
       tw[d] = sw[d] + tapas::util::NearZeroValue<FP>(sw[d]);
     }
     {
-      GCell src_gc(data, nullptr, src_reg, sw, src_dep);
-      GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
+      GCell src_gc(data_, nullptr, src_reg, sw, src_dep);
+      GCell trg_gc(data_, nullptr, trg_reg, tw, trg_dep);
       split2 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
     }
 
@@ -118,8 +127,8 @@ class OnesideOnTarget {
       sw[d] += tapas::util::NearZeroValue<FP>(sw[d]);
     }
     {
-      GCell src_gc(data, nullptr, src_reg, sw, src_dep);
-      GCell trg_gc(data, nullptr, trg_reg, tw, trg_dep);
+      GCell src_gc(data_, nullptr, src_reg, sw, src_dep);
+      GCell trg_gc(data_, nullptr, trg_reg, tw, trg_dep);
       split3 = GCell::PredSplit2(trg_gc, src_gc, f, args...);
     }
 
@@ -137,13 +146,13 @@ class OnesideOnTarget {
    * \param args Arguments to the user function
    */
   template<class UserFunct, class...Args>
-  static std::vector<IntrFlag> BuildTable(Data &data, DepthBBMap<CellType> &depth2bb, KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
-    const int max_depth = data.max_depth_;
+  std::vector<IntrFlag> BuildTable(KeyType src_root_key, KeyType trg_root_key, UserFunct f, Args...args) {
+    const int max_depth = data_.max_depth_;
     const int src_depth = SFC::GetDepth(src_root_key);
     const int trg_depth = SFC::GetDepth(trg_root_key);
 
-    const Reg src_reg = SFC::CalcRegion(src_root_key, data.region_);
-    const Reg trg_reg_root = SFC::CalcRegion(trg_root_key, data.region_);
+    const Reg src_reg = SFC::CalcRegion(src_root_key, data_.region_);
+    const Reg trg_reg_root = SFC::CalcRegion(trg_root_key, data_.region_);
 
     const int ncol = max_depth - src_depth + 1;
     const int nrow = max_depth - trg_depth + 1;
@@ -151,14 +160,14 @@ class OnesideOnTarget {
 
     for (int sd = src_depth; sd <= max_depth; sd++) { // source depth
       for (int td = trg_depth; td <= max_depth; td++) { // target depth
-        const Reg &trg_reg = depth2bb(td);
+        const Reg &trg_reg = depth2bb_(td);
 
         IntrFlag split;
 
         if (td == sd) {
-          split = TryInteractionOnSameLevel(data, trg_reg, src_reg, td, sd, f, args...);
+          split = TryInteractionOnSameLevel(trg_reg, src_reg, td, sd, f, args...);
         } else {
-          split = TryInteraction(data, trg_reg, src_reg, td, sd, false, f, args...);
+          split = TryInteraction(trg_reg, src_reg, td, sd, false, f, args...);
         }
         
         // We here use a ghost cell for the target cell and assume that
@@ -166,9 +175,9 @@ class OnesideOnTarget {
         // Thus, there is possibility that the source cell is split
         // even if the `split` value above is not SplitR if the target(left) cell is a leaf.
         if (!split.IsSplitR()
-            && td >= data.min_leaf_level_[trg_root_key]) {
+            && td >= data_.min_leaf_level_[trg_root_key]) {
 
-          IntrFlag split2 = TryInteraction(data, trg_reg, src_reg, td, sd, true, f, args...);
+          IntrFlag split2 = TryInteraction(trg_reg, src_reg, td, sd, true, f, args...);
 
           TAPAS_ASSERT(!split2.IsSplitL()); // because left cell (target) is a leaf.
 
@@ -219,17 +228,17 @@ class OnesideOnTarget {
    * \brief Traverse the soruce tree and collect
    */
   template<class Callback, class UserFunct, class...Args>
-  static void TraverseSource(Data &data, std::vector<IntrFlag> &table,
-                             Callback &callback,
-                             KeyType trg_root_key, // key of the root of the target local tree
-                             KeyType src_root_key, // key of the root of the source local tree
-                             KeyType src_key,
-                             UserFunct f, Args...args) {
+  void TraverseSource(std::vector<IntrFlag> &table,
+                      Callback &callback,
+                      KeyType trg_root_key, // key of the root of the target local tree
+                      KeyType src_root_key, // key of the root of the source local tree
+                      KeyType src_key,
+                      UserFunct f, Args...args) {
     int src_root_depth = SFC::GetDepth(src_root_key);
     int trg_root_depth = SFC::GetDepth(trg_root_key);
     int src_depth = SFC::GetDepth(src_key);
-    int ncols = data.max_depth_ - src_root_depth + 1;
-    int nrows = data.max_depth_ - trg_root_depth + 1;
+    int ncols = data_.max_depth_ - src_root_depth + 1;
+    int nrows = data_.max_depth_ - trg_root_depth + 1;
 
     int c = src_depth - src_root_depth;
 
@@ -247,12 +256,12 @@ class OnesideOnTarget {
         //     Near(T, Ghost cell) => Near or Far <- it's the case here.
         // If they are Far, we don't need to split the cell and transfer the children of the source cell.
 
-        const Reg trg_reg = SFC::CalcRegion(trg_root_key, data.region_);
-        const Reg src_reg = SFC::CalcRegion(src_key, data.region_);
+        const Reg trg_reg = SFC::CalcRegion(trg_root_key, data_.region_);
+        const Reg src_reg = SFC::CalcRegion(src_key, data_.region_);
 
         IntrFlag sp2 = (src_depth == trg_depth)
-                       ? TryInteractionOnSameLevel(data, trg_reg, src_reg, trg_depth, src_depth, f, args...)
-                       : TryInteraction(data, trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
+                       ? TryInteractionOnSameLevel(trg_reg, src_reg, trg_depth, src_depth, f, args...)
+                       : TryInteraction(trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
 
         flag.Add(sp2);
       } else {
@@ -260,12 +269,12 @@ class OnesideOnTarget {
       }
     }
 
-    bool is_src_leaf = (src_depth == data.max_depth_);
+    bool is_src_leaf = (src_depth == data_.max_depth_);
     bool cont = callback(trg_root_key, false, src_key, is_src_leaf, flag);
 
-    if (cont && SFC::GetDepth(src_key) < data.max_depth_) {
+    if (cont && SFC::GetDepth(src_key) < data_.max_depth_) {
       for (auto ch_key : SFC::GetChildren(src_key)) {
-        TraverseSource(data, table, callback, trg_root_key, src_root_key, ch_key, f, args...);
+        TraverseSource(table, callback, trg_root_key, src_root_key, ch_key, f, args...);
       }
     }
     return;
@@ -276,8 +285,8 @@ class OnesideOnTarget {
    *        construct a cell list to be exchanged between processes.
    */
   template<class Callback, class UserFunct, class...Args>
-  static void Inspect(CellType &root, Callback &callback,
-                      UserFunct f, Args...args) {
+  void Inspect(CellType &root, Callback &callback,
+               UserFunct f, Args...args) {
     auto &data = root.data();
 
     // Construct request lists of necessary cells
@@ -288,8 +297,7 @@ class OnesideOnTarget {
     KeyType trg_key = 0; // root
 
     // 階層ごとのtrg_Regのリストを作成
-    DepthBBMap<CellType> depth2bb(data.max_depth_, data.ht_, data.mpi_comm_);
-    depth2bb.Exchange();
+    // depth2bb_.Exchange();
 
     for (KeyType src_key : data.gleaves_) {
       if (data.ht_.count(src_key) == 0) {
@@ -301,7 +309,7 @@ class OnesideOnTarget {
         int ncol = max_depth - src_depth + 1;
         int nrow = max_depth - trg_depth + 1;
 
-        std::vector<IntrFlag> table = BuildTable(data, depth2bb, src_key, trg_key, f, args...);
+        std::vector<IntrFlag> table = BuildTable(src_key, trg_key, f, args...);
 
         TAPAS_ASSERT(table.size() == (size_t)(ncol * nrow)); (void)nrow; (void)ncol;
 
@@ -309,7 +317,7 @@ class OnesideOnTarget {
           continue;
         }
 
-        TraverseSource(data, table, callback, trg_key, src_key, src_key, f, args...);
+        TraverseSource(table, callback, trg_key, src_key, src_key, f, args...);
       }
     }
   }
