@@ -20,7 +20,6 @@
 #include <tapas/geometry.h>
 #include <tapas/hot/inspector/interaction.h>
 #include <tapas/hot/inspector/interaction_table.h>
-#include <tapas/hot/inspector/interaction.h>
 #include <tapas/hot/let_common.h>
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/proxy/oneside_traverse_policy.h>

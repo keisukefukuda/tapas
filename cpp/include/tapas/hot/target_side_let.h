@@ -511,7 +511,7 @@ struct TargetSideLET {
     TwosideOnTarget<TSP> inspector(root.data());
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
 #else
-    OnesideOnTarget<TSP> inspector(root.data());
+    OnesideOnTarget<TSP, UserFunct, Args...> inspector(root.data());
     OnesideOnSource<TSP, UserFunct, Args...> inspector2(root.data());
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
     inspector2.Inspect(root, callback2, f, args...);
