@@ -518,7 +518,7 @@ struct TargetSideLET {
 #endif
 
     inspector.Inspect(root, callback, f, args...);
-    
+
     double et = MPI_Wtime();
     if (root.data().mpi_rank_ == 0) {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
@@ -544,6 +544,15 @@ struct TargetSideLET {
     Response(root.data(),
              res_cell_attr_keys, attr_src,
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
+
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "From 1 to 0:" << std::endl;
+      std::cout << "Attr keys" << std::endl;
+      for (auto k : res_cell_attr_keys) {
+        std::cout << SFC::Simplify(k) << std::endl;
+      }
+      std::cout << std::endl;
+    }
 
     // Register
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);

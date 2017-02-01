@@ -40,7 +40,7 @@ class Interaction {
   {
   }
 
-  IntrFlag TryInteraction(const Reg &trg_reg, const Reg &src_reg,
+  IntrFlag TryIntr(const Reg &trg_reg, const Reg &src_reg,
                           int trg_dep, int src_dep, bool is_left_leaf,
                           UserFunct f, Args... args) {
     auto tw = data_.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
@@ -55,9 +55,9 @@ class Interaction {
     return GCell::PredSplit2(trg_gc, src_gc, f, args...);
   }
 
-  IntrFlag TryInteractionOnSameLevel(const Reg &trg_reg, const Reg &src_reg,
-                                     int trg_dep, int src_dep,
-                                     UserFunct f, Args... args) {
+  IntrFlag TryIntrOnSameDepth(const Reg &trg_reg, const Reg &src_reg,
+                              int trg_dep, int src_dep,
+                              UserFunct f, Args... args) {
     // By the nature of octrees, if the traget cell and source cell are
     // in the same depth, they have the same width (theoretically).
     // In practice, however, the floating point values are sometimes

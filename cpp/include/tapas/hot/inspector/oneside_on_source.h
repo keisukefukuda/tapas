@@ -135,16 +135,16 @@ class OnesideOnSource {
         const Reg src_reg = SFC::CalcRegion(src_key, data_.region_);
 
         IntrFlag sp2 = (src_depth == trg_depth)
-                       ? inter_.TryInteractionOnSameLevel(trg_reg, src_reg, trg_depth, src_depth,
+                       ? inter_.TryIntrOnSameDepth(trg_reg, src_reg, trg_depth, src_depth,
                                                           f, args...)
-                       : inter_.TryInteraction(trg_reg, src_reg, trg_depth, src_depth,
-                                               sp.IsSplitILL(), f, args...);
+                       : inter_.TryIntr(trg_reg, src_reg, trg_depth, src_depth,
+                                        sp.IsSplitILL(), f, args...);
         flag.Add(sp2);
       } else {
         flag.Add(sp);
       }
     }
-
+    
     bool is_src_leaf = (src_depth == data_.max_depth_);
     bool cont = callback(trg_root_key, false, src_key, is_src_leaf, flag);
 
