@@ -13,6 +13,7 @@
 #include <tapas/hot/inspector/twoside_on_target.h>
 #else
 #include <tapas/hot/inspector/oneside_on_target.h>
+#include <tapas/hot/inspector/oneside_on_source.h>
 #endif
 
 using tapas::debug::BarrierExec;
@@ -496,7 +497,10 @@ struct TargetSideLET {
     // Traverse
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
+    KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
+    KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
     LetInspectorAction callback(req_cell_attr_keys, req_leaf_keys);
+    LetInspectorAction callback2(req_cell_attr_keys2, req_leaf_keys2);
 
     double bt = MPI_Wtime();
 
@@ -508,11 +512,13 @@ struct TargetSideLET {
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
 #else
     OnesideOnTarget<TSP> inspector(root.data());
+    OnesideOnSource<TSP, UserFunct, Args...> inspector2(root.data());
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
+    inspector2.Inspect(root, callback2, f, args...);
 #endif
 
     inspector.Inspect(root, callback, f, args...);
-
+    
     double et = MPI_Wtime();
     if (root.data().mpi_rank_ == 0) {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
