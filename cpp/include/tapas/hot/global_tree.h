@@ -63,7 +63,7 @@ class GlobalTree {
     }
 
     // Exchange global leaves using Allgatherv
-    ExchangeGlobalLeafKeys(lroots, gleaves);
+    ExchangeGlobalLeafKeys(lroots, gleaves, data.gleaf_owners_);
 
     // Glow the global tree locally in each process
     GrowGlobalTree(gleaves, data.ht_, data.ht_gtree_);
@@ -204,12 +204,24 @@ class GlobalTree {
     }
   }
 
-  static void ExchangeGlobalLeafKeys(const KeySet &lroots, KeySet &gleaves) {
+  static void ExchangeGlobalLeafKeys(const KeySet &lroots, KeySet &gleaves, std::unordered_map<KeyType, int> &owners) {
     std::vector<KeyType> gl_keys_send(lroots.begin(), lroots.end()); // global leaf keys
     std::vector<KeyType> gl_keys_recv;
-    tapas::mpi::Allgatherv(gl_keys_send, gl_keys_recv, MPI_COMM_WORLD);
+    std::vector<int>     gl_owners_send, gl_owners_recv;
 
-    gleaves.insert(gl_keys_recv.begin(), gl_keys_recv.end());
+    // inefficient. to be refactored.
+    std::transform(gl_keys_send.begin(), gl_keys_send.end(), std::back_inserter(gl_owners_send),
+                   [](KeyType) { return tapas::mpi::Rank(); });
+
+    tapas::mpi::Allgatherv(gl_keys_send, gl_keys_recv, MPI_COMM_WORLD);
+    tapas::mpi::Allgatherv(gl_owners_send, gl_owners_recv, MPI_COMM_WORLD);
+
+    TAPAS_ASSERT(gl_keys_recv.size() == gl_owners_recv.size());
+
+    for (size_t i = 0; i < gl_keys_recv.size(); i++) {
+      gleaves.insert(gl_keys_recv[i]);
+      owners[gl_keys_recv[i]] = gl_owners_recv[i];
+    }
   }
 
   static void GrowGlobalTree(const KeySet &gleaves, const HashTable &ht, HashTable &ht_gtree) {

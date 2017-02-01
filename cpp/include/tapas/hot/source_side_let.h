@@ -1,5 +1,5 @@
-#ifndef TAPAS_HOT_TARGET_SIDE_LET_H__
-#define TAPAS_HOT_TARGET_SIDE_LET_H__
+#ifndef TAPAS_HOT_SOURCE_SIDE_LET_H__
+#define TAPAS_HOT_SOURCE_SIDE_LET_H__
 
 #include<vector>
 
@@ -30,7 +30,7 @@ template<class TSP> class Partitioner;
  * 
  */
 template<class TSP>
-struct TargetSideLET {
+struct SourceSideLET {
   // typedefs
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -494,23 +494,16 @@ struct TargetSideLET {
 #endif
 
     // Traverse
-    KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
-    KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
+    // Keys of cells to be sent (rank -> KeySet)
+    std::unordered_map<int, KeySet> send_keys;
     LetInspectorAction callback(req_cell_attr_keys, req_leaf_keys);
 
     double bt = MPI_Wtime();
 
+
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
-#ifdef TAPAS_TWOSIDE_LET
-#warning "Using 2-sided LET"
-    TwosideOnTarget<TSP> inspector(root.data());
-    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
-#else
-    OnesideOnTarget<TSP> inspector(root.data());
-    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
-#endif
-
+    OnesideOnSource<TSP> inspector(root.data());
     inspector.Inspect(root, callback, f, args...);
 
     double et = MPI_Wtime();
@@ -518,12 +511,10 @@ struct TargetSideLET {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
     }
 
-    req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
-
     // We need to convert the sets to vectors
     std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
     std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested
-
+    
     std::vector<int> attr_src; // Process IDs that requested attr_keys_recv[i] (output from Request())
     std::vector<int> leaf_src; // Process IDs that requested attr_body_recv[i] (output from Request())
 
@@ -600,4 +591,4 @@ struct TargetSideLET {
 
 } // namespace tapas
 
-#endif // TAPAS_HOT_TARGET_SIDE_LET_H__
+#endif // TAPAS_HOT_SOURCE_SIDE_LET_H__
