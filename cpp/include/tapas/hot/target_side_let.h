@@ -488,6 +488,7 @@ struct TargetSideLET {
   template<class UserFunct, class...Args>
   static void Exchange(CellType &root, UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-All", SCOREP_USER_REGION_TYPE_FUNCTION);
+    auto &data = root.data();
     double beg = MPI_Wtime();
 
 #ifdef TAPAS_DEBUG_DUMP
@@ -508,13 +509,21 @@ struct TargetSideLET {
     // One side traverse is much faster but it requires certain condition in user function f.
 #ifdef TAPAS_TWOSIDE_LET
 #warning "Using 2-sided LET"
-    TwosideOnTarget<TSP> inspector(root.data());
+    TwosideOnTarget<TSP> inspector(data);
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
 #else
-    OnesideOnTarget<TSP, UserFunct, Args...> inspector(root.data());
-    OnesideOnSource<TSP, UserFunct, Args...> inspector2(root.data());
+    OnesideOnTarget<TSP, UserFunct, Args...> inspector(data);
+    OnesideOnSource<TSP, UserFunct, Args...> inspector2(data);
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
-    inspector2.Inspect(root, callback2, f, args...);
+
+    // Test source-side LET inspection
+    tapas::debug::BarrierExec([&](int, int) {
+        for (int r = 0; r < data.mpi_size_; r++) {
+          if (r != data.mpi_rank_) {
+            inspector2.Inspect(r, root.key(), callback2, f, args...);
+          }
+        }
+      });
 #endif
 
     inspector.Inspect(root, callback, f, args...);

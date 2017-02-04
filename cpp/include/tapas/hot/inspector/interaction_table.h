@@ -115,6 +115,10 @@ class InteractionTable {
     return table_[0].IsApprox();
   }
 
+  IntrFlag TopLeft() const {
+    return table_[0];
+  }
+
   int ncol() const { return ncol_; }
   int nrow() const { return nrow_; }
 };
