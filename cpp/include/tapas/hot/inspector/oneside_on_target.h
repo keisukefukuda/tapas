@@ -79,7 +79,6 @@ class OnesideOnTarget {
   void TraverseSource(ITable &tbl,
                       Callback &callback,
                       KeyType trg_root_key, // key of the root of the target local tree
-                      KeyType src_root_key, // key of the root of the source local tree
                       KeyType src_key,
                       UserFunct f, Args...args) {
     int trg_root_depth = SFC::GetDepth(trg_root_key);
@@ -118,7 +117,7 @@ class OnesideOnTarget {
 
     if (cont && SFC::GetDepth(src_key) < data_.max_depth_) {
       for (auto ch_key : SFC::GetChildren(src_key)) {
-        TraverseSource(tbl, callback, trg_root_key, src_root_key, ch_key, f, args...);
+        TraverseSource(tbl, callback, trg_root_key, ch_key, f, args...);
       }
     }
     return;
@@ -152,7 +151,7 @@ class OnesideOnTarget {
           continue;
         }
 
-        TraverseSource(tbl, callback, trg_key, src_key, src_key, f, args...);
+        TraverseSource(tbl, callback, trg_key, src_key, f, args...);
       }
     }
   }
