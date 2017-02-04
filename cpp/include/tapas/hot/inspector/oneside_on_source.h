@@ -163,6 +163,8 @@ class OnesideOnSource {
   template<class Callback>
   void TraverseGT(int trg_rank, Callback callback,
                   KeyType trg_key, KeyType src_key, UserFunct f, Args...args) {
+    TAPAS_ASSERT(data_.ht_.count(trg_key) > 0 || data_.ht_gtree_.count(trg_key) > 0);
+
     // Source cell may not be in the local process
     // Stop traversal if the src_key is not in the local process
     if (data_.ht_.count(src_key) == 0) {
@@ -172,9 +174,20 @@ class OnesideOnSource {
     TAPAS_ASSERT(data_.ht_gtree_.count(trg_key) != 0);
 
     IntrFlag flg = ProxyCellF::PredSplit2(trg_key, src_key, data_, f, args...);
+    
+    bool is_src_lf = data_.ht_[src_key]->IsLeaf();
+    TAPAS_ASSERT(!(is_src_lf && flg.IsSplitR()));
 
-    bool cont = callback(trg_key, data_.ht_[trg_key]->IsLeaf(),
-                         src_key, data_.ht_[src_key]->IsLeaf(),
+    CellType *tc = data_.ht_.count(trg_key) > 0
+                   ? data_.ht_[trg_key]
+                   : data_.ht_gtree_[trg_key];
+    CellType *sc = data_.ht_[src_key];
+    
+    TAPAS_ASSERT(tc != nullptr);
+    TAPAS_ASSERT(sc != nullptr);
+
+    bool cont = callback(trg_key, tc->IsLeaf(),
+                         src_key, sc->IsLeaf(),
                          flg);
     
     // If the return value is false, stop traversing.
@@ -200,15 +213,17 @@ class OnesideOnSource {
     bool is_tr = is_trg_gl
                  ? data_.gleaf_owners_[trg_key] == trg_rank
                  : false;
-    
+
     if (flg.IsApprox()) { // (1)
       return;
     } else if (is_trg_gl && flg.IsSplitBoth()) {  // (2)
       if (!is_tr) { return; }
       ITable tbl(data_, trg_key, src_key, f, args...);
-      for (KeyType sc : SFC::GetChildren(src_key)) {
-        for (KeyType tc : SFC::GetChildren(trg_key)) {
-          TraverseApxLT(tbl, callback, tc, sc, f, args...);
+      if (!data_.ht_[src_key]->IsLeaf()) {
+        for (KeyType sc : SFC::GetChildren(src_key)) {
+          for (KeyType tc : SFC::GetChildren(trg_key)) {
+            TraverseApxLT(tbl, callback, tc, sc, f, args...);
+          }
         }
       }
     } else if (is_trg_gl && flg.IsSplitR()) {      // (3)
@@ -245,6 +260,14 @@ class OnesideOnSource {
   void TraverseApxLT(ITable &tbl, Callback callback,
                      KeyType trg_root_key, KeyType src_key,
                      UserFunct f, Args...args) {
+    if (data_.ht_.count(src_key) == 0) {
+      return;
+    }
+
+    if (data_.ht_[src_key]->IsLeaf()) {
+      return;
+    }
+    
     int trg_root_depth = SFC::GetDepth(trg_root_key);
     int src_depth = SFC::GetDepth(src_key);
     int nrows = data_.max_depth_ - trg_root_depth + 1;
@@ -285,7 +308,7 @@ class OnesideOnSource {
       }
     }
   }
-
+    
   /**
    * \brief Inspector for Map-2. Traverse the local source trees
    * using pseudo(approximated) target cells
