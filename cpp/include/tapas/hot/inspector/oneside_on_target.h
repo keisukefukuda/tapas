@@ -101,10 +101,7 @@ class OnesideOnTarget {
 
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data_.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data_.region_);
-
-        IntrFlag sp2 = (src_depth == trg_depth)
-                       ? inter_.TryIntrOnSameDepth(trg_reg, src_reg, trg_depth, src_depth, f, args...)
-                       : inter_.TryIntr(trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
+        IntrFlag sp2 = inter_.RetryIntr(trg_reg, src_reg, trg_depth, src_depth, sp, f, args...);
 
         flag.Add(sp2);
       } else {

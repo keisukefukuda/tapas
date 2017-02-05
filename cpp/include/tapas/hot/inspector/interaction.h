@@ -40,9 +40,29 @@ class Interaction {
   {
   }
 
+  /**
+   * \brief If an (conservative) approximate interaction using a table gives
+   *        "split right" or "split both", retry an interaction using the source regions
+   *        and target regions so the result may be approximate.
+   */
+  IntrFlag RetryIntr(const Reg &trgr, const Reg &srcr, int trgd, int srcd, IntrFlag prev,
+                     UserFunct f, Args... args) {
+    if (trgd == srcd) {
+      return TryIntrOnSameDepth(trgr, srcr, trgd, srcd, f, args...);
+    } else {
+      return TryIntr(trgr, srcr, trgd, srcd, prev.IsSplitILL(), f, args...);
+    }
+  }
+
+  IntrFlag RetryIntr(const Reg &trgr, const Reg &srcr, int trgd, int srcd,
+                     bool is_left_leaf, UserFunct f, Args...args) {
+    return TryIntr(trgr, srcr, trgd, srcd, is_left_leaf, f, args...);
+  }
+
+ protected:
   IntrFlag TryIntr(const Reg &trg_reg, const Reg &src_reg,
-                          int trg_dep, int src_dep, bool is_left_leaf,
-                          UserFunct f, Args... args) {
+                   int trg_dep, int src_dep, bool is_left_leaf,
+                   UserFunct f, Args... args) {
     auto tw = data_.region_.width() / pow(2, trg_dep); // n-dimensional width of the target ghost cell
     auto sw = data_.region_.width() / pow(2, src_dep); // n-dimensional width of the source ghost cell
     

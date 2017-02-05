@@ -75,11 +75,7 @@ class InteractionTable {
 
         IntrFlag split;
 
-        if (td == sd) {
-          split = inter_.TryIntrOnSameDepth(trg_reg, src_reg, td, sd, f, args...);
-        } else {
-          split = inter_.TryIntr(trg_reg, src_reg, td, sd, false, f, args...);
-        }
+        split = inter_.RetryIntr(trg_reg, src_reg, td, sd, false, f, args...);
         
         // We here use a ghost cell for the target cell and assume that
         // the target ghost cell is not a leaf.
@@ -88,7 +84,7 @@ class InteractionTable {
         if (!split.IsSplitR()
             && td >= data_.min_leaf_level_[trg_root_key]) {
 
-          IntrFlag split2 = inter_.TryIntr(trg_reg, src_reg, td, sd, true, f, args...);
+          IntrFlag split2 = inter_.RetryIntr(trg_reg, src_reg, td, sd, true, f, args...);
 
           TAPAS_ASSERT(!split2.IsSplitL()); // because left cell (target) is a leaf.
 

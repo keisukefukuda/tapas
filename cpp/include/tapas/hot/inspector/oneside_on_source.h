@@ -176,7 +176,7 @@ class OnesideOnSource {
     IntrFlag flg = ProxyCellF::PredSplit2(trg_key, src_key, data_, f, args...);
     
     bool is_src_lf = data_.ht_[src_key]->IsLeaf();
-    TAPAS_ASSERT(!(is_src_lf && flg.IsSplitR()));
+    TAPAS_ASSERT(!(is_src_lf && flg.IsSplitR())); (void) is_src_leaf;
 
     CellType *tc = data_.ht_.count(trg_key) > 0
                    ? data_.ht_[trg_key]
@@ -289,9 +289,7 @@ class OnesideOnSource {
         const Reg trg_reg = SFC::CalcRegion(trg_root_key, data_.region_);
         const Reg src_reg = SFC::CalcRegion(src_key, data_.region_);
 
-        IntrFlag sp2 = (src_depth == trg_depth)
-                       ? inter_.TryIntrOnSameDepth(trg_reg, src_reg, trg_depth, src_depth, f, args...)
-                       : inter_.TryIntr(trg_reg, src_reg, trg_depth, src_depth, sp.IsSplitILL(), f, args...);
+        IntrFlag sp2 = inter_.RetryIntr(trg_reg, src_reg, trg_depth, src_depth, sp, f, args...);
 
         flg.Add(sp2);
       } else {
