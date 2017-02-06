@@ -518,6 +518,10 @@ struct TargetSideLET {
     OnesideOnSource<TSP, UserFunct, Args...> inspector2(data);
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
 
+    bt = MPI_Wtime();
+    inspector.Inspect(root, callback, f, args...);
+    et = MPI_Wtime();
+
     // Test source-side LET inspection
     tapas::debug::BarrierExec([&](int rank, int) {
         req_cell_attr_keys2.clear();
@@ -530,18 +534,16 @@ struct TargetSideLET {
         }
         et2 = MPI_Wtime();
         std::cout << "In rank " << rank << std::endl;
+        std::cout << "    req_leaf_keys.size()=" << req_leaf_keys.size() << std::endl;
+        std::cout << "    req_cell_attr_keys.size()=" << req_cell_attr_keys.size() << std::endl;
         std::cout << "    req_leaf_keys2.size()=" << req_leaf_keys2.size() << std::endl;
         std::cout << "    req_cell_attr_keys2.size()=" << req_cell_attr_keys2.size() << std::endl;
       });
 #endif
 
-    bt = MPI_Wtime();
-    inspector.Inspect(root, callback, f, args...);
-    et = MPI_Wtime();
-
     if (root.data().mpi_rank_ == 0) {
-      std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
-      std::cout << "Inspector2 : " << std::scientific << (et2-bt2) << " [s]" << std::endl;
+      printf("Inspector 1: %.3f [s]\n", et-bt);
+      printf("Inspector 2: %.3f [s]\n", et2-bt2);
     }
 
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
@@ -566,6 +568,7 @@ struct TargetSideLET {
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
     tapas::debug::BarrierExec([&](int rank, int) {
+        return;
         if (rank == 0) {
           std::vector<KeyType> keys(std::begin(res_cell_attr_keys), std::end(res_cell_attr_keys));
           std::cout << "Original (oneside on target LET)" << std::endl;

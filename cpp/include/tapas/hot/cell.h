@@ -8,7 +8,7 @@
 #include "tapas/hot/report.h"
 #include "tapas/hot/shared_data.h"
 #include "tapas/hot/target_side_let.h"
-#include "tapas/hot/inspector/oneside_on_target.h"
+#include "tapas/hot/source_side_let.h"
 #include "tapas/iterator.h"
 
 namespace {
@@ -84,9 +84,14 @@ class Cell {
   //========================================================
  public: // public type usings
 
-  friend struct TargetSideLET<TSP>;
+#if 0
   using LET = TargetSideLET<TSP>;
-
+#else
+  using LET = SourceSideLET<TSP>;
+#endif
+  
+  friend LET;
+  
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
   using SFC = typename TSP::SFC;
