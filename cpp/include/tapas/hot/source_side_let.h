@@ -499,10 +499,10 @@ struct SourceSideLET {
     // Traverse
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
-    KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
-    KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
+    KeySet send_attr_keys; // cells of which attributes are to be transfered from remotes to local
+    KeySet send_leaf_keys; // cells of which bodies are to be transfered from remotes to local
     LetInspectorAction callback(data, req_cell_attr_keys, req_leaf_keys);
-    LetInspectorAction callback2(data, req_cell_attr_keys2, req_leaf_keys2);
+    LetInspectorAction callback2(data, send_attr_keys, send_leaf_keys);
 
     double bt, et;
     double bt2, et2;
@@ -519,9 +519,9 @@ struct SourceSideLET {
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
 
     // Test source-side LET inspection
-    tapas::debug::BarrierExec([&](int rank, int) {
-        req_cell_attr_keys2.clear();
-        req_leaf_keys2.clear();
+    tapas::debug::BarrierExec([&](int, int) {
+        send_attr_keys.clear();
+        send_leaf_keys.clear();
         bt2 = MPI_Wtime();
         for (int r = 0; r < data.mpi_size_; r++) {
           if (r != data.mpi_rank_) {
@@ -529,9 +529,6 @@ struct SourceSideLET {
           }
         }
         et2 = MPI_Wtime();
-        std::cout << "In rank " << rank << std::endl;
-        std::cout << "    req_leaf_keys2.size()=" << req_leaf_keys2.size() << std::endl;
-        std::cout << "    req_cell_attr_keys2.size()=" << req_cell_attr_keys2.size() << std::endl;
       });
 #endif
 
@@ -543,6 +540,13 @@ struct SourceSideLET {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
       std::cout << "Inspector2 : " << std::scientific << (et2-bt2) << " [s]" << std::endl;
     }
+    tapas::debug::BarrierExec([&](int rank, int) {
+        std::cout << "In rank " << rank << std::endl;
+        std::cout << "    req_leaf_keys.size()=" << req_leaf_keys.size() << std::endl;
+        std::cout << "    req_cell_attr_keys.size()=" << req_cell_attr_keys.size() << std::endl;
+        std::cout << "    send_leaf_keys.size()=" << send_leaf_keys.size() << std::endl;
+        std::cout << "    send_attr_keys.size()=" << send_attr_keys.size() << std::endl;
+      });
 
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 
@@ -561,41 +565,41 @@ struct SourceSideLET {
     std::vector<CellAttr> res_cell_attrs;
     std::vector<BodyType> res_bodies;
     std::vector<index_t> res_nb; // number of bodies responded from remote processes
+    
     Response(root.data(),
              res_cell_attr_keys, attr_src,
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
-    tapas::debug::BarrierExec([&](int rank, int) {
-        return;
-        if (rank == 0) {
-          std::vector<KeyType> keys(std::begin(res_cell_attr_keys), std::end(res_cell_attr_keys));
-          std::cout << "Original (oneside on target LET)" << std::endl;
-          std::cout << "\tFrom 1 to 0:" << std::endl;
-          std::cout << "\tSize=" << res_cell_attr_keys.size() << std::endl;
-          std::cout << "\tAttr keys" << std::endl;
-          std::sort(std::begin(keys), std::end(keys));
-          for (auto k : keys) {
-            std::cout << "\t" << SFC::Simplify(k) << std::endl;
-          }
-          std::cout << std::endl;
-        }
-
-        if (rank == 1) {
-          std::vector<KeyType> keys(std::begin(req_cell_attr_keys2), std::end(req_cell_attr_keys2));
-          std::cout << "Source side LET" << std::endl;
-          std::cout << "\tFrom 1 to 0:" << std::endl;
-          std::cout << "\tSize=" << req_cell_attr_keys2.size() << std::endl;
-          std::cout << "\tAttr keys" << std::endl;
-          std::sort(std::begin(keys), std::end(keys));
-          for (auto k : keys) {
-            std::cout << "\t" << SFC::Simplify(k) << std::endl;
-          }
-          std::cout << std::endl;
-        }
-      });
-
     // Register
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
+
+    // tapas::debug::BarrierExec([&](int rank, int) {
+    //     if (rank == 0) {
+    //       std::vector<KeyType> keys(std::begin(res_cell_attr_keys), std::end(res_cell_attr_keys));
+    //       std::cout << "Original (oneside on target LET)" << std::endl;
+    //       std::cout << "\tFrom 1 to 0:" << std::endl;
+    //       std::cout << "\tSize=" << res_cell_attr_keys.size() << std::endl;
+    //       std::cout << "\tAttr keys" << std::endl;
+    //       std::sort(std::begin(keys), std::end(keys));
+    //       for (auto k : keys) {
+    //         std::cout << "\t" << SFC::Simplify(k) << std::endl;
+    //       }
+    //       std::cout << std::endl;
+    //     }
+
+    //     if (rank == 1) {
+    //       std::vector<KeyType> keys(std::begin(send_attr_keys), std::end(send_attr_keys));
+    //       std::cout << "Source side LET" << std::endl;
+    //       std::cout << "\tFrom 1 to 0:" << std::endl;
+    //       std::cout << "\tSize=" << send_attr_keys.size() << std::endl;
+    //       std::cout << "\tAttr keys" << std::endl;
+    //       std::sort(std::begin(keys), std::end(keys));
+    //       for (auto k : keys) {
+    //         std::cout << "\t" << SFC::Simplify(k) << std::endl;
+    //       }
+    //       std::cout << std::endl;
+    //     }
+    //   });
 
 #ifdef TAPAS_DEBUG_DUMP
     DebugDumpCells(root.data());
