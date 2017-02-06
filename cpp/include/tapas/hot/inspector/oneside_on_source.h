@@ -176,7 +176,7 @@ class OnesideOnSource {
     IntrFlag flg = ProxyCellF::PredSplit2(trg_key, src_key, data_, f, args...);
     
     bool is_src_lf = data_.ht_[src_key]->IsLeaf();
-    TAPAS_ASSERT(!(is_src_lf && flg.IsSplitR())); (void) is_src_leaf;
+    TAPAS_ASSERT(!(is_src_lf && flg.IsSplitR())); (void) is_src_lf;
 
     CellType *tc = data_.ht_.count(trg_key) > 0
                    ? data_.ht_[trg_key]

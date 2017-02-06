@@ -455,27 +455,28 @@ struct TargetSideLET {
    * TODO: LET用にセルをリスト追加するアクションのクラス
    */
   class LetInspectorAction {
+    using HT = typename Cell<TSP>::CellHashTable;
+    const HT &ht_;
+    const HT &ht_gtree_;
     KeySet &attr_keys_; // cell keys
     KeySet &leaf_keys_; // leaf keys
    public:
-    LetInspectorAction(KeySet &attr_keys, KeySet &leaf_keys)
-        : attr_keys_(attr_keys)
+    LetInspectorAction(const Data &data, KeySet &attr_keys, KeySet &leaf_keys)
+        : ht_(data.ht_)
+        , ht_gtree_(data.ht_gtree_)
+        , attr_keys_(attr_keys)
         , leaf_keys_(leaf_keys)
     { }
     
     inline bool operator()(KeyType /* trg_key */, bool /* is_trg_leaf */,
                            KeyType src_key, bool is_src_leaf,
                            IntrFlag splt) {
-      if (splt.IsReadAttrR() || splt.IsSplitR()) {
+      if (splt.IsReadAttrR() || splt.IsSplitR() || splt.IsApprox()) {
         attr_keys_.insert(src_key);
       }
       
       if (is_src_leaf) {
         leaf_keys_.insert(src_key);
-      }
-
-      if (splt.IsApprox()) {
-        attr_keys_.insert(src_key);
       }
 
       return true;
@@ -500,10 +501,11 @@ struct TargetSideLET {
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
     KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
-    LetInspectorAction callback(req_cell_attr_keys, req_leaf_keys);
-    LetInspectorAction callback2(req_cell_attr_keys2, req_leaf_keys2);
+    LetInspectorAction callback(data, req_cell_attr_keys, req_leaf_keys);
+    LetInspectorAction callback2(data, req_cell_attr_keys2, req_leaf_keys2);
 
-    double bt = MPI_Wtime();
+    double bt, et;
+    double bt2, et2;
 
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
@@ -517,20 +519,29 @@ struct TargetSideLET {
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
 
     // Test source-side LET inspection
-    tapas::debug::BarrierExec([&](int, int) {
+    tapas::debug::BarrierExec([&](int rank, int) {
+        req_cell_attr_keys2.clear();
+        req_leaf_keys2.clear();
+        bt2 = MPI_Wtime();
         for (int r = 0; r < data.mpi_size_; r++) {
           if (r != data.mpi_rank_) {
             inspector2.Inspect(r, root.key(), callback2, f, args...);
           }
         }
+        et2 = MPI_Wtime();
+        std::cout << "In rank " << rank << std::endl;
+        std::cout << "    req_leaf_keys2.size()=" << req_leaf_keys2.size() << std::endl;
+        std::cout << "    req_cell_attr_keys2.size()=" << req_cell_attr_keys2.size() << std::endl;
       });
 #endif
 
+    bt = MPI_Wtime();
     inspector.Inspect(root, callback, f, args...);
+    et = MPI_Wtime();
 
-    double et = MPI_Wtime();
     if (root.data().mpi_rank_ == 0) {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
+      std::cout << "Inspector2 : " << std::scientific << (et2-bt2) << " [s]" << std::endl;
     }
 
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
@@ -554,14 +565,33 @@ struct TargetSideLET {
              res_cell_attr_keys, attr_src,
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "From 1 to 0:" << std::endl;
-      std::cout << "Attr keys" << std::endl;
-      for (auto k : res_cell_attr_keys) {
-        std::cout << SFC::Simplify(k) << std::endl;
-      }
-      std::cout << std::endl;
-    }
+    tapas::debug::BarrierExec([&](int rank, int) {
+        if (rank == 0) {
+          std::vector<KeyType> keys(std::begin(res_cell_attr_keys), std::end(res_cell_attr_keys));
+          std::cout << "Original (oneside on target LET)" << std::endl;
+          std::cout << "\tFrom 1 to 0:" << std::endl;
+          std::cout << "\tSize=" << res_cell_attr_keys.size() << std::endl;
+          std::cout << "\tAttr keys" << std::endl;
+          std::sort(std::begin(keys), std::end(keys));
+          for (auto k : keys) {
+            std::cout << "\t" << SFC::Simplify(k) << std::endl;
+          }
+          std::cout << std::endl;
+        }
+
+        if (rank == 1) {
+          std::vector<KeyType> keys(std::begin(req_cell_attr_keys2), std::end(req_cell_attr_keys2));
+          std::cout << "Source side LET" << std::endl;
+          std::cout << "\tFrom 1 to 0:" << std::endl;
+          std::cout << "\tSize=" << req_cell_attr_keys2.size() << std::endl;
+          std::cout << "\tAttr keys" << std::endl;
+          std::sort(std::begin(keys), std::end(keys));
+          for (auto k : keys) {
+            std::cout << "\t" << SFC::Simplify(k) << std::endl;
+          }
+          std::cout << std::endl;
+        }
+      });
 
     // Register
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
