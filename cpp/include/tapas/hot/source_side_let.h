@@ -392,6 +392,7 @@ struct SourceSideLET {
       const CellAttr &attr = std::get<1>(tpl);
 
       if (data.ht_.count(k) > 0) {
+        // This cell is already a local cell.
         continue;
       }
 
@@ -411,14 +412,28 @@ struct SourceSideLET {
 
     size_t body_ofst = data.let_bodies_.size();
 
+    //size_t bo = 0; // body_ofst for debug
     // Register bodies
     for (auto &&tpl : recv_leaves) {
       KeyType k = std::get<0>(tpl);
       int nb = std::get<1>(tpl);
-
       Cell<TSP> *c = nullptr;
+
       if (data.ht_let_.count(k) > 0) {
         c = data.ht_let_.at(k);
+
+        // // debug
+        // std::cout << "Register2: " << SFC::Simplify(k) << " " << "isleaf=" << c->IsLeaf() << std::endl;
+        // std::cout << "           " << c->nb() << " == " << nb << std::endl;
+        // for (size_t ib = 0; ib < c->nb(); ib++, bo++) {
+        //   std::cout << "            body " << ib  << std::endl;
+        //   std::cout << "           " << c->body(ib).X << std::endl;
+        //   std::cout << "           " << std::get<0>(recv_bodies[bo]).X << std::endl;
+        //   std::cout << "           " << c->body_attr(ib) << std::endl;
+        //   std::cout << "           " << std::get<1>(recv_bodies[bo]) << std::endl;
+        //   std::cout << std::endl;
+        // }
+        
       } else if (data.ht_gtree_.count(k) > 0) {
         c = data.ht_gtree_.at(k);
         if (!c->IsLeaf()) {
@@ -433,12 +448,13 @@ struct SourceSideLET {
         c = Cell<TSP>::CreateRemoteCell(k, 1, &data);
         data.ht_let_[k] = c;
       }
-
+      
       c->is_leaf_ = true;
       c->nb_ = nb;
+      c->is_local_ = false;
       c->bid_ = body_ofst++;
     }
-
+    
     // copy body data to data.let_bodies_.
     std::transform(std::begin(recv_bodies), std::end(recv_bodies),
                    std::back_inserter(data.let_bodies_),
@@ -455,7 +471,7 @@ struct SourceSideLET {
       std::cout << "Register2: " << (end - beg) << " [s]" << std::endl;
     }
   }
-
+  
   /**
    * \breif Register the received response cells to local LET hash table
    * \param [in,out] data Data structure (cells are registered to data->ht_lt_)
@@ -705,7 +721,8 @@ struct SourceSideLET {
         std::cout << "    send_attr_keys.size()=" << send_attr_keys.size() << std::endl;
       });
 
-#if 1
+#if 0
+
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 
     // We need to convert the sets to vectors
@@ -735,7 +752,7 @@ struct SourceSideLET {
 #ifdef TAPAS_DEBUG_DUMP
     DebugDumpCells(root.data());
 #endif
-    
+
 #else
     std::vector<std::tuple<KeyType, CellAttr>>  recv_attrs;  // received keys and cell attributes
     std::vector<std::tuple<KeyType, int>>       recv_leaves; // keys of received bodies and numbers of bodies.
@@ -745,9 +762,10 @@ struct SourceSideLET {
     recv_attrs = ExchCellAttrs(root.data(), send_attr_keys2);
     std::tie(recv_leaves, recv_bodies) = ExchBodies(root.data(), send_leaf_keys2);
 
-    // Register received cell to the local hash table
-    Register2(data, recv_attrs, recv_leaves, recv_bodies);
-
+    tapas::debug::BarrierExec([&](int, int) {
+        // Register received cell to the local hash table
+        Register2(data, recv_attrs, recv_leaves, recv_bodies);
+      });
 #endif
 
     double end = MPI_Wtime();
