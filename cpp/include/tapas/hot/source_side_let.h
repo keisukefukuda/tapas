@@ -366,7 +366,6 @@ struct SourceSideLET {
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
 
-
     data.let_bodies_.assign(std::begin(res_bodies), std::end(res_bodies));
     data.let_body_attrs_.resize(res_bodies.size());
     bzero(&data.let_body_attrs_[0], data.let_body_attrs_.size() * sizeof(data.let_body_attrs_[0]));
@@ -375,6 +374,86 @@ struct SourceSideLET {
 
     et_all = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
+  }
+
+  // Register received cells into the local hashtable (ht_let_)
+  static void Register2(Data &data,
+                        const std::vector<std::tuple<KeyType, CellAttr>> &recv_keys,
+                        const std::vector<std::tuple<KeyType, int>> &recv_leaves,
+                        const std::vector<std::tuple<BodyType, BodyAttrType>> &recv_bodies) {
+    //using CTpl = std::tuple<KeyType, CellAttr>; // cell attr tuple
+    //using LTpl = std::tuple<KeyType, int>;      // leave tuple
+    using BTpl = std::tuple<BodyType, BodyAttrType>;
+
+    double beg = MPI_Wtime();
+
+    for (auto &&tpl : recv_keys) {
+      KeyType k = std::get<0>(tpl);
+      const CellAttr &attr = std::get<1>(tpl);
+
+      if (data.ht_.count(k) > 0) {
+        continue;
+      }
+
+      Cell<TSP> *c = nullptr;
+
+      if (data.ht_gtree_.count(k) > 0) {
+        c = data.ht_gtree_.at(k);
+      } else {
+        c = Cell<TSP>::CreateRemoteCell(k, 0, &data);
+      }
+      c->attr() = attr;
+      c->is_leaf_ = false;
+      c->nb_ = 0;
+      c->bid_ = 0;
+      data.ht_let_[k] = c;
+    }
+
+    size_t body_ofst = data.let_bodies_.size();
+
+    // Register bodies
+    for (auto &&tpl : recv_leaves) {
+      KeyType k = std::get<0>(tpl);
+      int nb = std::get<1>(tpl);
+
+      Cell<TSP> *c = nullptr;
+      if (data.ht_let_.count(k) > 0) {
+        c = data.ht_let_.at(k);
+      } else if (data.ht_gtree_.count(k) > 0) {
+        c = data.ht_gtree_.at(k);
+        if (!c->IsLeaf()) {
+          // if the 'already-local' cell is a non-leaf cell, update the cell information
+          c->is_local_ = false;
+        } else {
+          // if it is a leaf, then the received cell is not necessary.
+          continue;
+        }
+      } else {
+        // The received cell is not in local memory.
+        c = Cell<TSP>::CreateRemoteCell(k, 1, &data);
+        data.ht_let_[k] = c;
+      }
+
+      c->is_leaf_ = true;
+      c->nb_ = nb;
+      c->bid_ = body_ofst++;
+    }
+
+    // copy body data to data.let_bodies_.
+    std::transform(std::begin(recv_bodies), std::end(recv_bodies),
+                   std::back_inserter(data.let_bodies_),
+                   [](const BTpl &t) { return std::get<0>(t); });
+
+    // copy body attr data to data.let_body_attrs_.
+    std::transform(std::begin(recv_bodies), std::end(recv_bodies),
+                   std::back_inserter(data.let_body_attrs_),
+                   [](const BTpl &t) { return std::get<1>(t); });
+    
+    double end = MPI_Wtime();
+
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "Register2: " << (end - beg) << " [s]" << std::endl;
+    }
   }
 
   /**
@@ -485,18 +564,6 @@ struct SourceSideLET {
 
   std::vector<std::tuple<KeyType, CellAttr>>
   static ExchCellAttrs(const Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
-    tapas::debug::BarrierExec([&](int rank, int size) {
-        std::cout << "ExchCellAttrs rank " << rank << std::endl;
-        for (int i = 0; i < size; i++) {
-          if (i != rank) {
-            std::cout << "\tto Rank " << i << " send " << attr_keys.at(i).size() << std::endl;
-            for (KeyType k : attr_keys.at(i)) {
-              std::cout << "\t        " << k << std::endl;
-            }
-          }
-        }
-      });
- 
     using KATuple = std::tuple<KeyType, CellAttr>;
     std::vector<int> send_count(data.mpi_size_);
     std::vector<KATuple> send_buf;
@@ -519,92 +586,51 @@ struct SourceSideLET {
     std::vector<int> recv_count;
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
 
-    tapas::debug::BarrierExec([&](int rank, int size) {
-        size_t pos = 0;
-        std::cout << "ExchCellAttrs rank " << rank << std::endl;
-        for (int i = 0; i < size; i++) {
-          if (i != rank) {
-            std::cout << "\tfrom Rank " << i << " received " << recv_count[i] << std::endl;
-            for (int j = 0; j < recv_count[i]; j++, pos++) {
-              std::cout << "\t          " << std::get<0>(recv_buf[pos]) << std::endl;
-            }
-          }
-        }
-      });
     return recv_buf;
   }
 
-  std::tuple<std::vector<std::tuple<KeyType, int>>, std::vector<BodyType>>
+  /**
+   *
+   */
+  std::tuple<std::vector<std::tuple<KeyType, int>>,
+             std::vector<std::tuple<BodyType, BodyAttrType>>>
   static ExchBodies(const Data &data,  const std::unordered_map<int, KeySet> &leaf_keys) {
-    tapas::debug::BarrierExec([&](int rank, int size) {
-        std::cout << "ExchBodies rank " << rank << std::endl;
-        for (int i = 0; i < size; i++) {
-          if (i != rank) {
-            for (KeyType k : leaf_keys.at(i)) {
-              for (size_t j = 0; j < data.ht_.at(k)->nb(); j++) {
-                const BodyType &b = data.ht_.at(k)->body(j);
-                std::cout << "\t          " << b.X << std::endl;
-              }
-            }
-          }
-        }
-      });
-
-    using KBTuple = std::tuple<KeyType, int>; // pair of leaf key and the number of its bodies
+    using KTuple = std::tuple<KeyType, int>; // pair of leaf key and the number of its bodies
+    using BTuple = std::tuple<BodyType, BodyAttrType>;
     
     // first, exchange leaf keys and the number of bodies
     std::vector<int> send_count(data.mpi_size_), send_count_bodies(data.mpi_size_);
-    std::vector<KBTuple> send_buf;
-    std::vector<BodyType> send_buf_bodies;
+    std::vector<KTuple> send_buf;
+    std::vector<BTuple> send_buf_bodies;
 
     for (int r = 0; r < data.mpi_size_; r++) {
       if (r == data.mpi_rank_ || leaf_keys.count(r) == 0) { continue; }
       const auto &keys = leaf_keys.at(r);
-
       int nb_rank_total = 0; // total number of bodies sent to rank r
-      size_t pos = send_buf.size();
-      send_buf.resize(send_buf.size() + keys.size());
       send_count[r] = keys.size();
 
-      std::cout << "keys.size() = " << keys.size() << std::endl;
-
+      // pack bodies and body attributes into send_buf_bodies
       for (KeyType k: keys) {
         TAPAS_ASSERT(data.ht_.count(k) > 0 && data.ht_.at(k)->IsLeaf());
         const CellType &c = *(data.ht_.at(k));
         int nb = c.nb();
-        send_buf[pos] = std::make_pair(k, nb);
-        if (nb > 0) {
-          send_buf_bodies.insert(std::end(send_buf_bodies), &(c.body(0)), &(c.body(0))+nb);
+        send_buf.push_back(std::make_pair(k, nb));
+        for (int i = 0; i < nb; i++) {
+          send_buf_bodies.push_back(std::make_tuple(c.body(i), c.body_attr(i)));
         }
-        pos++;
         nb_rank_total += nb;
       }
-      TAPAS_ASSERT(pos == send_buf.size());
       send_count_bodies[r] = nb_rank_total;
     }
 
-    std::vector<KBTuple> recv_buf;
-    std::vector<int> recv_count;
-    std::vector<BodyType> recv_buf_bodies;
-    std::vector<int> recv_count_bodies;
+    std::vector<KTuple> recv_keys;
+    std::vector<int>    recv_keys_cnt;
+    std::vector<BTuple> recv_bodies;
+    std::vector<int>    recv_bodies_cnt;
 
-    tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
-    tapas::mpi::Alltoallv(send_buf_bodies, send_count_bodies, recv_buf_bodies, recv_count_bodies, data.mpi_comm_);
-
-    tapas::debug::BarrierExec([&](int rank, int size) {
-        std::cout << "ExchBodies rank " << rank << std::endl;
-        for (int i = 0; i < size; i++) {
-          if (i != rank) {
-            std::cout << "\tfrom Rank " << i << " received " << recv_count[i] << " leaves" << std::endl;
-            std::cout << "\t          " << i << " received " << recv_count_bodies[i] << " bodies" << std::endl;
-          }
-        }
-        for (BodyType &b : recv_buf_bodies) {
-          std::cout << "\t          " << b.X << std::endl;
-        }
-      });
-    
-    return std::make_tuple(recv_buf, recv_buf_bodies);
+    tapas::mpi::Alltoallv(send_buf, send_count, recv_keys, recv_keys_cnt, data.mpi_comm_);
+    tapas::mpi::Alltoallv(send_buf_bodies, send_count_bodies, recv_bodies, recv_bodies_cnt, data.mpi_comm_);
+    return std::make_tuple(recv_keys, recv_bodies);
   }
     
   /**
@@ -679,13 +705,7 @@ struct SourceSideLET {
         std::cout << "    send_attr_keys.size()=" << send_attr_keys.size() << std::endl;
       });
 
-    std::vector<std::tuple<KeyType, CellAttr>> recv_attrs;
-    std::vector<std::tuple<KeyType, int>> recv_leaves;
-    std::vector<BodyType> recv_bodies;
-
-    recv_attrs = ExchCellAttrs(root.data(), send_attr_keys2);
-    std::tie(recv_leaves, recv_bodies) = ExchBodies(root.data(), send_leaf_keys2);
-    
+#if 1
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 
     // We need to convert the sets to vectors
@@ -709,38 +729,25 @@ struct SourceSideLET {
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
     // Register
+
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
-
-    // tapas::debug::BarrierExec([&](int rank, int) {
-    //     if (rank == 0) {
-    //       std::vector<KeyType> keys(std::begin(res_cell_attr_keys), std::end(res_cell_attr_keys));
-    //       std::cout << "Original (oneside on target LET)" << std::endl;
-    //       std::cout << "\tFrom 1 to 0:" << std::endl;
-    //       std::cout << "\tSize=" << res_cell_attr_keys.size() << std::endl;
-    //       std::cout << "\tAttr keys" << std::endl;
-    //       std::sort(std::begin(keys), std::end(keys));
-    //       for (auto k : keys) {
-    //         std::cout << "\t" << SFC::Simplify(k) << std::endl;
-    //       }
-    //       std::cout << std::endl;
-    //     }
-
-    //     if (rank == 1) {
-    //       std::vector<KeyType> keys(std::begin(send_attr_keys), std::end(send_attr_keys));
-    //       std::cout << "Source side LET" << std::endl;
-    //       std::cout << "\tFrom 1 to 0:" << std::endl;
-    //       std::cout << "\tSize=" << send_attr_keys.size() << std::endl;
-    //       std::cout << "\tAttr keys" << std::endl;
-    //       std::sort(std::begin(keys), std::end(keys));
-    //       for (auto k : keys) {
-    //         std::cout << "\t" << SFC::Simplify(k) << std::endl;
-    //       }
-    //       std::cout << std::endl;
-    //     }
-    //   });
 
 #ifdef TAPAS_DEBUG_DUMP
     DebugDumpCells(root.data());
+#endif
+    
+#else
+    std::vector<std::tuple<KeyType, CellAttr>>  recv_attrs;  // received keys and cell attributes
+    std::vector<std::tuple<KeyType, int>>       recv_leaves; // keys of received bodies and numbers of bodies.
+    std::vector<std::tuple<BodyType, BodyAttr>> recv_bodies; // received bodies and body attributes
+
+    // perform MPI communication and exchange necessary data
+    recv_attrs = ExchCellAttrs(root.data(), send_attr_keys2);
+    std::tie(recv_leaves, recv_bodies) = ExchBodies(root.data(), send_leaf_keys2);
+
+    // Register received cell to the local hash table
+    Register2(data, recv_attrs, recv_leaves, recv_bodies);
+
 #endif
 
     double end = MPI_Wtime();
