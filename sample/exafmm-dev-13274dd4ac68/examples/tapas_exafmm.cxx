@@ -166,7 +166,19 @@ struct FMM_DTT {
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-      TapasFMM::Map(P2P_Kernel(), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
+      if (tapas::mpi::Rank() == 0) {
+        if (Cj.key() == BUG_KEY && !Cell::Inspector) {
+          std::cout << "P2P: P2P: cell " << Cj.key() << " " << Cj.attr().M << std::endl;
+          for (int i = 0; i < Cj.nb(); i++) {
+            std::cout << "P2P: P2P: body " << i << " " << Cj.body(i).X << " "
+                      << Cj.body(i).SRC << " "
+                //<< Cj.body(i).TRG << " "
+                //<< Cj.body_attr(i)
+                      << std::endl;
+          }
+        }
+      }
+      TapasFMM::Map(P2P_Kernel(false), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
     } else {                                 // Else if cells are close but not bodies
       tapas_splitCell(Ci, Cj, Ri, Rj, theta);//  Split cell and call function recursively for child
     }                                        // End if for multipole acceptance
@@ -266,7 +278,7 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
               for (int j = 0; j < Cj->NBODY; j++) {
                 // By passing true to thte ctor of P2P class,
                 // debug print in P2P::operator() is enabled. See LaplhaseP2PCPU_tapas.cxx
-                P2P(true)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
+                P2P(false)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
               }
             }
           }
@@ -555,9 +567,9 @@ int main(int argc, char ** argv) {
 
     TAPAS_LOG_DEBUG() << "L2P done\n";
 
-#ifdef TAPAS_DEBUG_DUMP
+    //#ifdef TAPAS_DEBUG_DUMP
     dumpBodies(*root);
-#endif
+    //#endif
 
     // Copy BodyAttr values back to Body
 

@@ -18,6 +18,9 @@
 
 using tapas::debug::BarrierExec;
 
+#define BUG_KEY (2738188573441261570L)
+//#define USE_OLD_LET
+
 namespace tapas {
 namespace hot {
 
@@ -412,6 +415,16 @@ struct SourceSideLET {
 
     size_t body_ofst = data.let_bodies_.size();
 
+    // copy body data to data.let_bodies_.
+    std::transform(std::begin(recv_bodies), std::end(recv_bodies),
+                   std::back_inserter(data.let_bodies_),
+                   [](const BTpl &t) { return std::get<0>(t); });
+
+    // copy body attr data to data.let_body_attrs_.
+    std::transform(std::begin(recv_bodies), std::end(recv_bodies),
+                   std::back_inserter(data.let_body_attrs_),
+                   [](const BTpl &t) { return std::get<1>(t); });
+    
     //size_t bo = 0; // body_ofst for debug
     // Register bodies
     for (auto &&tpl : recv_leaves) {
@@ -441,6 +454,7 @@ struct SourceSideLET {
           c->is_local_ = false;
         } else {
           // if it is a leaf, then the received cell is not necessary.
+          body_ofst += nb;
           continue;
         }
       } else {
@@ -452,24 +466,26 @@ struct SourceSideLET {
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->is_local_ = false;
-      c->bid_ = body_ofst++;
+      c->bid_ = body_ofst;
+      if (c->key() == BUG_KEY) {
+        std::cout << "P2P: Reg: cell " << c->key() << " " << c->attr().M << std::endl;
+        for (int i = 0; i < c->nb(); i++) {
+          std::cout << "P2P: Reg: body " << i << " " << c->body(i).X << " "
+                    << c->body(i).SRC << " "
+              //<< c->body(i).TRG << " "
+              //<< c->body_attr(i)
+                    << "body offset=" << (body_ofst-1+i)
+                    << std::endl;
+        }
+      }
+      body_ofst += nb;
     }
-    
-    // copy body data to data.let_bodies_.
-    std::transform(std::begin(recv_bodies), std::end(recv_bodies),
-                   std::back_inserter(data.let_bodies_),
-                   [](const BTpl &t) { return std::get<0>(t); });
-
-    // copy body attr data to data.let_body_attrs_.
-    std::transform(std::begin(recv_bodies), std::end(recv_bodies),
-                   std::back_inserter(data.let_body_attrs_),
-                   [](const BTpl &t) { return std::get<1>(t); });
     
     double end = MPI_Wtime();
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << "Register2: " << (end - beg) << " [s]" << std::endl;
-    }
+    // if (tapas::mpi::Rank() == 0) {
+    //   std::cout << "Register: " << (end - beg) << " [s]" << std::endl;
+    // }
   }
   
   /**
@@ -502,6 +518,10 @@ struct SourceSideLET {
       c->nb_ = 0;
       c->bid_ = 0;
       data->ht_let_[k] = c;
+      
+      if (c->key() == 2738188573441261570) {
+        std::cout << "Register: cell attr " << c->key() << " " << c->attr().M << std::endl;
+      }
     }
 
     TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
@@ -539,6 +559,15 @@ struct SourceSideLET {
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->bid_ = cur_body_offset;
+
+      if (c->key() == 2738188573441261570) {
+        std::cout << "Register: body " << c->key() << " " << c->attr().M << std::endl;
+        for (int i = 0; i < c->nb(); i++) {
+          std::cout << "body " << i << " " << c->body(i).X << " "
+                    << c->body(i).SRC << " "
+                    << c->body_attr(i) << std::endl;
+        }
+      }
     }
 
     double end = MPI_Wtime();
@@ -613,6 +642,8 @@ struct SourceSideLET {
   static ExchBodies(const Data &data,  const std::unordered_map<int, KeySet> &leaf_keys) {
     using KTuple = std::tuple<KeyType, int>; // pair of leaf key and the number of its bodies
     using BTuple = std::tuple<BodyType, BodyAttrType>;
+
+    // leaf_keys = rank :: int -> keys :: set<KeyType>
     
     // first, exchange leaf keys and the number of bodies
     std::vector<int> send_count(data.mpi_size_), send_count_bodies(data.mpi_size_);
@@ -630,8 +661,22 @@ struct SourceSideLET {
         TAPAS_ASSERT(data.ht_.count(k) > 0 && data.ht_.at(k)->IsLeaf());
         const CellType &c = *(data.ht_.at(k));
         int nb = c.nb();
+
+        if (k == BUG_KEY) {
+          std::cout << "P2P: Send: cell " << k << " " << c.attr().M << std::endl;
+          for (int i = 0; i < nb; i++) {
+            std::cout << "P2P: Send: body " << i << " " << c.body(i).X << " "
+                      << c.body(i).SRC << " "
+                //<< c.body(i).TRG << " "
+                //<< c.body_attr(i)
+                      << "offset=" << (send_buf_bodies.size() + i) << " "
+                      << std::endl;
+          }
+        }
+
         send_buf.push_back(std::make_pair(k, nb));
         for (int i = 0; i < nb; i++) {
+          std::cout << "offset: " << k << " " << i << " " << send_buf_bodies.size() << std::endl;
           send_buf_bodies.push_back(std::make_tuple(c.body(i), c.body_attr(i)));
         }
         nb_rank_total += nb;
@@ -721,7 +766,8 @@ struct SourceSideLET {
         std::cout << "    send_attr_keys.size()=" << send_attr_keys.size() << std::endl;
       });
 
-#if 0
+
+#ifdef USE_OLD_LET
 
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
 

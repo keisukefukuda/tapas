@@ -293,6 +293,10 @@ class OnesideTraversePolicy {
     return body_attrs_[idx];
   }
   
+  const BodyAttr &body_attr(index_t idx) const {
+    return body_attrs_[idx];
+  }
+  
  public:
   inline bool IsRoot() const { // being public for debugging
     return depth_ == 0;

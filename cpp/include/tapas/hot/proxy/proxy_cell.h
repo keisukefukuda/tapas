@@ -303,6 +303,17 @@ class ProxyCell : public _POLICY {
     return this->Base::body_attr(idx);
   }
 
+  const BodyAttr &body_attr(index_t idx) const {
+    // This function is inhibited.
+    // Users should use Map()/Reduce() and Cell::bodies() instead.
+    std::cerr << "[Warning] Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
+    
+    TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
+    TAPAS_ASSERT(idx < nb());
+    
+    return this->Base::body_attr(idx);
+  }
+
   const Data &data() const { return data_; }
 
   static int IncIfNotNull(int *p) {
