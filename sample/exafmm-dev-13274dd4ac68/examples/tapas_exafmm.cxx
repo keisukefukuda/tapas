@@ -167,9 +167,9 @@ struct FMM_DTT {
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
       TapasFMM::Map(P2P_Kernel(false), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
-    } else {                                 // Else if cells are close but not bodies
-      tapas_splitCell(Ci, Cj, Ri, Rj, theta);//  Split cell and call function recursively for child
-    }                                        // End if for multipole acceptance
+    } else {                                            // Else if cells are close but not bodies
+      tapas_splitCell(Ci, Cj, Ri, Rj, theta);           //  Split cell and call function recursively for child
+    }                                                   // End if for multipole acceptance
   }
 
   template<class Cell>
@@ -178,18 +178,9 @@ struct FMM_DTT {
     
     if (Cj.IsLeaf()) {
       assert(!Ci.IsLeaf());                                   //  Make sure Ci is not leaf
-      //for (C_iter ci=Ci0+Ci->ICHILD; ci!=Ci0+Ci->ICHILD+Ci->NCHILD; ci++) {// Loop over Ci's children
-      //  traverse(ci, Cj, Xperiodic, remote);                //   Traverse a single pair of cells
-      //}                                                     //
-      //End loop over Ci's children
       TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj), theta);
     } else if (Ci.IsLeaf()) {                                   // Else if Ci is leaf
-      //} else if (Ci.IsLeaf()) {                             // Else if Ci is leaf
       assert(!Cj.IsLeaf());                                   //  Make sure Cj is not leaf
-      //for (C_iter cj=Cj0+Cj->ICHILD; cj!=Cj0+Cj->ICHILD+Cj->NCHILD; cj++) {// Loop over Cj's children
-      //  traverse(Ci, cj, Xperiodic, remote);                //   Traverse a single pair of cells
-      //}                                                     //
-      //End loop over Cj's children
       TapasFMM::Map(*this, tapas::Product(Ci, Cj.subcells()), theta);
     } else if (Ci == Cj) {
       TapasFMM::Map(*this, tapas::Product(Ci.subcells(), Cj.subcells()), theta);
