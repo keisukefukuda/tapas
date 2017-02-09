@@ -166,18 +166,6 @@ struct FMM_DTT {
     if (R2 > (Ri + Rj) * (Ri + Rj)) {                   // If distance is far enough
       M2L(Ci, Cj, Xperiodic);                           //  M2L kernel
     } else if (Ci.IsLeaf() && Cj.IsLeaf()) {            // Else if both cells are bodies
-      if (tapas::mpi::Rank() == 0) {
-        if (Cj.key() == BUG_KEY && !Cell::Inspector) {
-          std::cout << "P2P: P2P: cell " << Cj.key() << " " << Cj.attr().M << std::endl;
-          for (int i = 0; i < Cj.nb(); i++) {
-            std::cout << "P2P: P2P: body " << i << " " << Cj.body(i).X << " "
-                      << Cj.body(i).SRC << " "
-                //<< Cj.body(i).TRG << " "
-                //<< Cj.body_attr(i)
-                      << std::endl;
-          }
-        }
-      }
       TapasFMM::Map(P2P_Kernel(false), tapas::Product(Ci.bodies(), Cj.bodies()), Xperiodic);
     } else {                                 // Else if cells are close but not bodies
       tapas_splitCell(Ci, Cj, Ri, Rj, theta);//  Split cell and call function recursively for child

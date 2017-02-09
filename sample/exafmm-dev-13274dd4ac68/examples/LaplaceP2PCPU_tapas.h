@@ -41,7 +41,7 @@ struct P2P {
       real_t invR = Bi.SRC * Bj.SRC * sqrt(invR2);
       dX *= invR2 * invR;
 
-#if 1
+#if 0
       if (dump) {
         std::cout << "P2P: "
             //<< "Bi " << Bi.X << " " << Bi.SRC << " "

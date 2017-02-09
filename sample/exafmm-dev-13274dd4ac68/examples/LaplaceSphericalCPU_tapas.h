@@ -295,9 +295,6 @@ void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to a
   real_t r, theta, phi;
   cart2sph(r, theta, phi, dX);
   evalMultipole(r, theta, phi, Ynm, YnmTheta);
-  if (tapas::mpi::Rank() == 0) {
-    std::cout << "L2P: before " << ba << std::endl;
-  }
   ba /= b.SRC;
   for (int n=0; n<P; n++) {
     int nm  = n * n + n;
@@ -320,10 +317,6 @@ void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to a
   ba[1] += cartesian[0];
   ba[2] += cartesian[1];
   ba[3] += cartesian[2];
-  if (tapas::mpi::Rank() == 0) {
-    std::cout << "L2P: after  " << ba << std::endl;
-    std::cout << "L2P: cartesian " << cartesian << std::endl;
-  }
 }
 
 template<class Cell>

@@ -16,10 +16,9 @@
 #include <tapas/hot/inspector/oneside_on_source.h>
 #endif
 
-using tapas::debug::BarrierExec;
+#define BUG_KEY (1224979098644774914L)
 
-#define BUG_KEY (2738188573441261570L)
-//#define USE_OLD_LET
+using tapas::debug::BarrierExec;
 
 namespace tapas {
 namespace hot {
@@ -467,17 +466,6 @@ struct SourceSideLET {
       c->nb_ = nb;
       c->is_local_ = false;
       c->bid_ = body_ofst;
-      if (c->key() == BUG_KEY) {
-        std::cout << "P2P: Reg: cell " << c->key() << " " << c->attr().M << std::endl;
-        for (int i = 0; i < c->nb(); i++) {
-          std::cout << "P2P: Reg: body " << i << " " << c->body(i).X << " "
-                    << c->body(i).SRC << " "
-              //<< c->body(i).TRG << " "
-              //<< c->body_attr(i)
-                    << "body offset=" << (body_ofst-1+i)
-                    << std::endl;
-        }
-      }
       body_ofst += nb;
     }
     
@@ -518,10 +506,6 @@ struct SourceSideLET {
       c->nb_ = 0;
       c->bid_ = 0;
       data->ht_let_[k] = c;
-      
-      if (c->key() == 2738188573441261570) {
-        std::cout << "Register: cell attr " << c->key() << " " << c->attr().M << std::endl;
-      }
     }
 
     TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
@@ -559,15 +543,6 @@ struct SourceSideLET {
       c->is_leaf_ = true;
       c->nb_ = nb;
       c->bid_ = cur_body_offset;
-
-      if (c->key() == 2738188573441261570) {
-        std::cout << "Register: body " << c->key() << " " << c->attr().M << std::endl;
-        for (int i = 0; i < c->nb(); i++) {
-          std::cout << "body " << i << " " << c->body(i).X << " "
-                    << c->body(i).SRC << " "
-                    << c->body_attr(i) << std::endl;
-        }
-      }
     }
 
     double end = MPI_Wtime();
@@ -661,22 +636,8 @@ struct SourceSideLET {
         TAPAS_ASSERT(data.ht_.count(k) > 0 && data.ht_.at(k)->IsLeaf());
         const CellType &c = *(data.ht_.at(k));
         int nb = c.nb();
-
-        if (k == BUG_KEY) {
-          std::cout << "P2P: Send: cell " << k << " " << c.attr().M << std::endl;
-          for (int i = 0; i < nb; i++) {
-            std::cout << "P2P: Send: body " << i << " " << c.body(i).X << " "
-                      << c.body(i).SRC << " "
-                //<< c.body(i).TRG << " "
-                //<< c.body_attr(i)
-                      << "offset=" << (send_buf_bodies.size() + i) << " "
-                      << std::endl;
-          }
-        }
-
         send_buf.push_back(std::make_pair(k, nb));
         for (int i = 0; i < nb; i++) {
-          std::cout << "offset: " << k << " " << i << " " << send_buf_bodies.size() << std::endl;
           send_buf_bodies.push_back(std::make_tuple(c.body(i), c.body_attr(i)));
         }
         nb_rank_total += nb;

@@ -200,9 +200,9 @@ class OnesideOnSource {
     // Condition 1: trg key is a global leaf(A) or not(B)
     // Condition 2: the split flag is SplitBoth(x), SplitR(y), or SplitL(z)
     //
-    // (2) A, x => TraverseApxlt (trg children, src children)
+    // (2) A, x => TraverseApxLT (trg children, src children)
     // (3) A, y => TraverseGT    (trg,          src children)
-    // (4) A, z => TraverseApxlt (trg children, src)
+    // (4) A, z => TraverseApxLT (trg children, src)
     // (5) B, x => TraverseGT    (trg children, src children)
     // (6) B, y => TraverseGT    (trg,          src children)
     // (7) B, z => TraverseGT    (trg children, src)
@@ -265,6 +265,9 @@ class OnesideOnSource {
     }
 
     if (data_.ht_[src_key]->IsLeaf()) {
+      // If src_key is a leaf, just mark leaf and return.
+      IntrFlag flg(IntrFlag::ReadAttrR | IntrFlag::ReadNbR);
+      callback(trg_root_key, false, src_key, true, flg);
       return;
     }
     
