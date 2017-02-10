@@ -97,7 +97,7 @@ function run() {
         fi
     fi
     accuracyCheck $TMPFILE
-    cat $TMPFILE ||:
+    # cat $TMPFILE ||:
 
     # Run the mutual version
     echoCyan ${MPIEXEC} -n ${NP} ./parallel_tapas_mutual \
@@ -118,7 +118,7 @@ function run() {
         fi
     fi
     accuracyCheck $TMPFILE
-    cat $TMPFILE ||:
+    #cat $TMPFILE ||:
 }
 
 #----------------------------------------------------------------------------
