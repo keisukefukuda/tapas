@@ -50,6 +50,8 @@ function accuracyCheck() {
 }
 
 function build() {
+    local MAKE_FLAG=""
+
     MAKE_FLAGS="MODE=release"
 
     if [[ -d "${MYTH_DIR:-}" ]]; then
@@ -58,6 +60,14 @@ function build() {
 
     if [[ "${TWOSIDE_LET:-}" == "1" ]]; then
         MAKE_FLAGS="${MAKE_FLAGS} USE_TWOSIDE_LET=1"
+    fi
+
+    if [[ "${TARGET_SIDE_LET:-}" == "1" ]]; then
+        MAKE_FLAGS="${MAKE_FLAGS} USE_TARGET_SIDE_LET=1"
+    fi
+
+    if [[ "${SOURCE_SIDE_LET:-}" == "1" ]]; then
+        MAKE_FLAGS="${MAKE_FLAGS} USE_SOURCE_SIDE_LET=1"
     fi
 
     if [[ "${USE_WEIGHT:-}" == "0" ]]; then
@@ -90,6 +100,7 @@ function run() {
         fi
     fi
     accuracyCheck $TMPFILE
+    cat $TMPFILE ||:
 
     # Run the mutual version
     echoCyan ${MPIEXEC} -n ${NP} ./parallel_tapas_mutual \
@@ -110,6 +121,7 @@ function run() {
         fi
     fi
     accuracyCheck $TMPFILE
+    cat $TMPFILE ||:
 }
 
 #----------------------------------------------------------------------------
@@ -123,16 +135,27 @@ STATUS=0
 for EQUATION in Laplace; do
 for BASIS in Spherical; do
 for WEIGHT in 0 1; do
-for TWOSIDE_LET in 0 1; do
+for LET in TWOSIDE_LET TARGET_SIDE_LET SOURCE_SIDE_LET; do
+
+unset TWOSIDE_LET
+unset TARGET_SIDE_LET
+unset SOURCE_SIDE_LET
+export $LET=1
 
 build
     
 for NP in 1 2 4; do
-for NB in 1000 2000 4000; do
-for NC in 32 64; do
-for D in c s l; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
-    echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} TWOSIDE_LET=${TWOSIDE_LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
-    run
+for NB in 1000 4000; do
+for NC in 64; do
+for D in l c s p; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
+    echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} LET=${LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
+    if [[ "$D" == "p" ]]; then
+        if [[ "$LET" == "SOURCE_SIDE_LET" ]]; then
+            run            
+        fi
+    else
+        run
+    fi
 done
 done
 done
