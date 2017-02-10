@@ -107,6 +107,7 @@ class Region {
     return sr;
   }
 
+  // Compute a bounding box of the two regions
   static Region BB(const Region &lhs, const Region &rhs) {
     Vec<Dim, FP> max, min;
     for (int d = 0; d < Dim; d++) {
