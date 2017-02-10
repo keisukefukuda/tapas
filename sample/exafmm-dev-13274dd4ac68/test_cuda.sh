@@ -8,7 +8,7 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE:-$0}")
 TAPAS_DIR=$(pushd ${SCRIPT_DIR}/../../ >/dev/null ; pwd -P; popd >/dev/null)
 
 source $TAPAS_DIR/scripts/test_common.sh
-source $TAPAS_DIR/sample/exafmm-dev-13274dd4ac68/test.sh
+source $TAPAS_DIR/sample/exafmm-dev-13274dd4ac68/test.sh load
 
 function build_cuda() {
     local SRC_DIR=$FMM_DIR/examples

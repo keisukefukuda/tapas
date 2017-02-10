@@ -16,6 +16,8 @@ cd ${FMM_DIR}/examples
 
 source $TAPAS_DIR/scripts/test_common.sh
 
+command=${1:-}
+
 #----------------------------------------------------------------------------
 # Functions
 #----------------------------------------------------------------------------
@@ -34,6 +36,7 @@ function accuracyCheck() {
     if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
+        exit -1
     else
         echoGreen pot check OK
     fi
@@ -41,6 +44,7 @@ function accuracyCheck() {
     if [[ $(python -c "print(float('$AERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
+        exit -1
     else
         echoGreen acc check OK
     fi
@@ -128,44 +132,42 @@ function run() {
 SCRIPT=$(basename $0)
 
 # Execute the main part if this file is directly executed.
-if [[ $SCRIPT == "test.sh" ]]; then
+if [[ $command != "load" ]]; then
 
     test_start
 
     STATUS=0
 
     for EQUATION in Laplace; do
-        for BASIS in Spherical; do
-            for WEIGHT in 0 1; do
-                for LET in TWOSIDE_LET TARGET_SIDE_LET SOURCE_SIDE_LET; do
+    for BASIS in Spherical; do
+    for WEIGHT in 0 1; do
+    for LET in TWOSIDE_LET TARGET_SIDE_LET SOURCE_SIDE_LET; do
+        unset TWOSIDE_LET
+        unset TARGET_SIDE_LET
+        unset SOURCE_SIDE_LET
+        export $LET=1
 
-                    unset TWOSIDE_LET
-                    unset TARGET_SIDE_LET
-                    unset SOURCE_SIDE_LET
-                    export $LET=1
-
-                    build
+        build
                     
-                    for NP in 1 2 4; do
-                        for NB in 1000 4000; do
-                            for NC in 64; do
-                                for D in l c s p; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
-                                    echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} LET=${LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
-                                    if [[ "$D" == "p" ]]; then
-                                        if [[ "$LET" == "SOURCE_SIDE_LET" ]]; then
-                                            run            
-                                        fi
-                                    else
-                                        run
-                                    fi
-                                done
-                            done
-                        done
-                    done
-
-                done
-            done
+        for NP in 1 2 4; do
+        for NB in 1000 4000; do
+        for NC in 64; do
+        for D in l c s p; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
+            echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} LET=${LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
+            if [[ "$D" == "p" ]]; then
+                if [[ "$LET" == "SOURCE_SIDE_LET" ]]; then
+                    run            
+                fi
+            else
+                run
+            fi
         done
+        done
+        done
+        done
+    done
+    done
+    done
     done
 
     echo status=$STATUS
