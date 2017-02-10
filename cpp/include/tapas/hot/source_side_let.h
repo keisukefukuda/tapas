@@ -190,7 +190,6 @@ struct SourceSideLET {
     tapas::mpi::Alltoallv2(keys_attr_send, attr_dest, keys_attr_recv, attr_src, data.mpi_type_key_, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv2(keys_body_send, body_dest, keys_body_recv, body_src, data.mpi_type_key_, MPI_COMM_WORLD);
 
-    MPI_Barrier(MPI_COMM_WORLD);
     et_comm = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-req-comm", et_comm - bt_comm);
 
@@ -214,168 +213,6 @@ struct SourceSideLET {
 
     et_all = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-req", et_all - bt_all);
-  }
-
-
-  /**
-   * \brief Select cells and send response to the requesters.
-   * \param data Data structure
-   * \param [in,out] req_attr_keys Vector of SFC keys of cells of which attributes are sent in response
-   * \param [in,out] attr_src      Vector of process ranks which requested req_attr_keys[i]
-   * \param [in,out] req_leaf_keys Vector of SFC keys of leaf cells of which bodies are sent in response
-   * \param [in,out] leaf_src      Vector of process ranks which requested req_leaf_keys[i]
-   * \param [out] res_cell_attrs Vector of cell attributes which are recieved from remote ranks
-   * \param [out] res_bodies     Vector of bodies which are received from remote ranks
-   * \param [out] res_nb         Vector of number of bodies which res_cell_attrs[i] owns.
-   *
-   * \todo Parallelize operations
-   */
-  static void Response(Data &data,
-                       std::vector<KeyType> &req_attr_keys, std::vector<int> &attr_src_ranks,
-                       std::vector<KeyType> &req_leaf_keys, std::vector<int> &leaf_src_ranks,
-                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies,
-                       std::vector<index_t> &res_nb){
-    // req_attr_keys : list of cell keys of which cell attributes are requested
-    // req_leaf_keys : list of cell keys of which bodies are requested
-    // attr_src_ranks      : source process ranks of req_attr_keys (which are response target ranks)
-    // leaf_src_ranks      : source process ranks of req_leaf_keys (which are response target ranks)
-
-    // Code regions:
-    //   1. Pre-comm computation
-    //   2. Communication (Alltoallv)
-    //   3. Post-comm computation
-    double bt_all=0, et_all=0;
-    double bt=0, et=0;
-
-    // ===== Pre-comm computation =====
-    // Create and send responses to the src processes of requests.
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    bt_all = MPI_Wtime();
-
-    Partitioner<TSP>::SelectResponseCells(req_attr_keys, attr_src_ranks,
-                                          req_leaf_keys, leaf_src_ranks,
-                                          data.ht_);
-
-    const auto &ht = data.ht_;
-    int mpi_size = data.mpi_size_;
-
-    // Prepare cell attributes to send to <attr_src_ranks> processes
-    std::vector<KeyType> attr_keys_send = req_attr_keys; // copy (split senbuf and recvbuf)
-    std::vector<int> attr_dest_ranks = attr_src_ranks;
-    res_cell_attrs.clear();
-    std::vector<CellAttr> attr_sendbuf;
-    Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
-
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et - bt);
-
-    // ===== 2. communication =====
-    // Send response keys and attributes
-    bt = MPI_Wtime();
-
-    tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks,
-                           req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks,
-                           res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
-
-    et = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
-
-#if 0
-    // Dump request keys
-    {
-      tapas::debug::DebugStream e("attr_res_exa");
-      for (size_t i = 0; i < attr_keys_send.size(); i++) {
-        auto k = attr_keys_send[i];
-        e.out() << SFC::Decode(k)
-                << " (" << k << ")"
-                << " to " << attr_dest_ranks[i] << std::endl;
-      }
-    }
-#endif
-
-    // ===== 3. Post-comm computation =====
-    // Preapre all bodies to send to <leaf_src_ranks> processes
-    // body_destは、いまのままalltoallvに渡すとエラーになる。
-    // TODO: leaf_keys_send と body_dest と一緒にSortByKeysして（すでにされている？）、
-    //       leaf_src_ranks を body_dest に書き換える必要がある（ループをまわす）
-
-    std::vector<int> leaf_dest = leaf_src_ranks;         // copy
-    std::vector<KeyType> leaf_keys_sendbuf = req_leaf_keys; // copy
-    res_bodies.clear();
-
-    // First, leaf_keys_sendbuf must be ordered by thier destination processes
-    // (Since we need to send bodies later, leaf_keys_sendbuf must NOT be sorted ever again.)
-    tapas::SortByKeys(leaf_dest, leaf_keys_sendbuf);
-
-    std::vector<index_t> leaf_nb_sendbuf (leaf_keys_sendbuf.size()); // Cell <leaf_keys_sendbuf[i]> has <leaf_nb_sendbuf[i]> bodies.
-    std::vector<BodyType> body_sendbuf;
-
-    std::vector<int> leaf_sendcnt(mpi_size, 0); // used for <leaf_keys_sendbuf> and <leaf_nb_sendbuf>.
-    std::vector<int> body_sendcnt(mpi_size, 0);    // used for <bodies_sendbuf>
-
-    for (size_t i = 0; i < leaf_keys_sendbuf.size(); i++) {
-      KeyType k = leaf_keys_sendbuf[i];
-      CellType *c = ht.at(k);
-      TAPAS_ASSERT(c->IsLeaf());
-      leaf_nb_sendbuf[i] = c->nb();
-
-      int dest = leaf_dest[i];
-      leaf_sendcnt[dest]++;
-
-      for (index_t bi = 0; bi < c->nb(); bi++) {
-        body_sendbuf.push_back(c->body(bi));
-        body_sendcnt[dest]++;
-      }
-    }
-
-#ifdef TAPAS_DEBUG
-    index_t nb_total  = std::accumulate(leaf_nb_sendbuf.begin(), leaf_nb_sendbuf.end(), 0);
-    index_t nb_total2 = body_sendbuf.size();
-    index_t nb_total3 = std::accumulate(body_sendcnt.begin(), body_sendcnt.end(), 0);
-
-    TAPAS_ASSERT(nb_total  == nb_total2);
-    TAPAS_ASSERT(nb_total2 == nb_total3);
-#endif
-
-    res_nb.clear();
-
-    // This information is not necessary because source ranks of boides can be computed from
-    // leaf_src_ranks_ranks and res_nb.
-    std::vector<int> leaf_recvcnt; // we don't use this
-    std::vector<int> body_recvcnt; // we don't use this
-    
-    bt = MPI_Wtime();
-
-    // Send response keys and bodies
-    tapas::mpi::Alltoallv(leaf_keys_sendbuf, leaf_sendcnt, req_leaf_keys, leaf_recvcnt, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv(leaf_nb_sendbuf,   leaf_sendcnt, res_nb,        leaf_recvcnt, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
-
-    et = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
-
-#ifdef TAPAS_DEBUG_DUMP
-    tapas::debug::BarrierExec([&](int, int) {
-        std::cout << "ht.size() = " << ht.size() << std::endl;
-        std::cout << "req_attr_keys.size() = " << req_attr_keys.size() << std::endl;
-        std::cout << "body_sendbuf.size() = " << body_sendbuf.size() << std::endl;
-        std::cout << "local_bodies.size() = " << data.local_bodies_.size() << std::endl;
-        std::cout << "res_bodies.size() = " << res_bodies.size() << std::endl;
-      });
-#endif
-
-    // TODO: send body attributes
-    // Now we assume body_attrs from remote process is all "0" data.
-
-    data.let_bodies_.assign(std::begin(res_bodies), std::end(res_bodies));
-    data.let_body_attrs_.resize(res_bodies.size());
-    bzero(&data.let_body_attrs_[0], data.let_body_attrs_.size() * sizeof(data.let_body_attrs_[0]));
-
-    TAPAS_ASSERT(data.let_bodies_.size() == res_bodies.size());
-
-    et_all = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
   }
 
   // Register received cells into the local hashtable (ht_let_)
@@ -471,83 +308,10 @@ struct SourceSideLET {
     
     double end = MPI_Wtime();
 
-    // if (tapas::mpi::Rank() == 0) {
-    //   std::cout << "Register: " << (end - beg) << " [s]" << std::endl;
-    // }
-  }
-  
-  /**
-   * \breif Register the received response cells to local LET hash table
-   * \param [in,out] data Data structure (cells are registered to data->ht_lt_)
-   */
-  static void Register(Data *data,
-                       const std::vector<KeyType> &res_cell_attr_keys,
-                       const std::vector<CellAttr> &res_cell_attrs,
-                       const std::vector<KeyType> &res_leaf_keys,
-                       const std::vector<index_t> &res_nb) {
-    SCOREP_USER_REGION("LET-Register", SCOREP_USER_REGION_TYPE_FUNCTION);
-    MPI_Barrier(MPI_COMM_WORLD);
-    double beg = MPI_Wtime();
-
-    // Register received LET cells to local ht_let_ hash table.
-    for (size_t i = 0; i < res_cell_attr_keys.size(); i++) {
-      KeyType k = res_cell_attr_keys[i];
-      TAPAS_ASSERT(data->ht_.count(k) == 0); // Received cell must not exit in local hash.
-
-      Cell<TSP> *c = nullptr;
-
-      if (data->ht_gtree_.count(k) > 0) {
-        c = data->ht_gtree_.at(k);
-      } else {
-        c = Cell<TSP>::CreateRemoteCell(k, 0, data);
-      }
-      c->attr() = res_cell_attrs[i];
-      c->is_leaf_ = false;
-      c->nb_ = 0;
-      c->bid_ = 0;
-      data->ht_let_[k] = c;
+    if (tapas::mpi::Rank() == 0) {
+      std::cout << "Register: " << (end - beg) << " [s]" << std::endl;
     }
-
-    TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
-
-    index_t body_offset = 0;
-    for (size_t i = 0; i < res_leaf_keys.size(); i++) {
-      KeyType k = res_leaf_keys[i];
-      index_t nb = res_nb[i];
-      index_t cur_body_offset = body_offset;
-      body_offset += nb;
-
-      if (data->ht_.count(k) > 0) {
-        // received data already exists in local memory.
-        // should be a warning?
-        continue;
-      }
-
-      Cell<TSP> *c = nullptr;
-      if (data->ht_let_.count(k) > 0) {
-        // If the cell is already registered to ht_let_, the cell has attributes but not body info.
-        c = data->ht_let_.at(k);
-      } else if (data->ht_gtree_.count(k) > 0) {
-        // it is a leaf in remote cell.
-        c = data->ht_gtree_.at(k);
-        if (!c->IsLeaf()) {
-          c->is_local_ = false;
-        } else {
-          continue;
-        }
-      } else {
-        c = Cell<TSP>::CreateRemoteCell(k, 1, data);
-        data->ht_let_[k] = c;
-      }
-
-      c->is_leaf_ = true;
-      c->nb_ = nb;
-      c->bid_ = cur_body_offset;
-    }
-
-    double end = MPI_Wtime();
-    data->time_rec_.Record(data->timestep_, "Map2-LET-register", end - beg);
-  }
+  }  
 
   /**
    * Inspecting action for LET construction
@@ -680,87 +444,30 @@ struct SourceSideLET {
     LetInspectorAction callback(data, req_cell_attr_keys, req_leaf_keys);
 
     double bt, et;
-    double bt2, et2;
 
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
-#ifdef TAPAS_TWOSIDE_LET
-#warning "Using 2-sided LET"
-    TwosideOnTarget<TSP> inspector(data);
-    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
-#else
-    OnesideOnTarget<TSP, UserFunct, Args...> inspector(data);
     OnesideOnSource<TSP, UserFunct, Args...> inspector2(data);
-    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
+    if (tapas::mpi::Rank() == 0) std::cout << "Using Source-side LET" << std::endl;
 
     // Test source-side LET inspection
-    tapas::debug::BarrierExec([&](int, int) {
-        send_attr_keys.clear();
-        send_leaf_keys.clear();
-        bt2 = MPI_Wtime();
-        for (int r = 0; r < data.mpi_size_; r++) {
-          KeySet &akeys = send_attr_keys2[r]; // implicitly initialize
-          KeySet &lkeys = send_leaf_keys2[r];
-          LetInspectorAction callback2(data, akeys, lkeys);
-          if (r != data.mpi_rank_) {
-            inspector2.Inspect(r, root.key(), callback2, f, args...);
-          }
-        }
-        et2 = MPI_Wtime();
-      });
-#endif
-
+    send_attr_keys.clear();
+    send_leaf_keys.clear();
     bt = MPI_Wtime();
-    // Run the inspection
-    inspector.Inspect(root, callback, f, args...);
+    for (int r = 0; r < data.mpi_size_; r++) {
+      KeySet &akeys = send_attr_keys2[r]; // implicitly initialize
+      KeySet &lkeys = send_leaf_keys2[r];
+      LetInspectorAction callback(data, akeys, lkeys);
+      if (r != data.mpi_rank_) {
+        inspector2.Inspect(r, root.key(), callback, f, args...);
+      }
+    }
     et = MPI_Wtime();
 
     if (root.data().mpi_rank_ == 0) {
-      std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
-      std::cout << "Inspector2 : " << std::scientific << (et2-bt2) << " [s]" << std::endl;
+      std::cout << "Inspector2 : " << std::scientific << (et-bt) << " [s]" << std::endl;
     }
-    tapas::debug::BarrierExec([&](int rank, int) {
-        std::cout << "In rank " << rank << std::endl;
-        std::cout << "    req_leaf_keys.size()=" << req_leaf_keys.size() << std::endl;
-        std::cout << "    req_cell_attr_keys.size()=" << req_cell_attr_keys.size() << std::endl;
-        std::cout << "    send_leaf_keys.size()=" << send_leaf_keys.size() << std::endl;
-        std::cout << "    send_attr_keys.size()=" << send_attr_keys.size() << std::endl;
-      });
 
-
-#ifdef USE_OLD_LET
-
-    req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
-
-    // We need to convert the sets to vectors
-    std::vector<KeyType> res_cell_attr_keys; // cell keys of which attributes are requested
-    std::vector<KeyType> res_leaf_keys; // leaf cell keys of which bodies are requested
-
-    std::vector<int> attr_src; // Process IDs that requested attr_keys_recv[i] (output from Request())
-    std::vector<int> leaf_src; // Process IDs that requested attr_body_recv[i] (output from Request())
-
-    // Request
-    Request(root.data(), req_cell_attr_keys, req_leaf_keys,
-            res_cell_attr_keys, res_leaf_keys, attr_src, leaf_src);
-
-    // Response
-    std::vector<CellAttr> res_cell_attrs;
-    std::vector<BodyType> res_bodies;
-    std::vector<index_t> res_nb; // number of bodies responded from remote processes
-    
-    Response(root.data(),
-             res_cell_attr_keys, attr_src,
-             res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
-
-    // Register
-
-    Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
-
-#ifdef TAPAS_DEBUG_DUMP
-    DebugDumpCells(root.data());
-#endif
-
-#else
     std::vector<std::tuple<KeyType, CellAttr>>  recv_attrs;  // received keys and cell attributes
     std::vector<std::tuple<KeyType, int>>       recv_leaves; // keys of received bodies and numbers of bodies.
     std::vector<std::tuple<BodyType, BodyAttr>> recv_bodies; // received bodies and body attributes
@@ -769,11 +476,7 @@ struct SourceSideLET {
     recv_attrs = ExchCellAttrs(root.data(), send_attr_keys2);
     std::tie(recv_leaves, recv_bodies) = ExchBodies(root.data(), send_leaf_keys2);
 
-    tapas::debug::BarrierExec([&](int, int) {
-        // Register received cell to the local hash table
-        Register2(data, recv_attrs, recv_leaves, recv_bodies);
-      });
-#endif
+    Register2(data, recv_attrs, recv_leaves, recv_bodies);
 
     double end = MPI_Wtime();
     root.data().time_rec_.Record(root.data().timestep_, "Map2-LET-all", end - beg);

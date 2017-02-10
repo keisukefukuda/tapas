@@ -84,7 +84,7 @@ class Cell {
   //========================================================
  public: // public type usings
 
-#if 0
+#if defined(TAPAS_TARGET_SIDE_LET) || defined(TAPAS_TWOSIDE_LET)
   using LET = TargetSideLET<TSP>;
 #else
   using LET = SourceSideLET<TSP>;

@@ -505,7 +505,6 @@ struct TargetSideLET {
     LetInspectorAction callback2(data, req_cell_attr_keys2, req_leaf_keys2);
 
     double bt, et;
-    double bt2, et2;
 
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
@@ -515,35 +514,15 @@ struct TargetSideLET {
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
 #else
     OnesideOnTarget<TSP, UserFunct, Args...> inspector(data);
-    OnesideOnSource<TSP, UserFunct, Args...> inspector2(data);
     if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
+#endif
 
     bt = MPI_Wtime();
     inspector.Inspect(root, callback, f, args...);
     et = MPI_Wtime();
 
-    // Test source-side LET inspection
-    tapas::debug::BarrierExec([&](int rank, int) {
-        req_cell_attr_keys2.clear();
-        req_leaf_keys2.clear();
-        bt2 = MPI_Wtime();
-        for (int r = 0; r < data.mpi_size_; r++) {
-          if (r != data.mpi_rank_) {
-            inspector2.Inspect(r, root.key(), callback2, f, args...);
-          }
-        }
-        et2 = MPI_Wtime();
-        std::cout << "In rank " << rank << std::endl;
-        std::cout << "    req_leaf_keys.size()=" << req_leaf_keys.size() << std::endl;
-        std::cout << "    req_cell_attr_keys.size()=" << req_cell_attr_keys.size() << std::endl;
-        std::cout << "    req_leaf_keys2.size()=" << req_leaf_keys2.size() << std::endl;
-        std::cout << "    req_cell_attr_keys2.size()=" << req_cell_attr_keys2.size() << std::endl;
-      });
-#endif
-
     if (root.data().mpi_rank_ == 0) {
-      printf("Inspector 1: %.3f [s]\n", et-bt);
-      printf("Inspector 2: %.3f [s]\n", et2-bt2);
+      std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
     }
 
     req_cell_attr_keys.insert(req_leaf_keys.begin(), req_leaf_keys.end());
@@ -566,35 +545,6 @@ struct TargetSideLET {
     Response(root.data(),
              res_cell_attr_keys, attr_src,
              res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
-
-    tapas::debug::BarrierExec([&](int rank, int) {
-        return;
-        if (rank == 0) {
-          std::vector<KeyType> keys(std::begin(res_cell_attr_keys), std::end(res_cell_attr_keys));
-          std::cout << "Original (oneside on target LET)" << std::endl;
-          std::cout << "\tFrom 1 to 0:" << std::endl;
-          std::cout << "\tSize=" << res_cell_attr_keys.size() << std::endl;
-          std::cout << "\tAttr keys" << std::endl;
-          std::sort(std::begin(keys), std::end(keys));
-          for (auto k : keys) {
-            std::cout << "\t" << SFC::Simplify(k) << std::endl;
-          }
-          std::cout << std::endl;
-        }
-
-        if (rank == 1) {
-          std::vector<KeyType> keys(std::begin(req_cell_attr_keys2), std::end(req_cell_attr_keys2));
-          std::cout << "Source side LET" << std::endl;
-          std::cout << "\tFrom 1 to 0:" << std::endl;
-          std::cout << "\tSize=" << req_cell_attr_keys2.size() << std::endl;
-          std::cout << "\tAttr keys" << std::endl;
-          std::sort(std::begin(keys), std::end(keys));
-          for (auto k : keys) {
-            std::cout << "\t" << SFC::Simplify(k) << std::endl;
-          }
-          std::cout << std::endl;
-        }
-      });
 
     // Register
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
