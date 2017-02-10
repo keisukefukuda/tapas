@@ -462,7 +462,7 @@ struct SourceSideLET {
 
     std::vector<std::tuple<KeyType, CellAttr>>  recv_attrs;  // received keys and cell attributes
     std::vector<std::tuple<KeyType, int>>       recv_leaves; // keys of received bodies and numbers of bodies.
-    std::vector<std::tuple<BodyType, BodyAttr>> recv_bodies; // received bodies and body attributes
+    std::vector<std::tuple<BodyType, BodyAttrType>> recv_bodies; // received bodies and body attributes
 
     // perform MPI communication and exchange necessary data
     recv_attrs = ExchCellAttrs(root.data(), send_attr_keys2);

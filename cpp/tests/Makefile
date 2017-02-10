@@ -33,9 +33,11 @@ $(TRG): % : %.o
 %.o:%.cpp
 	$(MPICXX) $(CXXFLAGS) $< -c -o $@
 
-
 clean:
+	rm -f *.d
+	rm -f *.o
 	rm -f $(TRG)
+	rm -rf *.dSYM
 
 list:
 	echo $(TRG)

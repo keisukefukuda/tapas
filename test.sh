@@ -183,7 +183,8 @@ function test_unit() {
     make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
 
     echoCyan make MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
-    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all
+    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all &&:
+    echo $?
 
     TEST_TARGETS=$(make -C $SRC_DIR list | grep -v make | grep -v echo | grep test_)
     for t in $TEST_TARGETS; do
