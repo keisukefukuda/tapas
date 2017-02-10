@@ -1,16 +1,13 @@
 #!/bin/sh
 # Run tests for TapasFMM application.
 
-#----------------------------------------------------------
-# functions
-
-
 #----------------------------------------------------------------------------
 # Initialization
 #----------------------------------------------------------------------------
 
-FMM_DIR=$(dirname $0)
-TAPAS_DIR=$(pushd $FMM_DIR/../../ >/dev/null ; pwd -P; popd >/dev/null)
+FMM_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
+TAPAS_DIR=${FMM_DIR}/../../
+#TAPAS_DIR=$(pushd $FMM_DIR/../../ >/dev/null ; pwd -P; popd >/dev/null)
 
 echo FMM_DIR="$FMM_DIR"
 echo TAPAS_DIR="$TAPAS_DIR"
@@ -128,48 +125,55 @@ function run() {
 # Main part
 #----------------------------------------------------------------------------
 
-test_start
+SCRIPT=$(basename $0)
 
-STATUS=0
+# Execute the main part if this file is directly executed.
+if [[ $SCRIPT == "test.sh" ]]; then
 
-for EQUATION in Laplace; do
-for BASIS in Spherical; do
-for WEIGHT in 0 1; do
-for LET in TWOSIDE_LET TARGET_SIDE_LET SOURCE_SIDE_LET; do
+    test_start
 
-unset TWOSIDE_LET
-unset TARGET_SIDE_LET
-unset SOURCE_SIDE_LET
-export $LET=1
+    STATUS=0
 
-build
-    
-for NP in 1 2 4; do
-for NB in 1000 4000; do
-for NC in 64; do
-for D in l c s p; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
-    echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} LET=${LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
-    if [[ "$D" == "p" ]]; then
-        if [[ "$LET" == "SOURCE_SIDE_LET" ]]; then
-            run            
-        fi
-    else
-        run
+    for EQUATION in Laplace; do
+        for BASIS in Spherical; do
+            for WEIGHT in 0 1; do
+                for LET in TWOSIDE_LET TARGET_SIDE_LET SOURCE_SIDE_LET; do
+
+                    unset TWOSIDE_LET
+                    unset TARGET_SIDE_LET
+                    unset SOURCE_SIDE_LET
+                    export $LET=1
+
+                    build
+                    
+                    for NP in 1 2 4; do
+                        for NB in 1000 4000; do
+                            for NC in 64; do
+                                for D in l c s p; do # Skip plummer distribution for now because the trg-2-side and trg-1-side LET inspector takes very long.
+                                    echo "EQUATION=$EQUATION BASIS=${BASIS} WEIGHT=${WEIGHT} LET=${LET} NB=${NB} NP=${NP} NC=${NC} D=${D}"
+                                    if [[ "$D" == "p" ]]; then
+                                        if [[ "$LET" == "SOURCE_SIDE_LET" ]]; then
+                                            run            
+                                        fi
+                                    else
+                                        run
+                                    fi
+                                done
+                            done
+                        done
+                    done
+
+                done
+            done
+        done
+    done
+
+    echo status=$STATUS
+
+    if [[ "${STATUS}" != 0 ]]; then
+        echoRed "${STATUS} tests failed."
     fi
-done
-done
-done
-done
 
-done
-done
-done
-done
-
-echo status=$STATUS
-
-if [[ "${STATUS}" != 0 ]]; then
-    echoRed "${STATUS} tests failed."
+    exit $STATUS
 fi
 
-exit $STATUS
