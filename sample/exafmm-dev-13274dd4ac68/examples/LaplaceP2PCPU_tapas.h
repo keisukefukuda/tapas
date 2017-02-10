@@ -64,6 +64,10 @@ struct P2P {
  * Mutual P2P
  */
 struct P2P_mutual {
+  bool dump;
+  P2P_mutual(bool d) : dump(d) { }
+  P2P_mutual() : dump(false) { }
+
   template<typename _Body, typename _BodyAttr>
   TAPAS_KERNEL
   void operator()(_Body &Bi, _BodyAttr &Bi_attr, _Body &Bj, _BodyAttr &Bj_attr, vec3 Xperiodic) {

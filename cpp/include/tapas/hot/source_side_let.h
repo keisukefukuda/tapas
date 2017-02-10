@@ -8,15 +8,7 @@
 #include <tapas/geometry.h>
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/let_common.h>
-
-#ifdef TAPAS_TWOSIDE_LET
-#include <tapas/hot/inspector/twoside_on_target.h>
-#else
-#include <tapas/hot/inspector/oneside_on_target.h>
 #include <tapas/hot/inspector/oneside_on_source.h>
-#endif
-
-#define BUG_KEY (1224979098644774914L)
 
 using tapas::debug::BarrierExec;
 
@@ -447,7 +439,7 @@ struct SourceSideLET {
 
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
-    OnesideOnSource<TSP, UserFunct, Args...> inspector2(data);
+    OnesideOnSource<TSP, UserFunct, Args...> inspector(data);
     if (tapas::mpi::Rank() == 0) std::cout << "Using Source-side LET" << std::endl;
 
     // Test source-side LET inspection
@@ -459,7 +451,7 @@ struct SourceSideLET {
       KeySet &lkeys = send_leaf_keys2[r];
       LetInspectorAction callback(data, akeys, lkeys);
       if (r != data.mpi_rank_) {
-        inspector2.Inspect(r, root.key(), callback, f, args...);
+        inspector.Inspect(r, root.key(), callback, f, args...);
       }
     }
     et = MPI_Wtime();
