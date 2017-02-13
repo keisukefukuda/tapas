@@ -6,7 +6,7 @@
 #----------------------------------------------------------------------------
 
 FMM_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
-TAPAS_DIR=${FMM_DIR}/../../
+TAPAS_DIR=$(cd ${FMM_DIR}/../../; pwd)
 #TAPAS_DIR=$(pushd $FMM_DIR/../../ >/dev/null ; pwd -P; popd >/dev/null)
 
 echo FMM_DIR="$FMM_DIR"

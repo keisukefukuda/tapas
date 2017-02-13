@@ -18,9 +18,10 @@ MPICXX ?= mpicxx
 CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors -fopenmp -Wno-unused-function
 LDFLAGS := -fopenmp
 
-ifneq (,$(USE_ONESIDE_LET))
-else
-	CXXFLAGS += -DTAPAS_TWOSIDE_LET
+ifneq (,$(USE_TWOSIDE_LET))
+	CXXXFLAGS += -DTAPAS_TWOSIDE_LET
+else ifneq (,$(USE_TARGET_SIDE_LET))
+	CXXXFLAGS += -DTAPAS_TARGET_SIDE_LET
 endif
 
 #PROF := -pg

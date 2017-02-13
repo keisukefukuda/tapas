@@ -197,63 +197,8 @@ function test_unit() {
 
 test_unit
 
-function test_bh() {
-    echo --------------------------------------------------------------------
-    echo Barnes Hut
-    echo --------------------------------------------------------------------
-
-    MAX_ERR=1e-2
-
-    if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
-        NP=(1)
-        NB=(100)
-    elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
-        NP=(1 4)
-        NB=(1000)
-    elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
-        NP=(1 2 3 4 5 6)
-        NB=(1000 2000)
-    elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
-        NP=(1 2 4 8 16 32)
-        NB=(1000 2000 4000 8000 16000)
-    else
-        echo "Unknown SCALE : '$SCALE'" >&2
-        exit 1
-    fi
-
-    SRC_DIR=$SRC_ROOT/sample/barnes-hut
-    BIN=$SRC_DIR/bh
-
-    echoCyan make CXX=\"${CXX}\" CC=\"${CC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
-    make CXX=${CXX} CC=${CC} MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
-
-    for np in ${NP[@]}; do
-        for nb in ${NB[@]}; do
-            echoCyan ${MPIEXEC} -n $np $BIN -w $nb
-            ${MPIEXEC} -n $np $BIN -w $nb >$TMPFILE 2>&1
-
-            PERR=$(grep "P ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
-            FERR=$(grep "F ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
-
-            if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") == "False" ]]; then
-                echoRed "*** Error check failed. P ERR $PERR > $MAX_ERR"
-                STATUS=$(expr $STATUS + 1)
-            else
-                echoGreen P ERR OK
-            fi
-            if [[ $(python -c "print(float('$FERR') < $MAX_ERR)") == "False" ]]; then
-                echoRed "*** Error check failed. F ERR $FERR > $MAX_ERR"
-                STATUS=$(expr $STATUS + 1)
-            else
-                echoGreen F ERR OK
-            fi
-            echo
-            echo
-        done
-    done
-}
-
-test_bh
+# Call BH test
+sh $SRC_ROOT/sample/barnes-hut/test.sh
 
 # Call FMM test
 sh $SRC_ROOT/sample/exafmm-dev-13274dd4ac68/test.sh
