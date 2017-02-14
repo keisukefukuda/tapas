@@ -233,10 +233,8 @@ class OnesideOnSource {
         TraverseApxLT(tbl, callback, trg_key, src_key, f, args...);
       }
     } else if (!is_trg_gl && flg.IsSplitBoth()) {  // (5) 
-      for (KeyType tc : SFC::GetChildren(trg_key)) {
-        for (KeyType sc : SFC::GetChildren(src_key)) {
-          TraverseGT(trg_rank, callback, tc, sc, f, args...);
-        }
+      for (KeyType sc : SFC::GetChildren(src_key)) {
+        TraverseGT(trg_rank, callback, trg_key, sc, f, args...);
       }
     } else if (!is_trg_gl && flg.IsSplitR()) {     // (6)
       for (KeyType sc : SFC::GetChildren(src_key)) {
