@@ -176,7 +176,7 @@ struct SourceSideLET {
     std::vector<int> attr_dest = Partitioner<TSP>::FindOwnerProcess(data.proc_first_keys_, keys_attr_send);
     std::vector<int> body_dest = Partitioner<TSP>::FindOwnerProcess(data.proc_first_keys_, keys_body_send);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     bt_comm = MPI_Wtime();
 
     tapas::mpi::Alltoallv2(keys_attr_send, attr_dest, keys_attr_recv, attr_src, data.mpi_type_key_, MPI_COMM_WORLD);
@@ -340,6 +340,7 @@ struct SourceSideLET {
 
   std::vector<std::tuple<KeyType, CellAttr>>
   static ExchCellAttrs(const Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
+    double bt = MPI_Wtime();
     using KATuple = std::tuple<KeyType, CellAttr>;
     std::vector<int> send_count(data.mpi_size_);
     std::vector<KATuple> send_buf;
@@ -358,10 +359,17 @@ struct SourceSideLET {
       }
     }
 
+    double bt2 = MPI_Wtime();
     std::vector<KATuple> recv_buf;
     std::vector<int> recv_count;
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
+    double et2 = MPI_Wtime();
 
+    double et = MPI_Wtime();
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchCells: " << (et-bt) << " [s]" << std::endl;
+      std::cout << "ExchCells: MPI: " << (et2-bt2) << " [s]" << std::endl;
+    }
     return recv_buf;
   }
 
@@ -371,6 +379,7 @@ struct SourceSideLET {
   std::tuple<std::vector<std::tuple<KeyType, int>>,
              std::vector<std::tuple<BodyType, BodyAttrType>>>
   static ExchBodies(const Data &data,  const std::unordered_map<int, KeySet> &leaf_keys) {
+    double bt = MPI_Wtime();
     using KTuple = std::tuple<KeyType, int>; // pair of leaf key and the number of its bodies
     using BTuple = std::tuple<BodyType, BodyAttrType>;
 
@@ -406,8 +415,16 @@ struct SourceSideLET {
     std::vector<BTuple> recv_bodies;
     std::vector<int>    recv_bodies_cnt;
 
+    double bt2 = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_keys, recv_keys_cnt, data.mpi_comm_);
     tapas::mpi::Alltoallv(send_buf_bodies, send_count_bodies, recv_bodies, recv_bodies_cnt, data.mpi_comm_);
+    double et2 = MPI_Wtime();
+
+    double et = MPI_Wtime();
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchBodies: " << (et-bt) << " [s]" << std::endl;
+      std::cout << "ExchBodies: MPI: " << (et2-bt2) << " [s]" << std::endl;
+    }
     return std::make_tuple(recv_keys, recv_bodies);
   }
     

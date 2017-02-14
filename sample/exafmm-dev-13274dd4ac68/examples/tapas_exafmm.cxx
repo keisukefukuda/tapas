@@ -546,9 +546,9 @@ int main(int argc, char ** argv) {
 
     TAPAS_LOG_DEBUG() << "L2P done\n";
 
-    //#ifdef TAPAS_DEBUG_DUMP
+#ifdef TAPAS_DEBUG_DUMP
     dumpBodies(*root);
-    //#endif
+#endif
 
     // Copy BodyAttr values back to Body
 
