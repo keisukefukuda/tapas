@@ -217,13 +217,10 @@ class OnesideOnSource {
     if (flg.IsApprox()) { // (1)
       return;
     } else if (is_trg_gl && flg.IsSplitBoth()) {  // (2)
-      if (!is_tr) { return; }
-      ITable tbl(data_, trg_key, src_key, f, args...);
-      if (!data_.ht_[src_key]->IsLeaf()) {
+      if (is_tr && !data_.ht_[src_key]->IsLeaf()) {
+        ITable tbl(data_, trg_key, src_key, f, args...);
         for (KeyType sc : SFC::GetChildren(src_key)) {
-          for (KeyType tc : SFC::GetChildren(trg_key)) {
-            TraverseApxLT(tbl, callback, tc, sc, f, args...);
-          }
+          TraverseApxLT(tbl, callback, trg_key, sc, f, args...);
         }
       }
     } else if (is_trg_gl && flg.IsSplitR()) {      // (3)
@@ -231,10 +228,9 @@ class OnesideOnSource {
         TraverseGT(trg_rank, callback, trg_key, sc, f, args...);
       }
     } else if (is_trg_gl && flg.IsSplitL()) {    // (4)
-      if (!is_tr) { return; }
-      ITable tbl(data_, trg_key, src_key, f, args...);
-      for (KeyType tc : SFC::GetChildren(trg_key)) {
-        TraverseApxLT(tbl, callback, tc, src_key, f, args...);
+      if (is_tr) { 
+        ITable tbl(data_, trg_key, src_key, f, args...);
+        TraverseApxLT(tbl, callback, trg_key, src_key, f, args...);
       }
     } else if (!is_trg_gl && flg.IsSplitBoth()) {  // (5) 
       for (KeyType tc : SFC::GetChildren(trg_key)) {
@@ -255,7 +251,7 @@ class OnesideOnSource {
       TAPAS_ASSERT(0);
     }
   }
-
+  
   template<class Callback>
   void TraverseApxLT(ITable &tbl, Callback callback,
                      KeyType trg_root_key, KeyType src_key,
