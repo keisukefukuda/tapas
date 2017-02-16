@@ -9,7 +9,6 @@
 #
 #-------------------------------------------------------------------------------
 
-
 set -u
 set -e
 
@@ -198,10 +197,10 @@ function test_unit() {
 test_unit
 
 # Call BH test
-sh $SRC_ROOT/sample/barnes-hut/test.sh
+/bin/bash $SRC_ROOT/sample/barnes-hut/test.sh
 
 # Call FMM test
-sh $SRC_ROOT/sample/exafmm-dev-13274dd4ac68/test.sh
+/bin/bash $SRC_ROOT/sample/exafmm-dev-13274dd4ac68/test.sh
 
 # Check some special cases
 

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Run tests for TapasFMM application.
 
 #----------------------------------------------------------------------------
@@ -14,7 +14,7 @@ echo TAPAS_DIR="$TAPAS_DIR"
 
 cd ${FMM_DIR}/examples
 
-. $TAPAS_DIR/scripts/test_common.sh
+source $TAPAS_DIR/scripts/test_common.sh
 
 command=${1:-}
 
