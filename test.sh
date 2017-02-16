@@ -97,7 +97,7 @@ cd $TMP_DIR
 echo test.sh
 echo Started at $(date)
 echo "hostname=" $(hostname)
-echo "compiler = ${COMPILER}"
+echo "compiler=" ${CXX}
 echo "scale = ${SCALE}"
 
 echo date
@@ -116,18 +116,22 @@ ls /usr/bin/g++*
 
 echo PATH=$PATH
 
-export CXX=$COMPILER
-export CC=$(echo $CXX | sed -e 's/clang++/clang/' | sed -e 's/g++/gcc/' | sed -e 's/icpc/icc/')
+if [[ -z "${CXX:-}" ]]; then
+    CXX=g++
+fi
 
-echo CC=$(which ${CC})
 echo CXX=$(which ${CXX})
 
 # detect MPI implementation
-if [[ ! -x "${MPICXX:-}" ]]; then
+echo Detecting mpicxx implementation
+if [[ -z "${MPICXX:-}" ]]; then
+    echo MPICXX is not defined. Detect MPI implementation and configure it.
+    echo Using $(which mpicxx)
+
     if mpicxx --showme:version 2>/dev/null | grep "Open MPI"; then
         # Opne MPI
-        #MPICC="env OMPI_CC=${CC} mpicc"
-        MPICXX="env OMPI_CXX=${CXX} mpicxx"
+        export OMPI_CXX=${CXX}
+        MPICXX="mpicxx"
 
         if [[ -z "${MPIEXEC:-}" ]]; then
             MPIEXEC=mpiexec
@@ -136,8 +140,7 @@ if [[ ! -x "${MPICXX:-}" ]]; then
         echo Looks like Open MPI.
     else
         # mpich family (mpich and mvapich)
-        #MPICC="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicc"
-        MPICXX="env MPICH_CXX=${CXX} MPICH_CC=${CC} mpicxx"
+        MPICXX="mpicxx -cxx=${CXX}"
         
         if [[ -z "${MPIEXEC:-}" ]]; then
             MPIEXEC=mpiexec
@@ -154,16 +157,15 @@ ${CXX} --version || {
     exit 1
 }
 
-echo Detecting mpicxx implementation
+echo $CXX --version
+$CXX --version
 
 echo MPICXX=${MPICXX}
-#echo MPICC=${MPICC}
-
 echo ${MPICXX} -show
 ${MPICXX} -show
 
-echo $CXX --version
-$CXX --version
+export CXX
+export MPICXX
 
 if [[ -d "${MYTH_DIR:-}" ]]; then
     echo MassiveThreads is activated. MYTH_DIR=${MYTH_DIR}

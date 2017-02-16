@@ -79,14 +79,6 @@ function test_start() {
 #   Setup MPICXX var
 # -------------------------------------------
 
-if [[ -z "${MPICXX:-}" ]]; then
-    MPICXX=mpicxx
-fi
-
-if [[ -z "${MPIEXEC:-}" ]]; then
-    MPIEXEC=mpiexec
-fi
-
 if [[ -z "${CXX:-}" ]]; then
     CXX=g++
 fi

@@ -52,7 +52,7 @@ matrix:
             - gcc-4.9
             - g++-4.9
       env:
-        - COMPILER=g++-4.9
+        - CXX=g++-4.9
         - LLVM_VERSION=
         - MYTH_DIR=$HOME/massivethreads
         - LD_LIBRARY_PATH=$MYTH_DIR/lib:$LD_LIBRARY_PATH
@@ -66,7 +66,7 @@ matrix:
             - gcc-5
             - g++-5
       env:
-        - COMPILER=g++-5
+        - CXX=g++-5
         - LLVM_VERSION=
         - MYTH_DIR=$HOME/massivethreads
         - LD_LIBRARY_PATH=$MYTH_DIR/lib:$LD_LIBRARY_PATH
@@ -80,7 +80,7 @@ matrix:
             - gcc-6
             - g++-6
       env:
-        - COMPILER=g++-6
+        - CXX=g++-6
         - LLVM_VERSION=
         - MYTH_DIR=$HOME/massivethreads
         - LD_LIBRARY_PATH=$MYTH_DIR/lib:$LD_LIBRARY_PATH

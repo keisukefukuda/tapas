@@ -75,8 +75,10 @@ function build() {
         MAKE_FLAGS="${MAKE_FLAGS} WEIGHT=0"
     fi
 
-    echoCyan env MPICXX=${MPICXX} CXX=${CXX} ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas
-    env MPICXX=${MPICXX} CXX=${CXX} ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas &&:
+    export MPICXX
+    export CXX
+    echoCyan ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas
+    ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas &&:
 }
 
 function run() {

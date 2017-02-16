@@ -14,7 +14,7 @@ endif
 
 CC ?= clang
 CXX ?= clang++
-MPICXX ?= mpicxx
+MPICXX ?= mpicxx -cxx=${CXX}
 CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors -fopenmp -Wno-unused-function
 LDFLAGS := -fopenmp
 
