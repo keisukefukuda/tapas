@@ -1,5 +1,5 @@
 sudo: false
-language: cpp
+language: generic
 
 before_script:
   - bash scripts/install_mpich.sh
