@@ -10,14 +10,7 @@ echo TAPAS_DIR="${TAPAS_DIR}"
 
 cd $BH_DIR
 
-echo ls $TAPAS_DIR/scripts/
-ls $TAPAS_DIR/scripts/
-
-echo ls $TAPAS_DIR/scripts/test_common.sh
-ls $TAPAS_DIR/scripts/test_common.sh
-
-echo source $TAPAS_DIR/scripts/test_common.sh
-source $TAPAS_DIR/scripts/test_common.sh
+. $TAPAS_DIR/scripts/test_common.sh
 
 BIN=$BH_DIR/bh
 

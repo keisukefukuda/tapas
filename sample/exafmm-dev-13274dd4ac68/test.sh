@@ -14,7 +14,7 @@ echo TAPAS_DIR="$TAPAS_DIR"
 
 cd ${FMM_DIR}/examples
 
-source $TAPAS_DIR/scripts/test_common.sh
+. $TAPAS_DIR/scripts/test_common.sh
 
 command=${1:-}
 
