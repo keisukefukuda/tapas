@@ -1,5 +1,6 @@
 #ifndef verify_h
 #define verify_h
+#include <tapas/mpi_util.h>
 #include "logger.h"
 
 //! Verify results

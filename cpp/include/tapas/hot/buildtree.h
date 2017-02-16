@@ -310,7 +310,6 @@ class SamplingOctree {
         double w = 0;  // weight of the *previous* process
         
         // Find the range of `k` from `body_keys` and add the range weight to `proc_weight`
-        //std::cout << "Finding range of [b, e) for P=" << pi << " ... ";
         index_t b = 0, e = 0;
         for (; w < trg_w; k = SFC::GetNext(k), ki++) {
           assert(ki < W); // something is wrong. ki should look over the range of (0, W]
@@ -327,7 +326,6 @@ class SamplingOctree {
         beg_keys[pi] = k;       // k is the key of the process
         proc_weights[pi-1] = w; // weight of the *previous* process
         took_weight += w;
-        //std::cout << "pi=" << (pi-1) << " actual weight=" << proc_weights[pi-1] << std::endl;
         
         if (pi == mpi_size - 1) {
           // if `pi` is the last process, compute the weight of itself

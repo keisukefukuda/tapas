@@ -7,8 +7,8 @@
 #include "tapas/hot/mapper.h"
 #include "tapas/hot/report.h"
 #include "tapas/hot/shared_data.h"
-#include "tapas/hot/exact_let.h"
-#include "tapas/hot/oneside_insp2.h"
+#include "tapas/hot/target_side_let.h"
+#include "tapas/hot/source_side_let.h"
 #include "tapas/iterator.h"
 
 namespace {
@@ -84,10 +84,14 @@ class Cell {
   //========================================================
  public: // public type usings
 
-  friend struct ExactInsp2<TSP>;
-  using Inspector2 = ExactInsp2<TSP>;
-  using Inspector2_2 = OnesideInsp2<TSP>;
-
+#if defined(TAPAS_TARGET_SIDE_LET) || defined(TAPAS_TWOSIDE_LET)
+  using LET = TargetSideLET<TSP>;
+#else
+  using LET = SourceSideLET<TSP>;
+#endif
+  
+  friend LET;
+  
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
   using SFC = typename TSP::SFC;
@@ -107,7 +111,7 @@ class Cell {
   using Body = BodyType;
   using BodyAttr = BodyAttrType;
   using Inspector1 = Insp1<TSP>;
-  using Mapper = typename TSP::template Mapper<CellType, Body, Inspector2, Inspector1>;
+  using Mapper = typename TSP::template Mapper<CellType, Body, LET, Inspector1>;
 
   using BodyIterator = iter::BodyIterator<Cell>;
   using SubCellIterator = iter::SubCellIterator<Cell>;
@@ -213,6 +217,10 @@ class Cell {
     return region_.width(i);
   }
 
+  const Reg& GetRegion() const {
+    return region_;
+  }
+
   /**
    * @brief Returns the parent cell if it's local.
    *
@@ -241,7 +249,7 @@ class Cell {
   const BodyType &body(index_t idx) const;
 
   // Internal use only
-  inline index_t body_offset() {
+  inline index_t body_offset() const {
     // returns body offset in the local_bodies or let_bodies_
     return bid_;
   }
@@ -820,11 +828,21 @@ inline void Cell<TSP>::CheckBodyIndex(index_t idx) const {
   TAPAS_ASSERT(idx < this->nb());
   TAPAS_ASSERT(this->IsLeaf() && "body or body attribute access is not allowed for non-leaf cells.");
 
+#ifdef TAPAS_DEBUG
   if (is_local_) {
+    if (!(bid_ + idx < data_->local_bodies_.size()) && tapas::mpi::Rank() == 2) {
+      std::cerr << "key = " << SFC::Decode(this->key()) << " " << this->key() << std::endl;
+      std::cerr << "rank = " << tapas::mpi::Rank() << " "
+                << "bid_=" << bid_ << "  "
+                << "idx =" << idx << "  "
+                << "data_->local_bodies_.size() = " << data_->local_bodies_.size()
+                << std::endl;
+    }
     TAPAS_ASSERT(bid_ + idx < data_->local_bodies_.size());
   } else {
     TAPAS_ASSERT(bid_ + idx < data_->let_bodies_.size());
   }
+#endif
 }
 
 template <class TSP>

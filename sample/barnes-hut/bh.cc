@@ -118,7 +118,7 @@ struct ComputeForce {
     real_t R2 = dx * dx + dy * dy + dz * dz + eps2;
     real_t invR = 1.0 / std::sqrt(R2);
     real_t invR3 = invR * invR * invR;
-    
+
     auto tmp = p1_attr;  // const ProxyBodyAttrType &BodyIterator::attr() const;
     tmp.x += dx * invR3 * approx.w;
     tmp.y += dy * invR3 * approx.w;
@@ -155,11 +155,14 @@ struct Approximate {
       // child is not leaf
       TapasBH::Map(*this, child.subcells());
       float4 attr = child.attr();
-      attr.x /= attr.w;
-      attr.y /= attr.w;
-      attr.z /= attr.w;
+      if (attr.w > 0) {
+        attr.x /= attr.w;
+        attr.y /= attr.w;
+        attr.z /= attr.w;
+      }
       child.attr() = attr;
     }
+    
     TapasBH::Reduce(parent, parent.attr().w, child.attr().w, Sum);
     TapasBH::Reduce(parent, parent.attr().x, child.attr().x * child.attr().w, Sum);
     TapasBH::Reduce(parent, parent.attr().y, child.attr().y * child.attr().w, Sum);
@@ -190,7 +193,6 @@ struct interact {
       // use apploximation
       const auto &p1 = c1.body(0);
       real_t d = std::sqrt(TapasBH::Distance2(c2, p1, tapas::Center));
-      //real_t d = std::sqrt(distR2(c2.attr(), p1));
       real_t s = c2.width(0);
 
       if ((s/ d) < theta) {

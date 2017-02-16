@@ -48,6 +48,7 @@ struct SharedData {
   std::mutex    ht_mtx_;   //!< mutex to protect ht_
   KeySet        let_used_key_;
   std::unordered_map<KeyType, CellAttr> local_upw_results_; // used in Upward Map
+  std::unordered_map<KeyType, int> gleaf_owners_;  // Owners of gleaves_
 
   std::vector<Reg> local_br_; // Bounding Region of the local process. local_br_ = [ C.region() for C in lroots_ ]
   // std::set might be better, but Region needs to have operator<() for that.

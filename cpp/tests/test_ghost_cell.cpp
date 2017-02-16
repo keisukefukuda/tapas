@@ -49,6 +49,7 @@ struct Body {};
 struct BodyAttr {};
 
 struct Data {
+  using KeyType = uint64_t;
   using CellType = Cell;
   using BodyType = Body;
   using BodyAttrType = BodyAttr;

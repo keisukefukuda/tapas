@@ -183,7 +183,8 @@ function test_unit() {
     make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
 
     echoCyan make MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
-    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all
+    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all &&:
+    echo $?
 
     TEST_TARGETS=$(make -C $SRC_DIR list | grep -v make | grep -v echo | grep test_)
     for t in $TEST_TARGETS; do
@@ -196,247 +197,52 @@ function test_unit() {
 
 test_unit
 
-function test_bh() {
-    echo --------------------------------------------------------------------
-    echo Barnes Hut
-    echo --------------------------------------------------------------------
+# Call BH test
+sh $SRC_ROOT/sample/barnes-hut/test.sh
 
-    MAX_ERR=1e-2
-
-    if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
-        NP=(1)
-        NB=(100)
-    elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
-        NP=(1 4)
-        NB=(1000)
-    elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
-        NP=(1 2 3 4 5 6)
-        NB=(1000 2000)
-    elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
-        NP=(1 2 4 8 16 32)
-        NB=(1000 2000 4000 8000 16000)
-    else
-        echo "Unknown SCALE : '$SCALE'" >&2
-        exit 1
-    fi
-
-    SRC_DIR=$SRC_ROOT/sample/barnes-hut
-    BIN=$SRC_DIR/bh
-
-    echoCyan make CXX=\"${CXX}\" CC=\"${CC}\" MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
-    make CXX=${CXX} CC=${CC} MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean $(basename $BIN)
-
-    for np in ${NP[@]}; do
-        for nb in ${NB[@]}; do
-            echoCyan ${MPIEXEC} -n $np $BIN -w $nb
-            ${MPIEXEC} -n $np $BIN -w $nb >$TMPFILE 2>&1
-
-            PERR=$(grep "P ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
-            FERR=$(grep "F ERR" $TMPFILE | grep -oE "[0-9.e+-]+|[+-]?nan")
-
-            if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") == "False" ]]; then
-                echoRed "*** Error check failed. P ERR $PERR > $MAX_ERR"
-                STATUS=$(expr $STATUS + 1)
-            else
-                echoGreen P ERR OK
-            fi
-            if [[ $(python -c "print(float('$FERR') < $MAX_ERR)") == "False" ]]; then
-                echoRed "*** Error check failed. F ERR $FERR > $MAX_ERR"
-                STATUS=$(expr $STATUS + 1)
-            else
-                echoGreen F ERR OK
-            fi
-            echo
-            echo
-        done
-    done
-}
-
-test_bh
-
-function build_fmm() {
-    if echo $SCALE | grep -Ei "^t(iny)?" >/dev/null ; then
-        NP=(1)
-        NB_FMM=(100)
-        DIST=(c)
-        NCRIT=(16)
-    elif echo $SCALE | grep -Ei "^s(mall)?" >/dev/null ; then
-        NP=(1 2)
-        NB_FMM=(500)
-        DIST=(c)
-        NCRIT=(16)
-    elif echo $SCALE | grep -Ei "^m(edium)?" >/dev/null ; then
-        NP=(1 2 3 4 5 6)
-        NB_FMM=(10000 20000)
-        DIST=(s c)
-        NCRIT=(16 64)
-    elif echo $SCALE | grep -Ei "^l(arge)?" >/dev/null ; then
-        NP=(1 2 4 8 16 32)
-        NB_FMM=(10000 20000 40000 80000 160000)
-        DIST=(l s p c)
-        NCRIT=(16 64)
-    else
-        echo "Unknown SCALE : '$SCALE'" >&2
-        exit 1
-    fi
-
-    SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
-
-    make VERBOSE=1 -C $SRC_DIR clean 
-
-    # Build multi-threaded version
-    if [[ -d "${MYTH_DIR:-}" ]]; then
-        export MYTH_DIR
-        echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
-        env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MTHREAD=1 MODE=debug -C $SRC_DIR tapas
-
-        mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_mt
-        mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_mt
-    fi
-
-    # Build single-threaded, without-weighted-repartitioning version
-    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug WEIGHT=0 -C $SRC_DIR tapas
-
-    mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_nw
-    mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_nw
-
-
-    # Build single-threaded, without-weighted-repartitioning version
-    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug USE_ONESIDE_LET=1 WEIGHT=0 -C $SRC_DIR tapas
-
-    mv $SRC_DIR/parallel_tapas $SRC_DIR/parallel_tapas_oneside
-    mv $SRC_DIR/parallel_tapas_mutual $SRC_DIR/parallel_tapas_mutual_oneside
-
-    # Build single-threaded version
-    echoCyan env CC=${CC} CXX=${CXX}  MPICXX=\"${MPICXX}\" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
-    env CC=${CC} CXX=${CXX} MPICXX="${MPICXX}" make VERBOSE=1 MODE=debug -C $SRC_DIR tapas
-}
-
-function accuracyCheck() {
-    MAX_ERR=5e-3
-
-    local fname=$1
-    PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
-    AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
-
-    echo "PERR='$PERR'"
-    echo "AERR='$AERR'"
-
-    if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
-        echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
-        STATUS=$(expr $STATUS + 1)
-    else
-        echoGreen pot check OK
-    fi
-    if [[ $(python -c "print(float('$AERR') < $MAX_ERR)") != "True" ]]; then
-        echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
-        STATUS=$(expr $STATUS + 1)
-    else
-        echoGreen acc check OK
-    fi
-}
-
-function tapasCheck() {
-    echo --------------------------------------------------------------------
-    echo ExaFMM
-    echo --------------------------------------------------------------------
-
-    build_fmm
-
-    for ts in 1 2 3; do
-    for nb in ${NB_FMM[@]}; do
-    for ncrit in ${NCRIT[@]}; do
-    for dist in ${DIST[@]}; do
-    for oneside in "" "_oneside"; do
-    for mutual in "" "_mutual"; do
-    for mt in "" "_mt"; do
-    for weight in "" "_nw"; do
-    for np in ${NP[@]}; do
-        rm -f $TMPFILE; sleep 0.5s
-
-        #BIN=$SRC_DIR/parallel_tapas${mutual}${opt}${oneside}
-        echo "Looking for binary ${oneside} ${mutual} ${mt} ${weight}..."
-        BIN=$(find $SRC_DIR -maxdepth 1 -perm +0100 -name "parallel_tapas*" -name "*${oneside}*" -name "*${mutual}*" -name "*${mt}*" -name "*${weight}*" | head -n 1)
-
-        if [[ -z "$BIN" ]]; then
-            echo "Not found."
-            continue
-        fi
-
-        echo BIN=${BIN}
-
-        if [[ -x ${BIN} ]]; then
-            # run Exact LET TapasFMM
-            rm -f $TMPFILE; sleep 0.3s # make sure that file is deleted on NFS
-            echoCyan ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts}
-            ${MPIEXEC} -n $np $BIN -n $nb -c $ncrit -d $dist -r ${ts} > $TMPFILE
-            echo "exit status=$?"
-            echo "TMPFILE=${TMPFILE}"
-            if [[ ! "${QUIET:-}" == "1" ]]; then
-                cat $TMPFILE ||:
-            fi
-
-            accuracyCheck $TMPFILE
-        else
-            echo "*** Skipping ${BIN}"
-        fi
-        echo
-        echo
-    done
-    done
-    done
-    done
-    done
-    done
-    done
-    done
-    done
-}
-
-tapasCheck
+# Call FMM test
+sh $SRC_ROOT/sample/exafmm-dev-13274dd4ac68/test.sh
 
 # Check some special cases
 
-echo
-echo --------------------------------------------------------------------
-echo "ExaFMM (with Ncrit > Nbodies)"
-echo --------------------------------------------------------------------
-echo
+# echo
+# echo --------------------------------------------------------------------
+# echo "ExaFMM (with Ncrit > Nbodies)"
+# echo --------------------------------------------------------------------
+# echo
 
-for MUTUAL in "" "_mutual" ; do
-    rm -f $TMPFILE; sleep 0.3s
-    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c
-    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c  > $TMPFILE
-    if [[ ! "${QUIET:-}" == "1" ]]; then
-        cat $TMPFILE ||:
-    fi
+# for MUTUAL in "" "_mutual" ; do
+#     rm -f $TMPFILE; sleep 0.3s
+#     echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c
+#     ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c  > $TMPFILE
+#     if [[ ! "${QUIET:-}" == "1" ]]; then
+#         cat $TMPFILE ||:
+#     fi
     
-    accuracyCheck $TMPFILE
-done
+#     accuracyCheck $TMPFILE
+# done
 
-echo
-echo --------------------------------------------------------------------
-echo "ExaFMM (with Ncrit = 1)"
-echo --------------------------------------------------------------------
-echo
-for MUTUAL in "" "_mutual" ; do
-    rm -f $TMPFILE; sleep 0.3s
-    echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c
-    ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c  > $TMPFILE
-    if [[ ! "${QUIET:-}" == "1" ]]; then
-        cat $TMPFILE ||:
-    fi
+# echo
+# echo --------------------------------------------------------------------
+# echo "ExaFMM (with Ncrit = 1)"
+# echo --------------------------------------------------------------------
+# echo
+# for MUTUAL in "" "_mutual" ; do
+#     rm -f $TMPFILE; sleep 0.3s
+#     echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c
+#     ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c  > $TMPFILE
+#     if [[ ! "${QUIET:-}" == "1" ]]; then
+#         cat $TMPFILE ||:
+#     fi
     
-    accuracyCheck $TMPFILE
-done
+#     accuracyCheck $TMPFILE
+# done
 
-if [[ $STATUS -eq 0 ]]; then
-    echo OK.
-else
-    echoRed "***** Test failed."
-fi
+# if [[ $STATUS -eq 0 ]]; then
+#     echo OK.
+# else
+#     echoRed "***** Test failed."
+# fi
 
 exit $STATUS
 

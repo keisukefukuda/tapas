@@ -15,11 +15,13 @@ endif
 CC ?= clang
 CXX ?= clang++
 MPICXX ?= mpicxx
-CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors -fopenmp
+CXXFLAGS := -std=c++11 -Wall -Wextra -fno-elide-constructors -fopenmp -Wno-unused-function
 LDFLAGS := -fopenmp
 
-ifneq (,$(USE_ONESIDE_LET))
-	CXXFLAGS += -DTAPAS_ONESIDE_LET
+ifneq (,$(USE_TWOSIDE_LET))
+	CXXXFLAGS += -DTAPAS_TWOSIDE_LET
+else ifneq (,$(USE_TARGET_SIDE_LET))
+	CXXXFLAGS += -DTAPAS_TARGET_SIDE_LET
 endif
 
 #PROF := -pg
@@ -38,8 +40,8 @@ TAPAS_DIR = ../../cpp
 
 all: bh
 
-bh.d: bh.cc
-	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
+#bh.d: bh.cc
+#	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)
 
 bh.o: bh.cc
 	$(MPICXX) -DDUMP -DUSE_MPI -o $@ $(CXXFLAGS)  -I$(TAPAS_DIR)/include $(OPT) $(DEBUG) $(LOG) -c $< $(PROF)

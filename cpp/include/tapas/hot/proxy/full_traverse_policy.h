@@ -18,8 +18,9 @@ class FullTraversePolicy {
   using RealCellType = CellType;
   using RealBody = typename TSP::Body;
   using RealBodyAttr = typename TSP::BodyAttr;
-  
-  using Body = ProxyBody<RealBody, RealBodyAttr>;
+
+  using Body = ProxyBody<RealBody, RealBodyAttr, FullTraversePolicy<TSP>>;
+  using PxBody = Body;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;
@@ -130,6 +131,16 @@ class FullTraversePolicy {
     return center() - rhs.center();
   }
 
+  inline VecT dX(const PxBody& body, tapas::ShortestClass) const {
+    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    return dX(body_pos, tapas::ShortestClass());
+  }
+  
+  inline VecT dX(const PxBody& body, tapas::CenterClass) const {
+    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    return dX(body_pos, tapas::CenterClass());
+  }
+  
   // Cell-Body, Shortest
   inline VecT dX(const VecT& body_pos, tapas::ShortestClass) const {
     return center() - body_pos;
@@ -184,7 +195,7 @@ class FullTraversePolicy {
       }
     }
   }
-  
+
  public:
   const Body &body(index_t idx) const {
     return *bodies_[idx];

@@ -47,6 +47,8 @@ class ProxyCell : public _POLICY {
   using Base = _POLICY;
 
  public:
+  using Policy = _POLICY;
+
   using TSP = _TSP;
   static const constexpr bool Inspector = true;
   static const constexpr int Dim = TSP::Dim;
@@ -58,11 +60,9 @@ class ProxyCell : public _POLICY {
   using RealBodyAttr = typename TSP::BodyAttr;
   
   using CellAttr = ProxyAttr<ProxyCell>;
-  using Body = ProxyBody<RealBody, RealBodyAttr>;
+  using Body = ProxyBody<RealBody, RealBodyAttr, Policy>;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   Body& local_body(int) { static Body b; return b; }
-
-  using Policy = _POLICY;
 
   using KeyType = typename tapas::hot::Cell<TSP>::KeyType;
   using SFC = typename tapas::hot::Cell<TSP>::SFC;
@@ -78,7 +78,7 @@ class ProxyCell : public _POLICY {
   template<class...Args>
   ProxyCell(const Data &data, int *clock, Args...args)
       : Base(data, args...), data_(data)
-      , marked_touched_(false), marked_split_(false), marked_body_(false), marked_modified_(false), clock_(clock)
+      , marked_attr_(false), marked_split_(false), marked_nb_(false), marked_modified_(false), clock_(clock)
       , is_local_(false), attr_(this), children_()
   {
     CellType *c = this->Base::RealCell();
@@ -86,7 +86,7 @@ class ProxyCell : public _POLICY {
       attr_ = ProxyAttr<ProxyCell>(this, c->attr());
     }
   }
-  
+
   ~ProxyCell() {
     if (children_.size() > 0) {
       for (ProxyCell *ch : children_) {
@@ -97,11 +97,11 @@ class ProxyCell : public _POLICY {
       children_.clear();
     }
   }
-
+  
   void ClearFlags() {
-    marked_touched_ = false;
+    marked_attr_ = false;
     marked_split_ = false;
-    marked_body_ = false;
+    marked_nb_ = false;
     marked_modified_ = false;
   }
   
@@ -126,29 +126,36 @@ class ProxyCell : public _POLICY {
   }
 
   template<class UserFunct, class...Args>
-  static InteractionType PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
+  static IntrFlag PredSplit2(ProxyCell &trg_cell, ProxyCell &src_cell, UserFunct f, Args...args) {
     f(trg_cell, src_cell, args...);
 
-    if (trg_cell.marked_split_ && src_cell.marked_split_) {
-      return InteractionType::SplitBoth;
-    } else if (trg_cell.marked_split_) {
-      return InteractionType::SplitLeft;
-    } else if (src_cell.marked_split_) {
-      return InteractionType::SplitRight;
-    } else if (src_cell.marked_body_) {
-      return InteractionType::Body;
-#if 0
-    } else if (!src_cell.marked_touched_) {
-      return InteractionType::None;
-#endif
-    } else {
-      return InteractionType::Approx;
+    IntrFlag flag;
+
+    if (trg_cell.marked_split_) {
+      flag.Add(IntrFlag::SplitL);
     }
+    if (src_cell.marked_split_) {
+      flag.Add(IntrFlag::SplitR);
+    }
+    if (src_cell.marked_nb_) {
+      flag.Add(IntrFlag::ReadNbR);
+    }
+    if (trg_cell.marked_nb_) {
+      flag.Add(IntrFlag::ReadNbL);
+    }
+    if (src_cell.marked_attr_) {
+      flag.Add(IntrFlag::ReadAttrR);
+    }
+    if (trg_cell.marked_attr_) {
+      flag.Add(IntrFlag::ReadAttrL);
+    }
+
+    return flag;
   }
 
   // Check if cells are split or not in 2-parameter Map
   template<class UserFunct, class...Args>
-  static InteractionType PredSplit2(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
+  static IntrFlag PredSplit2(KeyType trg_key, KeyType src_key, const Data &data, UserFunct f, Args...args) {
     ProxyCell trg_cell(data, nullptr, trg_key);
     ProxyCell src_cell(data, nullptr, src_key);
     
@@ -169,23 +176,23 @@ class ProxyCell : public _POLICY {
    */
   template<class DistanceType>
   inline VecT dX(const Body &b, DistanceType t) const {
-    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::dX(body_pos, t);
+    return this->Base::dX(b, t);
   }
 
   /**
    * \brief Distance Function
    */
   inline VecT dX(const RealBody &b, tapas::CenterClass) const {
-    VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
-    return this->Base::dX(body_pos, tapas::Center);
+    //std::ccout << __FILE__ << ":" << __LINE__ << std::endl;
+    //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&b);
+    //return this->Base::dX(body_pos, tapas::Center);
+    return this->Base::dX(b, tapas::Center);
   }
 
   /**
    * \fn FP ProxyCell::width(FP d) const
    */
   inline FP width(FP d) const {
-    Touched();
     return this->Base::width(d);
   }
 
@@ -193,7 +200,6 @@ class ProxyCell : public _POLICY {
    * \fn FP ProxyCell::width() const
    */
   inline VecT width() const {
-    Touched();
     return this->Base::width();
   }
 
@@ -201,13 +207,23 @@ class ProxyCell : public _POLICY {
    * \fn bool ProxyCell::IsLeaf() const
    */
   inline bool IsLeaf() const {
-    Touched();
     return this->Base::IsLeaf();
   }
+
+#ifdef TAPAS_DEBUG
+  inline bool IsLocal() const {
+    return false; // meaningless
+  }
+
+  inline index_t body_offset() const {
+    return 0;
+  }
+#endif
+  
   
   inline index_t nb() const {
     TAPAS_ASSERT(IsLeaf() && "Cell::nb() is not allowed for non-leaf cells.");
-    Touched();
+    MarkNb();
     return this->Base::nb();
   }
 
@@ -249,7 +265,7 @@ class ProxyCell : public _POLICY {
    * \fn ProxyCell::attr
    */
   const CellAttr &attr() const {
-    Touched();
+    ReadAttr();
     return attr_;
   }
 
@@ -257,17 +273,18 @@ class ProxyCell : public _POLICY {
    * \fn ProxyCell::bodies()
    */
   ProxyBodyIterator<ProxyCell> bodies() {
-    Touched();
+    MarkNb();
     return ProxyBodyIterator<ProxyCell>(this);
   }
     
   ProxyBodyIterator<ProxyCell> bodies() const {
-    Touched();
+    MarkNb();
     return ProxyBodyIterator<ProxyCell>(const_cast<ProxyCell*>(this));
   }
 
   const Body &body(index_t idx) const { // returns ProxyBody
-    Touched();
+    // This function is inhibited.
+    // Users should use Map()/Reduce() and Cell::bodies() instead.
 
     TAPAS_ASSERT(IsLeaf() && "Cell::body() is not allowed for a non-leaf cell.");
     TAPAS_ASSERT(idx < nb() && "Body index out of bound. Check nb()." );
@@ -276,7 +293,20 @@ class ProxyCell : public _POLICY {
   }
   
   BodyAttr &body_attr(index_t idx) {
-    Touched();
+    // This function is inhibited.
+    // Users should use Map()/Reduce() and Cell::bodies() instead.
+    std::cerr << "[Warning] Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
+    
+    TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
+    TAPAS_ASSERT(idx < nb());
+    
+    return this->Base::body_attr(idx);
+  }
+
+  const BodyAttr &body_attr(index_t idx) const {
+    // This function is inhibited.
+    // Users should use Map()/Reduce() and Cell::bodies() instead.
+    std::cerr << "[Warning] Cell::body() and Cell::body_attr() is inhibited. Please use Map() API instead." << std::endl;
     
     TAPAS_ASSERT(IsLeaf() && "ProxyCell::body_attr() can be called only for leaf cells");
     TAPAS_ASSERT(idx < nb());
@@ -296,34 +326,30 @@ class ProxyCell : public _POLICY {
   }
 
   //protected:
-  void Touched() const {
-    marked_touched_ = IncIfNotNull(clock_);
+  void ReadAttr() const {
+    marked_attr_ = IncIfNotNull(clock_);
   }
   void Split() const {
     marked_split_ = IncIfNotNull(clock_);
   }
-  void MarkBody() const {
-    marked_body_ = IncIfNotNull(clock_);
+  void MarkNb() const {
+    marked_nb_ = IncIfNotNull(clock_);
   }
   void MarkModified() {
     marked_modified_ = IncIfNotNull(clock_);
-    //std::cout << "ProxyCell::MarkModified() key=" << key() << ", marked_modified_ = " << marked_modified_ << std::endl;
   }
 
   int IsMarkedModified() const {
     return marked_modified_;
   }
 
- public:
-  //ProxyCell(const ProxyCell &rhs);
-  
  private:
   
   const Data &data_;
 
-  mutable int marked_touched_;
-  mutable int marked_split_;
-  mutable int marked_body_;
+  mutable int marked_attr_;  // attribute is read
+  mutable int marked_split_; // split
+  mutable int marked_nb_;    // member function nb() is called
   int marked_modified_;
   mutable int *clock_;
 

@@ -19,12 +19,14 @@ class OnesideTraversePolicy {
   using FP = _FP;
   using VecT = Vec<Dim, FP>;
   using Reg = tapas::Region<Dim, FP>;
-  
+  using KeyType = typename Data::KeyType;  
+
   using CellType = typename Data::CellType;
   using RealBody = typename Data::BodyType;
   using RealBodyAttr = typename Data::BodyAttrType;
 
-  using Body = ProxyBody<RealBody, RealBodyAttr>;
+  using Body = ProxyBody<RealBody, RealBodyAttr, OnesideTraversePolicy<_DIM, _FP, Data>>;
+  using PxBody = Body;
   using BodyAttr = ProxyBodyAttr<RealBody, RealBodyAttr>;
   
   OnesideTraversePolicy(const Data &data, Reg region, VecT width, int depth)
@@ -35,6 +37,7 @@ class OnesideTraversePolicy {
       , depth_(depth)
       , bodies_()
       , body_attrs_()
+      , key_(0)
   {
     Init();
   }
@@ -47,6 +50,7 @@ class OnesideTraversePolicy {
       , depth_(rhs.depth_)
       , bodies_()
       , body_attrs_()
+      , key_(rhs.key_)
   {
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
@@ -60,6 +64,7 @@ class OnesideTraversePolicy {
       , depth_(rhs.depth_)
       , bodies_()
       , body_attrs_()
+      , key_(rhs.key_)
   {
     TAPAS_ASSERT(&data == &rhs.data_);
     Init();
@@ -77,11 +82,19 @@ class OnesideTraversePolicy {
   }
 
   // for debugging purpose
-  typename CellType::KeyType key() const { return 0; } 
+  KeyType key() const { return 0; }
+
+  void SetKey(KeyType k) {
+    key_ = k;
+  }
 
  protected:
   void Init() {
     is_leaf_ = (depth_ >= data_.max_depth_);
+
+    // We want to delay the call to InitBodies() for performance reasons.
+    // However, we call it here for now because of const-consistency.
+    InitBodies();
 
 #ifdef TAPAS_DEBUG
     for (int d = 0; d < Dim; d++) {
@@ -119,6 +132,7 @@ class OnesideTraversePolicy {
 
   inline void SetIsLeaf(bool b) {
     is_leaf_ = b;
+    InitBodies();
   }
 
   // Cell-Cell, Center
@@ -133,24 +147,11 @@ class OnesideTraversePolicy {
       FP a = r1.max(dim) - w1/2, b = r1.min(dim) + w1/2;
       FP c = r2.max(dim) - w2/2, d = r2.min(dim) + w2/2;
 
-      // std::cout << "Dim " << dim << " a = " << a << std::endl;
-      // std::cout << "Dim " << dim << " b = " << b << std::endl;
-      // std::cout << "Dim " << dim << " c = " << c << std::endl;
-      // std::cout << "Dim " << dim << " d = " << d << std::endl;
-
       if (a < b && ((double)a-b)*(a-b) < 1e-12) {
         a = b;
       }
       if (c < d && ((double)c-d)*(c-d) < 1e-12) {
         c = d;
-      }
-
-      if (a < b) {
-        std::cerr << "dim = " << dim << std::endl;
-        std::cerr << "r1 = [" << r1.max()[dim] << " , " << r2.min()[dim] << "]" << std::endl;
-        std::cerr << "w1 = " << w1 << std::endl;
-        std::cerr << "a = " << a << std::endl;
-        std::cerr << "b = " << b << std::endl;
       }
 
       TAPAS_ASSERT(a >= b);
@@ -164,15 +165,11 @@ class OnesideTraversePolicy {
       if (b <= c && c <= a) overlp = true;
       if (b <= d && d <= a) overlp = true;
 
-      //std::cout << "Dim " << dim << " overlap = " << overlp << std::endl;
-
       if (overlp) {
         dX[dim] = 0;
       } else {
         dX[dim] = std::min(fabs(a-d), fabs(c-b));
       }
-      //std::cout << "Dim " << dim << " dX = " << dX[dim] << std::endl;
-      //std::cout << std::endl;
     }
 
     return dX;
@@ -184,6 +181,7 @@ class OnesideTraversePolicy {
     for (int d = 0; d < Dim; d++) {
       FP a_min = region_.min(d), a_max = region_.max(d);
       FP b_min = rhs.region_.min(d), b_max = rhs.region_.max(d);
+
       if ((b_min <= a_min && a_min <= b_max) || (b_min <= a_max && a_max <= b_max)) {
         dx[d] = 0;
       } else if (a_min <= b_min && b_max <= a_max) {
@@ -201,11 +199,24 @@ class OnesideTraversePolicy {
     return dx;
   }
 
+  inline VecT dX(const PxBody& body, tapas::ShortestClass) const {
+    //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    auto &rhs = *(body.Parent());
+    return dX(rhs, tapas::ShortestClass());
+  }
+
+  inline VecT dX(const PxBody& body, tapas::CenterClass) const {
+    //VecT body_pos = ParticlePosOffset<Dim, FP, TSP::kBodyCoordOffset>::vec(&body);
+    auto &rhs = *(body.Parent());
+    auto dx = dX(rhs, tapas::ShortestClass());
+    return dx; // using Shortest distnace: not mistake.
+  }
+
   // Cell-Body, Center
   inline VecT dX(const VecT& body_pos, tapas::CenterClass) const {
     // todo
     VecT dx = {0.0};
-    
+
     for (int d = 0; d < Dim; d++) {
       if (body_pos[d] < region_.min(d)) {
         dx[d] = region_.min(d) - body_pos[d] + width_[d]/2;
@@ -253,30 +264,36 @@ class OnesideTraversePolicy {
   }
 
   void InitBodies() {
-    if (nb() > 0) {
-      auto num_bodies = nb();
+    if (is_leaf_ && nb() > 0) {
+      size_t num_bodies = nb();
       if (bodies_.size() != num_bodies) {
         bodies_.resize(num_bodies);
         body_attrs_.resize(num_bodies);
         memset((void*)bodies_.data(), 0, sizeof(bodies_[0]) * bodies_.size());
         memset((void*)body_attrs_.data(), 0, sizeof(body_attrs_[0]) * body_attrs_.size());
+
+        for (size_t i = 0; i < bodies_.size(); i++) {
+          bodies_[i].SetParent(this);
+        }
       }
     }
   }
 
-  const Body &body(index_t idx) {
-    if (bodies_.size() != nb()) {
-      InitBodies();
+  const Body &body(index_t idx) const {
+    if (idx >= (index_t)bodies_.size()) {
+      std::cerr << "assertion failed. idx=" << idx << ", bodies.size()=" << bodies_.size()
+                << ", nb()=" << nb() << ", isleaf=" << is_leaf_
+                << std::endl;
     }
-    
     TAPAS_ASSERT(idx < (index_t)bodies_.size());
     return bodies_[idx];
   }
 
   BodyAttr &body_attr(index_t idx) {
-    if (body_attrs_.size() != nb()) {
-      InitBodies();
-    }
+    return body_attrs_[idx];
+  }
+  
+  const BodyAttr &body_attr(index_t idx) const {
     return body_attrs_[idx];
   }
   
@@ -287,6 +304,9 @@ class OnesideTraversePolicy {
 
 
  protected:
+  // About GHOST or REAL:
+  //  * GHOST: region_ is possible area that the cell can 'float' around.
+  //  * REAL : region_ is the exact region of the cell. width_ is just simply calculated from regin_.
   Reg region_;
   VecT width_;
   const Data &data_;
@@ -294,6 +314,7 @@ class OnesideTraversePolicy {
   int depth_;
   std::vector<Body> bodies_; // a vector of proxy body
   std::vector<BodyAttr> body_attrs_; // a vector of proxy body attr
+  KeyType key_;
 };
 
 } // namespace proxy

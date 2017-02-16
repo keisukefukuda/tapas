@@ -6,38 +6,82 @@
 namespace tapas {
 namespace hot {
 
-/**
- * Enum values of predicate function
- */
-enum class InteractionType {
-  Approx     = 1 << 0,   // Compute using right cell's attribute
-  Body       = 1 << 1 ,  // Compute using right cell's bodies
-  SplitLeft  = 1 << 2,   // Split left (local) cell
-  SplitRight = 1 << 3,   // Split right (remote) cell
-  SplitBoth  = SplitLeft | SplitRight,    // Split both cells
-  SplitRightILL = 1 << 4,  // Split right leaf is split only *If the Left cell is a Leaf*
-  None       = 0,          // Nothing. Use when a target cell isn't local in Traverse
-};
+// Interaction Flag class
+class IntrFlag {
+  using type = uint32_t;
+ public:
+  static constexpr type ReadAttrR = 1 << 0; // Cell::attr() of right cell is called
+  static constexpr type ReadAttrL = 1 << 1; // Cell::attr() of left cell is called
+  static constexpr type ReadAttr  = ReadAttrL | ReadAttrR;
+  static constexpr type ReadNbR   = 1 << 2; // Cell::nb() of right cell is called
+  static constexpr type ReadNbL   = 1 << 3; // Cell::nb() of left cell is called
+  static constexpr type ReadNb    = ReadNbR | ReadNbL;
+  static constexpr type SplitR    = 1 << 4; // the right cell is split
+  static constexpr type SplitL    = 1 << 5; // the left cell is split
+  static constexpr type Split     = SplitR | SplitL;
+  static constexpr type SplitILL  = 1 << 6; // Split the right cell only if the left cell is a leaf.
 
-std::string ToString(InteractionType st) {
-  switch(st) {
-    case InteractionType::Approx:        return "InteractionType::Approx";
-    case InteractionType::Body:          return "InteractionType::Body";
-    case InteractionType::SplitLeft:     return "InteractionType::SplitLeft";
-    case InteractionType::SplitRight:    return "InteractionType::SplitRight";
-    case InteractionType::SplitRightILL: return "InteractionType::SplitRightILL";
-    case InteractionType::SplitBoth:     return "InteractionType::SplitBoth";
-    case InteractionType::None:          return "InteractionType::None";
-    default:
-      assert(0);
-      return "";
+  IntrFlag(type flag) : flag_(flag) {}
+  IntrFlag() : flag_(0) {}
+
+  void Add(type f) {
+    flag_ |= f;
   }
-}
 
-std::ostream& operator<<(std::ostream &os, InteractionType st) {
-  os << ToString(st);
-  return os;
-}
+  void Add(IntrFlag &f) {
+    flag_ |= f.flag_;
+  }
+
+  void Remove(type f) {
+    flag_ &= !f;
+  }
+
+  IntrFlag operator|(const IntrFlag &rhs) {
+    return IntrFlag(flag_ | rhs.flag_);
+  }
+
+  bool operator==(const IntrFlag &rhs) {
+    return flag_ == rhs.flag_;
+  }
+  
+  bool IsApprox() const {
+    return !( (flag_ & SplitR) ||
+              (flag_ & SplitL) ||
+              (flag_ & SplitILL) );
+  }
+
+  inline bool IsSplitR() const { return flag_ & SplitR; }
+  inline bool IsSplitL() const { return flag_ & SplitL; }
+  inline bool IsSplitILL() const { return flag_ & SplitILL; }
+  inline bool IsSplitBoth() const { return IsSplitR() && IsSplitL(); }
+        
+  inline bool IsReadAttrR() const { return flag_ & ReadAttrR; }
+  inline bool IsReadAttrL() const { return flag_ & ReadAttrL; }
+  inline bool IsReadAttr() const { return IsReadAttrR() || IsReadAttrL(); }
+  
+  std::string ToString() const {
+    std::vector<std::string> res;
+
+    if (flag_ & ReadAttrR) res.push_back("ReadAttrR");
+    if (flag_ & ReadAttrL) res.push_back("ReadAttrL");
+    if (flag_ & ReadNbR)   res.push_back("ReadNbR");
+    if (flag_ & ReadNbL)   res.push_back("ReadNbL");
+    if (flag_ & SplitR)    res.push_back("SplitR");
+    if (flag_ & SplitL)    res.push_back("SplitL");
+    if (flag_ & SplitILL)    res.push_back("SplitILL");
+
+    std::string out;
+    for (size_t i = 0; i < res.size(); i++) {
+      if (i > 0) out += " | ";
+      out += res[i];
+    }
+
+    return out;
+  }
+
+ private:
+  type flag_;
+};
 
 } /* namespace hot */
 } /* namespace tapas */

@@ -92,6 +92,7 @@ class Region {
     return (max_[d] + min_[d]) / 2;
   }
 
+  // old & deprecated. Used only in single_node_hot.h
   Region PartitionBSP(int pos) const {
     Region sr = *this;
     for (int i = 0; i < Dim; ++i) {
@@ -106,34 +107,20 @@ class Region {
     return sr;
   }
 
+  // Compute a bounding box of the two regions
+  static Region BB(const Region &lhs, const Region &rhs) {
+    Vec<Dim, FP> max, min;
+    for (int d = 0; d < Dim; d++) {
+      max[d] = std::max(lhs.max_[d], rhs.max_[d]);
+      min[d] = std::min(lhs.min_[d], rhs.min_[d]);
+    }
+    
+    return Region(min, max);
+  }
+
   std::ostream &Print(std::ostream &os) const {
     os << "{" << min_ << ", " << max_ << "}";
     return os;
-  }
-
-  static Region<Dim, FP> join(const Region<Dim, FP>& r) { return r; }
-  static Region<Dim, FP> join(Region<Dim, FP>&& r) { return r; }
-  
-  template <class...Args>
-  static Region<Dim,FP> join(const Region<Dim, FP>& r1, const Region<Dim, FP>& r2, Args...args) {
-    Vec<Dim, FP> cmax, cmin;
-    for (int d = 0; d < Dim; d++) {
-      cmax[d] = std::max(r1.max(d), r2.max(d));
-      cmin[d] = std::min(r1.min(d), r2.min(d));
-    }
-    return join(Region<Dim,FP>(cmin,cmax), args...);
-  }
-
-  template<class Iter>
-  static Region<Dim, FP> join(Iter beg, Iter end) {
-    Vec<Dim, FP> cmax = beg.max(), cmin = beg.min();
-    
-    for (auto iter = beg + 1; iter != end; iter++) {
-      for (int d = 0; d < Dim; d++) {
-        cmax[d] = std::max(cmax[d], iter->max(d));
-        cmin[d] = std::min(cmin[d], iter->min(d));
-      }
-    }
   }
 };
 

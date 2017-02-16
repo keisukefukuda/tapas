@@ -1,5 +1,5 @@
-#ifndef TAPAS_HOT_EXACT_LET_
-#define TAPAS_HOT_EXACT_LET_
+#ifndef TAPAS_HOT_TARGET_SIDE_LET_H__
+#define TAPAS_HOT_TARGET_SIDE_LET_H__
 
 #include<vector>
 
@@ -8,8 +8,13 @@
 #include <tapas/geometry.h>
 #include <tapas/hot/mapper.h>
 #include <tapas/hot/let_common.h>
-#include <tapas/hot/oneside_insp2.h>
-#include <tapas/hot/twoside_insp2.h>
+
+#ifdef TAPAS_TWOSIDE_LET
+#include <tapas/hot/inspector/twoside_on_target.h>
+#else
+#include <tapas/hot/inspector/oneside_on_target.h>
+#include <tapas/hot/inspector/oneside_on_source.h>
+#endif
 
 using tapas::debug::BarrierExec;
 
@@ -20,13 +25,13 @@ template<class TSP> class Cell;
 template<class TSP> class Partitioner;
 
 /**
- * A set of static functions to construct LET (Locally Essential Tree)
- *
- * ExactInsp2 puts no assumption on user's function but has more overhead instead.
- * It emulates all the behavior of user's function.
+ * A set of static functions to construct LET (Locally Essential Tree) in a target-side manner,
+ * which means that target side processes run inspectors and request necessary data to 
+ * owner (remote, source-side) processes.
+ * 
  */
 template<class TSP>
-struct ExactInsp2 {
+struct TargetSideLET {
   // typedefs
   static const constexpr int Dim = TSP::Dim;
   using FP = typename TSP::FP;
@@ -53,8 +58,14 @@ struct ExactInsp2 {
 
   //using ProxyBody = tapas::hot::proxy::ProxyBody<TSP>;
   //using ProxyBodyAttr = tapas::hot::proxy::ProxyBodyAttr<TSP>;
+#ifdef TAPAS_TWOSIDE_LET
+  using Policy = tapas::hot::proxy::FullTraversePolicy<TSP>;
+#else
+  using Policy = tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>;
+#endif
+
   using ProxyAttr = tapas::hot::proxy::ProxyAttr<TSP>;
-  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::FullTraversePolicy<TSP>>;
+  using ProxyCell = tapas::hot::proxy::ProxyCell<TSP, Policy>;
   using ProxyMapper = tapas::hot::proxy::ProxyMapper<TSP>;
 
   // Note for UserFunct template parameter:
@@ -220,9 +231,8 @@ struct ExactInsp2 {
   static void Response(Data &data,
                        std::vector<KeyType> &req_attr_keys, std::vector<int> &attr_src_ranks,
                        std::vector<KeyType> &req_leaf_keys, std::vector<int> &leaf_src_ranks,
-                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies, std::vector<index_t> &res_nb){
-
-    SCOREP_USER_REGION("LET-Response", SCOREP_USER_REGION_TYPE_FUNCTION);
+                       std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies,
+                       std::vector<index_t> &res_nb){
     // req_attr_keys : list of cell keys of which cell attributes are requested
     // req_leaf_keys : list of cell keys of which bodies are requested
     // attr_src_ranks      : source process ranks of req_attr_keys (which are response target ranks)
@@ -261,8 +271,10 @@ struct ExactInsp2 {
     // Send response keys and attributes
     bt = MPI_Wtime();
 
-    tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks, req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks, res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks,
+                           req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks,
+                           res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
@@ -330,8 +342,7 @@ struct ExactInsp2 {
     // leaf_src_ranks_ranks and res_nb.
     std::vector<int> leaf_recvcnt; // we don't use this
     std::vector<int> body_recvcnt; // we don't use this
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    
     bt = MPI_Wtime();
 
     // Send response keys and bodies
@@ -355,6 +366,7 @@ struct ExactInsp2 {
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
 
+
     data.let_bodies_.assign(std::begin(res_bodies), std::end(res_bodies));
     data.let_body_attrs_.resize(res_bodies.size());
     bzero(&data.let_body_attrs_[0], data.let_body_attrs_.size() * sizeof(data.let_body_attrs_[0]));
@@ -366,7 +378,7 @@ struct ExactInsp2 {
   }
 
   /**
-   * \breif Register response cells to local LET hash table
+   * \breif Register the received response cells to local LET hash table
    * \param [in,out] data Data structure (cells are registered to data->ht_lt_)
    */
   static void Register(Data *data,
@@ -382,7 +394,7 @@ struct ExactInsp2 {
     for (size_t i = 0; i < res_cell_attr_keys.size(); i++) {
       KeyType k = res_cell_attr_keys[i];
       TAPAS_ASSERT(data->ht_.count(k) == 0); // Received cell must not exit in local hash.
-      
+
       Cell<TSP> *c = nullptr;
 
       if (data->ht_gtree_.count(k) > 0) {
@@ -399,18 +411,31 @@ struct ExactInsp2 {
 
     TAPAS_ASSERT(res_leaf_keys.size() == res_nb.size());
 
-    // Register received leaf cells to local ht_let_ hash table.
     index_t body_offset = 0;
     for (size_t i = 0; i < res_leaf_keys.size(); i++) {
       KeyType k = res_leaf_keys[i];
       index_t nb = res_nb[i];
-      Cell<TSP> *c = nullptr;
+      index_t cur_body_offset = body_offset;
+      body_offset += nb;
 
+      if (data->ht_.count(k) > 0) {
+        // received data already exists in local memory.
+        // should be a warning?
+        continue;
+      }
+
+      Cell<TSP> *c = nullptr;
       if (data->ht_let_.count(k) > 0) {
         // If the cell is already registered to ht_let_, the cell has attributes but not body info.
         c = data->ht_let_.at(k);
       } else if (data->ht_gtree_.count(k) > 0) {
+        // it is a leaf in remote cell.
         c = data->ht_gtree_.at(k);
+        if (!c->IsLeaf()) {
+          c->is_local_ = false;
+        } else {
+          continue;
+        }
       } else {
         c = Cell<TSP>::CreateRemoteCell(k, 1, data);
         data->ht_let_[k] = c;
@@ -418,9 +443,7 @@ struct ExactInsp2 {
 
       c->is_leaf_ = true;
       c->nb_ = nb;
-      c->bid_ = body_offset;
-
-      body_offset += nb;
+      c->bid_ = cur_body_offset;
     }
 
     double end = MPI_Wtime();
@@ -428,11 +451,45 @@ struct ExactInsp2 {
   }
 
   /**
+   * Inspecting action for LET construction
+   * TODO: LET用にセルをリスト追加するアクションのクラス
+   */
+  class LetInspectorAction {
+    using HT = typename Cell<TSP>::CellHashTable;
+    const HT &ht_;
+    const HT &ht_gtree_;
+    KeySet &attr_keys_; // cell keys
+    KeySet &leaf_keys_; // leaf keys
+   public:
+    LetInspectorAction(const Data &data, KeySet &attr_keys, KeySet &leaf_keys)
+        : ht_(data.ht_)
+        , ht_gtree_(data.ht_gtree_)
+        , attr_keys_(attr_keys)
+        , leaf_keys_(leaf_keys)
+    { }
+    
+    inline bool operator()(KeyType /* trg_key */, bool /* is_trg_leaf */,
+                           KeyType src_key, bool is_src_leaf,
+                           IntrFlag splt) {
+      if (splt.IsReadAttrR() || splt.IsSplitR() || splt.IsApprox()) {
+        attr_keys_.insert(src_key);
+      }
+      
+      if (is_src_leaf) {
+        leaf_keys_.insert(src_key);
+      }
+
+      return true;
+    }
+  };
+  
+  /**
    * \brief Build Locally essential tree
    */
   template<class UserFunct, class...Args>
   static void Exchange(CellType &root, UserFunct f, Args...args) {
     SCOREP_USER_REGION("LET-All", SCOREP_USER_REGION_TYPE_FUNCTION);
+    auto &data = root.data();
     double beg = MPI_Wtime();
 
 #ifdef TAPAS_DEBUG_DUMP
@@ -442,20 +499,28 @@ struct ExactInsp2 {
     // Traverse
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
+    KeySet req_cell_attr_keys2; // cells of which attributes are to be transfered from remotes to local
+    KeySet req_leaf_keys2; // cells of which bodies are to be transfered from remotes to local
+    LetInspectorAction callback(data, req_cell_attr_keys, req_leaf_keys);
+    LetInspectorAction callback2(data, req_cell_attr_keys2, req_leaf_keys2);
 
-    double bt = MPI_Wtime();
+    double bt, et;
 
     // Depending on the macro, Tapas uses two-side or one-side inspector to construct LET.
     // One side traverse is much faster but it requires certain condition in user function f.
-#ifdef TAPAS_ONESIDE_LET
-    std::cout << "1-side inespector" << std::endl;
-    OnesideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+#ifdef TAPAS_TWOSIDE_LET
+#warning "Using 2-sided LET"
+    TwosideOnTarget<TSP> inspector(data);
+    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 2-sided LET" << std::endl;
 #else
-    std::cout << "2-side inespector" << std::endl;
-    TwosideInsp2<TSP>::Inspect(root, req_cell_attr_keys, req_leaf_keys, f, args...);
+    OnesideOnTarget<TSP, UserFunct, Args...> inspector(data);
+    if (tapas::mpi::Rank() == 0) std::cout << "Using Target-side 1-sided LET" << std::endl;
 #endif
-    
-    double et = MPI_Wtime();
+
+    bt = MPI_Wtime();
+    inspector.Inspect(root, callback, f, args...);
+    et = MPI_Wtime();
+
     if (root.data().mpi_rank_ == 0) {
       std::cout << "Inspector : " << std::scientific << (et-bt) << " [s]" << std::endl;
     }
@@ -477,7 +542,9 @@ struct ExactInsp2 {
     std::vector<CellAttr> res_cell_attrs;
     std::vector<BodyType> res_bodies;
     std::vector<index_t> res_nb; // number of bodies responded from remote processes
-    Response(root.data(), res_cell_attr_keys, attr_src, res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
+    Response(root.data(),
+             res_cell_attr_keys, attr_src,
+             res_leaf_keys, leaf_src, res_cell_attrs, res_bodies, res_nb);
 
     // Register
     Register(root.data_, res_cell_attr_keys, res_cell_attrs, res_leaf_keys, res_nb);
@@ -540,4 +607,4 @@ struct ExactInsp2 {
 
 } // namespace tapas
 
-#endif // TAPAS_HOT_EXACT_LET_
+#endif // TAPAS_HOT_TARGET_SIDE_LET_H__

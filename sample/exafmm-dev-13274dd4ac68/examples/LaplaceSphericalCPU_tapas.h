@@ -315,9 +315,7 @@ void L2P(TapasFMM::Cell &C, Body &b, BodyAttr &ba) { // c is a pointer here to a
   }
   sph2cart(r, theta, phi, spherical, cartesian);
   ba[1] += cartesian[0];
-  //b.TRG[2] += cartesian[1];
   ba[2] += cartesian[1];
-  //b.TRG[3] += cartesian[2];
   ba[3] += cartesian[2];
 }
 

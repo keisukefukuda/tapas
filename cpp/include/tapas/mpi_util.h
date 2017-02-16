@@ -656,6 +656,26 @@ void Gatherv(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, int root, M
 }
 
 template<class T>
+void Allgather(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, MPI_Comm comm) {
+  int mpi_size = tapas::mpi::Size();
+  
+  auto kType = MPI_DatatypeTraits<T>::type();
+  int count = sendbuf.size();
+  if (kType == MPI_BYTE) {
+    count *= sizeof(T);
+  }
+
+  recvbuf.clear();
+  recvbuf.resize(count * mpi_size);
+
+  int ret = ::MPI_Allgather(mpi_sendbuf_cast(sendbuf.data()), count, kType, 
+                            recvbuf.data(), count, kType, comm);
+
+  TAPAS_ASSERT(ret == MPI_SUCCESS);
+}
+
+
+template<class T>
 void Allgatherv(const std::vector<T> &sendbuf, std::vector<T> &recvbuf, MPI_Comm comm) {
   int size = -1, rank = -1;
 
