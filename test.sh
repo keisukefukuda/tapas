@@ -166,6 +166,7 @@ ${MPICXX} -show
 
 export CXX
 export MPICXX
+export MPIEXEC
 
 if [[ -d "${MYTH_DIR:-}" ]]; then
     echo MassiveThreads is activated. MYTH_DIR=${MYTH_DIR}
