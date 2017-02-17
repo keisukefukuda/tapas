@@ -87,9 +87,52 @@ if [[ -z "${MAKE:-}" ]]; then
     MAKE=make
 fi
 
-echo "-----------------------------------------------"
-echo "MPICXX=${MPICXX}"
-echo "MAKE=${MAKE}"
-echo "-----------------------------------------------"
+# detect MPI implementation
+echo Detecting mpicxx implementation
+if [[ -z "${MPICXX:-}" ]]; then
+    echo MPICXX is not defined. Detect MPI implementation and configure it.
+    echo Using $(which mpicxx)
 
+    if mpicxx --showme:version 2>/dev/null | grep "Open MPI"; then
+        # Opne MPI
+        export OMPI_CXX=${CXX}
+        MPICXX="mpicxx"
+
+        if [[ -z "${MPIEXEC:-}" ]]; then
+            MPIEXEC=mpiexec
+        fi
+        
+        echo Looks like Open MPI.
+    else
+        # mpich family (mpich and mvapich)
+        MPICXX="mpicxx -cxx=${CXX}"
+        
+        if [[ -z "${MPIEXEC:-}" ]]; then
+            MPIEXEC=mpiexec
+        fi
+        
+        echo Looks like Mpich.
+    fi
+fi
+
+echo Checking if compiler works
+echo ${CXX} --version
+${CXX} --version || {
+    echoRed "ERROR: Compiler '${CXX}' seems to be broken"
+    exit 1
+}
+
+echo $CXX --version
+$CXX --version
+
+echo MPICXX=${MPICXX}
+echo ${MPICXX} -show
+${MPICXX} -show
+
+export CXX
+export MPICXX
+export MPIEXEC
+
+echo CXX=${CXX}
+echo MPICXX=${MPICXX}
 echo MAKE=${MAKE}

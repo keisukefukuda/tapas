@@ -122,51 +122,6 @@ fi
 
 echo CXX=$(which ${CXX})
 
-# detect MPI implementation
-echo Detecting mpicxx implementation
-if [[ -z "${MPICXX:-}" ]]; then
-    echo MPICXX is not defined. Detect MPI implementation and configure it.
-    echo Using $(which mpicxx)
-
-    if mpicxx --showme:version 2>/dev/null | grep "Open MPI"; then
-        # Opne MPI
-        export OMPI_CXX=${CXX}
-        MPICXX="mpicxx"
-
-        if [[ -z "${MPIEXEC:-}" ]]; then
-            MPIEXEC=mpiexec
-        fi
-        
-        echo Looks like Open MPI.
-    else
-        # mpich family (mpich and mvapich)
-        MPICXX="mpicxx -cxx=${CXX}"
-        
-        if [[ -z "${MPIEXEC:-}" ]]; then
-            MPIEXEC=mpiexec
-        fi
-        
-        echo Looks like Mpich.
-    fi
-fi
-
-echo Checking if compiler works
-echo ${CXX} --version
-${CXX} --version || {
-    echoRed "ERROR: Compiler '${CXX}' seems to be broken"
-    exit 1
-}
-
-echo $CXX --version
-$CXX --version
-
-echo MPICXX=${MPICXX}
-echo ${MPICXX} -show
-${MPICXX} -show
-
-export CXX
-export MPICXX
-export MPIEXEC
 
 if [[ -d "${MYTH_DIR:-}" ]]; then
     echo MassiveThreads is activated. MYTH_DIR=${MYTH_DIR}
@@ -174,77 +129,14 @@ else
     echo MassiveThreads is NOT activated.
 fi    
 
-function test_unit() {
-    echo --------------------------------------------------------------------
-    echo C++ Unit Tests
-    echo --------------------------------------------------------------------
-    
-    SRC_DIR=$SRC_ROOT/cpp/tests
-
-    echoCyan make MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR clean
-    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR clean
-
-    echoCyan make MPICXX=\"${MPICXX}\" VERBOSE=1 MODE=debug -C $SRC_DIR all
-    make -j MPICXX="${MPICXX}" VERBOSE=1 MODE=debug -C $SRC_DIR all &&:
-    echo $?
-
-    TEST_TARGETS=$(make -C $SRC_DIR list | grep -v make | grep -v echo | grep test_)
-    for t in $TEST_TARGETS; do
-        for NP in 1 2 3 4; do
-            echoCyan ${MPIEXEC} -np $NP $SRC_DIR/$t
-            ${MPIEXEC} -np $NP $SRC_DIR/$t
-        done
-    done
-}
-
-test_unit
+# Call unit test
+/bin/bash $SRC_ROOT/cpp/tests/test.sh
 
 # Call BH test
 /bin/bash $SRC_ROOT/sample/barnes-hut/test.sh
 
 # Call FMM test
-/bin/bash $SRC_ROOT/sample/exafmm-dev-13274dd4ac68/test.sh
-
-# Check some special cases
-
-# echo
-# echo --------------------------------------------------------------------
-# echo "ExaFMM (with Ncrit > Nbodies)"
-# echo --------------------------------------------------------------------
-# echo
-
-# for MUTUAL in "" "_mutual" ; do
-#     rm -f $TMPFILE; sleep 0.3s
-#     echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c
-#     ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 500 -c 1024 -d c  > $TMPFILE
-#     if [[ ! "${QUIET:-}" == "1" ]]; then
-#         cat $TMPFILE ||:
-#     fi
-    
-#     accuracyCheck $TMPFILE
-# done
-
-# echo
-# echo --------------------------------------------------------------------
-# echo "ExaFMM (with Ncrit = 1)"
-# echo --------------------------------------------------------------------
-# echo
-# for MUTUAL in "" "_mutual" ; do
-#     rm -f $TMPFILE; sleep 0.3s
-#     echoCyan ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c
-#     ${MPIEXEC} -np 1 $SRC_DIR/parallel_tapas${MUTUAL} -n 200 -c 1 -d c  > $TMPFILE
-#     if [[ ! "${QUIET:-}" == "1" ]]; then
-#         cat $TMPFILE ||:
-#     fi
-    
-#     accuracyCheck $TMPFILE
-# done
-
-# if [[ $STATUS -eq 0 ]]; then
-#     echo OK.
-# else
-#     echoRed "***** Test failed."
-# fi
+/bin/bash $SRC_ROOT/sample/fmm/test.sh
 
 exit $STATUS
 
