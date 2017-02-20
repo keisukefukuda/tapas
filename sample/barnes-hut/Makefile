@@ -36,7 +36,7 @@ endif
 
 CXXFLAGS += -DS=$(S)
 
-TAPAS_DIR = ../../cpp
+TAPAS_DIR = ../..
 
 all: bh
 
@@ -53,6 +53,6 @@ bh.d: bh.cc
 	$(MPICXX) -MM -DUSE_MPI -o $@ $(CXXFLAGS) -I$(TAPAS_DIR)/include $^
 
 clean:
-	$(RM) -f *.o bh bh_mpi
+	$(RM) -f *.o bh bh_mpi bh.d
 
 -include bh.d

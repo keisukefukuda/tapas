@@ -1,5 +1,5 @@
 
-CXXFLAGS += -I../../cpp/include -I.
+CXXFLAGS += -I../../include -I.
 
 ### choose kernel
 EQUATION = Laplace
@@ -102,6 +102,7 @@ tapas.d:
 
 clean:
 	rm -rf *.o *.dSYM
+	rm -rf *.d
 	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | grep parallel_tapas | cut -d ":" -f 1 | xargs rm -f
 
 -include tapas.d

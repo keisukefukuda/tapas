@@ -130,7 +130,7 @@ else
 fi    
 
 # Call unit test
-/bin/bash $SRC_ROOT/cpp/tests/test.sh
+/bin/bash $SRC_ROOT/tests/test.sh
 
 # Call BH test
 /bin/bash $SRC_ROOT/sample/barnes-hut/test.sh
