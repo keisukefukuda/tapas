@@ -1,6 +1,6 @@
 #!/bin/sh
 # test_common.sh
-# Sourced by test shell scripts in sample/ subdirectoires.
+# Sourced by test shell scripts in samples/ subdirectoires.
 # Provides a few common variables
 #
 # defined variables:

@@ -133,10 +133,10 @@ fi
 /bin/bash $SRC_ROOT/tests/test.sh
 
 # Call BH test
-/bin/bash $SRC_ROOT/sample/barnes-hut/test.sh
+/bin/bash $SRC_ROOT/samples/barnes-hut/test.sh
 
 # Call FMM test
-/bin/bash $SRC_ROOT/sample/fmm/test.sh
+/bin/bash $SRC_ROOT/samples/fmm/test.sh
 
 exit $STATUS
 
@@ -147,7 +147,7 @@ if which nvcc >/dev/null 2>&1; then
 
     which g++
     BIN=parallel_tapas_cuda
-    SRC_DIR=$SRC_ROOT/sample/exafmm-dev-13274dd4ac68/examples
+    SRC_DIR=$SRC_ROOT/samples/exafmm-dev-13274dd4ac68/examples
     compile=$($MPICXX -show -cxx=nvcc -DTAPAS_DEBUG=0 -DUSE_MPI -g $NVCC_OPT \
                       -DASSERT -DTAPAS_USE_VECTORMAP -DFP64 -DSpherical -DEXPANSION=6 -DTAPAS_LOG_LEVEL=0 \
                       -I$SRC_DIR/../include -I$SRC_DIR -I$SRC_DIR/../../../cpp/include \
