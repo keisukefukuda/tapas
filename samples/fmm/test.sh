@@ -76,9 +76,7 @@ function build() {
         MAKE_FLAGS="${MAKE_FLAGS} WEIGHT=0"
     fi
 
-    export MPICXX
-    export CXX
-    echoCyan ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas
+    echoCyan ${MAKE_FLAGS} VERBOSE=1 clean tapas
     ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas &&:
 }
 
