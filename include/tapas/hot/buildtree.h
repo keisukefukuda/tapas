@@ -119,59 +119,72 @@ class SamplingOctree {
 
   }
 
-  static void ShowHistogram(const Data &data) {
-    using tapas::debug::BarrierExec;
-    const int d = data.max_depth_;
-    TAPAS_ASSERT(d <= SFC::MaxDepth());
+  template<class MapType>
+  void CountLocalCells(KeyType k, MapType &m) {
+    int d = SFC::GetDepth(k);
+    m[d] += 1;
 
-    // Show "level-#cells" histogram
-
-    const long ncells = data.ht_.size();
-    const long nall   = (pow(8.0, d+1) - 1) / 7;
-    
-    BarrierExec([&](int,int) {
-        std::cout << "Cells: " << ncells << std::endl;
-        std::cout << "depth: " << d << std::endl;
-        std::cout << "filling rate: " << ((double)ncells / nall) << std::endl;
-      });
-
-    std::vector<int> hist(d + 1, 0);
-    for (auto p : data.ht_) {
-      const auto *cell = p.second;
-      if (cell->IsLeaf()) {
-        hist[cell->depth()]++;
+    if (!data_->ht_.at(k)->IsLeaf()) {
+      for (KeyType ch: SFC::GetChildren(k)) {
+        CountLocalCells(ch, m);
       }
     }
+  }
+  
+  template<class MapType>
+  void CountGlobalCells(KeyType k, MapType &m) {
+    if (data_->ht_gtree_.count(k) > 0) {
+      int d = SFC::GetDepth(k);
+      m[d]++;
 
-    BarrierExec([&](int, int) {
-        std::cout << "Depth histogram" << std::endl;
-        for (int i = 0; i <= d; i++) {
-          std::cout << i << " " << hist[i] << std::endl;
+      if (!data_->ht_gtree_[k]->IsLeaf()) { // if not leaf
+        for (KeyType ch: SFC::GetChildren(k)) {
+          CountGlobalCells(ch, m);
+        }
+      }
+    }
+  }
+
+  /**
+   * \brief Show tree statistics
+   *
+   * - Filling factor of tree
+   */
+  void ShowTreeStat() {
+    using tapas::debug::BarrierExec;
+
+    // calculate filling rate of each local trees,
+    // and aggregate the results to the root process
+
+    std::vector<unsigned long> cnt(data_->max_depth_ + 1); // cell count per depth
+
+    BarrierExec([&](int,int) {
+        // Count up local cell (cells under local trees)
+        for (KeyType lroot : data_->lroots_) {
+          // count cells per depth for each local root
+          if (!data_->ht_[lroot]->IsLeaf()) {
+            // do not count local root (because a local root is a global leaf as well)
+            for (KeyType ch : SFC::GetChildren(lroot)) {
+              CountLocalCells(ch, cnt);
+            }
+          }
         }
       });
 
-    // Show "Region-#cells" histogram to show how biased the distribution is.
+    // Aggregate the counted values to rank 0
+    std::vector<unsigned long> recv_buf;
+    mpi::Reduce(cnt, recv_buf, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    int bits = SFC::Dim * 2;
-    int num_classes = 1 << bits;
-    std::vector<int> count(num_classes);
-    for (auto kk : data.ht_) {
-      KeyType key = kk.first;
-      KeyType n = SFC::GetMSBits(key, bits);
-      count[n]++;
-    }
+    if (tapas::mpi::Rank() == 0) {
+      // count cells in the global tree
+      CountGlobalCells(0, recv_buf);
 
-    std::vector<int> recv_buf(num_classes);
-    MPI_Reduce(&count[0], &recv_buf[0], count.size(), MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
-    if (data.mpi_rank_ == 0) {
-      std::cout << "Total cells: " << data.ht_.size() << std::endl;
-      std::cout << "Region Histogram: ";
-      for(int i = 0; i < num_classes; i++) {
-        std::cout << recv_buf[i] << " ";
+      for (int d = 0; d < data_->max_depth_; d++) {
+        double fr = (double) recv_buf[d] / pow(pow(2,kDim), d); // fill rate
+        printf("%2d %3ld %.2f\n", d, recv_buf[d], fr*100);
       }
-      std::cout << std::endl;
     }
+    MPI_Barrier(MPI_COMM_WORLD);
   }
 
   /**
@@ -554,9 +567,6 @@ class SamplingOctree {
     double end = MPI_Wtime();
     data_->time_rec_.Record(data_->timestep_, "Tree-all", end - beg);
 
-#ifdef TAPAS_DEBUG_HISTOGRAM
-    ShowHistogram(*data_);
-#endif
   }
 
   /**

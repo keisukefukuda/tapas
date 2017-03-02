@@ -224,6 +224,10 @@ Partitioner<TSP>::Partition(typename Cell<TSP>::Data *data,
   // Build Global trees
   GlobalTree<TSP>::Build(*data);
 
+#if defined(TAPAS_TREE_STAT) || 1
+  stree.ShowTreeStat();
+#endif
+
 #ifdef TAPAS_DEBUG_DUMP
   {
     tapas::debug::DebugStream e("cells");
