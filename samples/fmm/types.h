@@ -1,11 +1,13 @@
 #ifndef types_h
 #define types_h
-#include "align.h"
-#include <complex>
-#include "kahan.h"
-#include "macros.h"
+
 #include <stdint.h>
 #include <vector>
+#include <complex>
+
+#include "align.h"
+#include "kahan.h"
+#include "macros.h"
 #include "vec.h"
 
 // Basic type definitions
@@ -46,35 +48,14 @@ typedef vec<NTERM,complex_t> vecP;                              //!< Multipole/l
 #error "Please define Spherical or Cartesian"
 #endif
 
-//! Center and radius of bounding box
-struct Box {
-  vec3   X;                                                     //!< Box center
-  real_t R;                                                     //!< Box radius
-};
-
-//! Min & max bounds of bounding box
-struct Bounds {
-  vec3 Xmin;                                                    //!< Minimum value of coordinates
-  vec3 Xmax;                                                    //!< Maximum value of coordinates
-};
-
-//! Structure of aligned source for SIMD
-struct Source {
+struct Body {
   vec3   X;                                                     //!< Position
   real_t SRC;                                                   //!< Scalar source values
-} __attribute__ ((aligned (16)));
-
-//! Structure of bodies
-struct Body : public Source {
-  int      IBODY;                                               //!< Initial body numbering for sorting back
-  int      IRANK;                                               //!< Initial rank numbering for partitioning back
-  uint64_t ICELL;                                               //!< Cell index
-  real_t   WEIGHT;                                              //!< Weight for partitioning
-  kvec4    TRG;                                                 //!< Scalar+vector3 target values
+  kvec4  TRG;                                                 //!< Scalar+vector3 target values
 };
+
 typedef AlignedAllocator<Body,SIMD_BYTES> BodyAllocator;        //!< Body alignment allocator
 typedef std::vector<Body,BodyAllocator>   Bodies;               //!< Vector of bodies
-//typedef std::vector<Body>                 Bodies;               //!< Vector of bodies
 typedef Bodies::iterator                  B_iter;               //!< Iterator of body vector
 
 //! Structure of cells

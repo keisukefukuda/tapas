@@ -14,46 +14,6 @@
 #include <unistd.h>
 #include <sys/syscall.h> // for gettid()
 #include <sys/types.h>   // for gettid()
-namespace _local {
-#if 0
-class Stderr {
-  std::ostream *fs_;
-
- public:
-  Stderr(const char *label) : fs_(nullptr) {
-#ifdef USE_MPI
-    pid_t tid = syscall(SYS_gettid);
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-#else
-    const char *rank="s";
-    int tid=0;
-#endif
-    std::stringstream ss;
-    std::cerr << "Stderr is created with label=" << label << std::endl;
-
-    ss << "stderr"
-       << "." << rank
-       << "." << tid
-       << "." << label
-       << ".txt";
-    fs_ = new std::ofstream(ss.str().c_str(), std::ios_base::app);
-  }
-  
-  ~Stderr() {
-    assert(fs_ != nullptr);
-    delete fs_;
-    fs_ = nullptr;
-  }
-  
-  std::ostream &out() {
-    assert(fs_ != nullptr);
-    return *fs_;
-  }
-};
-#endif
-
-}
 
 class Dataset {                                                 // Contains all the different datasets
  private:
@@ -344,8 +304,8 @@ class Dataset {                                                 // Contains all 
   void initTarget(Bodies & bodies) {
     for (auto b = bodies.begin(); b != bodies.end(); b++) {
       b->TRG = 0;                                              //  Clear target values
-      b->IBODY = b - bodies.begin();                           //  Initial body numbering
-      b->WEIGHT = 1;                                           //  Initial weight
+      //b->IBODY = b - bodies.begin();                           //  Initial body numbering
+      //b->WEIGHT = 1;                                           //  Initial weight
     }                                                            // End loop over bodies
   }
 
