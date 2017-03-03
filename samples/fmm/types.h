@@ -58,6 +58,7 @@ typedef AlignedAllocator<Body,SIMD_BYTES> BodyAllocator;        //!< Body alignm
 typedef std::vector<Body,BodyAllocator>   Bodies;               //!< Vector of bodies
 typedef Bodies::iterator                  B_iter;               //!< Iterator of body vector
 
+#if 0
 //! Structure of cells
 struct Cell {
   int       IPARENT;                                            //!< Index of parent cell
@@ -75,5 +76,6 @@ struct Cell {
 };
 typedef std::vector<Cell> Cells;                                //!< Vector of cells
 typedef Cells::iterator   C_iter;                               //!< Iterator of cell vector
+#endif
 
 #endif

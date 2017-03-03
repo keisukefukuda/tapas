@@ -23,7 +23,7 @@
 #include "args.h"
 #include "dataset.h"
 #include "logger.h"
-#include "kernel.h"
+//#include "kernel.h"
 //#include "up_down_pass.h"
 #include "verify.h"
 
@@ -237,13 +237,6 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
   for (int p = 0; p < mpi_size; p++) {
     if (p == mpi_rank) {
       std::cout << "Computing on rank " << p << " against " << bodies.size() << " bodies." << std::endl;
-      Cells cells;
-      cells.resize(2);
-      C_iter Ci = cells.begin(), Cj = cells.begin() + 1;
-      Ci->BODY  = samples.begin();
-      Ci->NBODY = samples.size();
-      Cj->BODY  = bodies.begin();
-      Cj->NBODY = bodies.size();
 
       vec3 Xperiodic = 0;
       for (int ix=-prange; ix<=prange; ix++) {
@@ -253,11 +246,12 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
             Xperiodic[1] = iy * cycle;
             Xperiodic[2] = iz * cycle;
 
-            for (int i = 0; i < Ci->NBODY; i++) {
-              for (int j = 0; j < Cj->NBODY; j++) {
+            for (size_t i = 0; i < samples.size(); i++) {
+              for (size_t j = 0; j < bodies.size(); j++) {
                 // By passing true to thte ctor of P2P class,
                 // debug print in P2P::operator() is enabled. See LaplhaseP2PCPU_tapas.cxx
-                P2P(false)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
+                P2P(false)(samples[i], samples[i].TRG, bodies[j], bodies[j].TRG, Xperiodic);
+                //P2P(false)(Ci->BODY[i], Ci->BODY[i].TRG, Cj->BODY[j], Cj->BODY[j].TRG, Xperiodic);
               }
             }
           }
@@ -415,7 +409,7 @@ int main(int argc, char ** argv) {
 #endif
 
   Bodies bodies;
-  Cells cells, jcells;
+  //Cells cells, jcells;
   Dataset data;
 
   if (args.useRmax) {

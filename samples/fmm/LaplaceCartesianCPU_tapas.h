@@ -1,4 +1,3 @@
-#include "kernel.h"
 
 #ifdef USE_MPI
 #include <mpi.h>
