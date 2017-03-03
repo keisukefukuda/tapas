@@ -82,6 +82,42 @@ struct GetLabel {
 // 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool FileExists(const char *name) {
+  if (FILE *file = fopen(name.c_str(), "r")) {
+    fclose(file);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+std::string IncrPostfix(const std::string &fname) {
+  // find postfix like ".1" ".21"
+  if (fname.size() == 0) {
+    return fname;
+  }
+
+  int tail = fname.size() - 1;
+  std::string num_part = "";
+
+  while (tail >= 0) {
+    if (isdigit(fname[tail])) {
+      num_part.insert(num_part.begin(), fname[tail]);
+      tail--;
+    } else if (fname[tail] == ".") {
+      tail--;
+      break;
+    } else {
+      return fname + ".0";
+    }
+  }
+
+  int num = atoi(num_part.c_str()) + 1;
+  std::stringstream ss;
+  ss << std::string(&(fname[0]), &(fname[tail])) << "." << num;
+  return ss.str();
+}
+
 void OpenFileStream(std::ofstream &ofs, const char *fname, decltype(std::ios::out) mode) {
   ofs.clear();
 

@@ -53,6 +53,15 @@ void Report(const Data &data) {
 
   std::ofstream ofs;
   if (rank == 0) {
+    // Check if report_fname already exists. If so, change the filename so
+    // it does not conflict.
+    while (tapas::util::FileExists(report_fname)) {
+      std::cout << report_fname << " already exists." << std::endl;
+      report_fname = (tapas::util::IncrPostfix(report_fname));
+    }
+
+    std::cout << "Final filename is " << report_fname << std::endl;
+  
     tapas::util::OpenFileStream(ofs, report_fname.c_str(), std::ios::out);
     
     // First, print configuration values of the simulation as comments in .csv file.
