@@ -40,10 +40,17 @@ void Report(const Data &data) {
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &size);
 
-  std::string report_fname = "tapas_report";
-
+  std::string report_fname;
+  
   if (getenv("TAPAS_REPORT_FILENAME")) {
     report_fname = getenv("TAPAS_REPORT_FILENAME");
+
+    if (report_fname.size() == 0) {
+      // Do not output performance report if TAPAS_REPORT_FILENAME=""
+      return;
+    }
+  } else {
+    report_fname = "tapas_report";
   }
 
   // append .csv extension if necessary

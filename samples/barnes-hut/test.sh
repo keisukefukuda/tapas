@@ -5,6 +5,8 @@ BH_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
 TAPAS_DIR=$(cd ${BH_DIR}/../../; pwd)
 #TAPAS_DIR=$(pushd $FMM_DIR/../../ >/dev/null ; pwd -P; popd >/dev/null)
 
+export TAPAS_REPORT_FILENAME=""
+
 echo BH_DIR=${BH_DIR}
 echo TAPAS_DIR="${TAPAS_DIR}"
 
