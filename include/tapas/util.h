@@ -82,7 +82,7 @@ struct GetLabel {
 // 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FileExists(const char *name) {
+bool FileExists(const std::string &name) {
   if (FILE *file = fopen(name.c_str(), "r")) {
     fclose(file);
     return true;
@@ -104,8 +104,7 @@ std::string IncrPostfix(const std::string &fname) {
     if (isdigit(fname[tail])) {
       num_part.insert(num_part.begin(), fname[tail]);
       tail--;
-    } else if (fname[tail] == ".") {
-      tail--;
+    } else if (fname[tail] == '.') {
       break;
     } else {
       return fname + ".0";
