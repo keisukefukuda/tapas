@@ -158,18 +158,16 @@ class SamplingOctree {
 
     std::vector<unsigned long> cnt(data_->max_depth_ + 1); // cell count per depth
 
-    BarrierExec([&](int,int) {
-        // Count up local cell (cells under local trees)
-        for (KeyType lroot : data_->lroots_) {
-          // count cells per depth for each local root
-          if (!data_->ht_[lroot]->IsLeaf()) {
-            // do not count local root (because a local root is a global leaf as well)
-            for (KeyType ch : SFC::GetChildren(lroot)) {
-              CountLocalCells(ch, cnt);
-            }
-          }
+    // Count up local cell (cells under local trees)
+    for (KeyType lroot : data_->lroots_) {
+      // count cells per depth for each local root
+      if (!data_->ht_[lroot]->IsLeaf()) {
+        // do not count local root (because a local root is a global leaf as well)
+        for (KeyType ch : SFC::GetChildren(lroot)) {
+          CountLocalCells(ch, cnt);
         }
-      });
+      }
+    }
 
     // Aggregate the counted values to rank 0
     std::vector<unsigned long> recv_buf;
@@ -178,13 +176,17 @@ class SamplingOctree {
     if (tapas::mpi::Rank() == 0) {
       // count cells in the global tree
       CountGlobalCells(0, recv_buf);
+      double num = 0, den = 0; // numerator, denominator
 
       for (int d = 0; d < data_->max_depth_; d++) {
         double fr = (double) recv_buf[d] / pow(pow(2,kDim), d); // fill rate
-        printf("%2d %3ld %.2f\n", d, recv_buf[d], fr*100);
+        num += recv_buf[d];
+        den += pow(pow(2,kDim), d);
+        printf("%2d %3ld %.5f\n", d, recv_buf[d], fr);
       }
+
+      std::cout << "Total Filling Rate : " << (num/den) << std::endl;
     }
-    MPI_Barrier(MPI_COMM_WORLD);
   }
 
   /**

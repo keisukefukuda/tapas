@@ -188,7 +188,6 @@ struct TargetSideLET {
     tapas::mpi::Alltoallv2(keys_attr_send, attr_dest, keys_attr_recv, attr_src, data.mpi_type_key_, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv2(keys_body_send, body_dest, keys_body_recv, body_src, data.mpi_type_key_, MPI_COMM_WORLD);
 
-    MPI_Barrier(MPI_COMM_WORLD);
     et_comm = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-req-comm", et_comm - bt_comm);
 
@@ -277,6 +276,10 @@ struct TargetSideLET {
                            res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchCells: MPI: " << (et-bt) << " [s]" << std::endl;
+    }
+    
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
 
 #if 0
@@ -351,6 +354,9 @@ struct TargetSideLET {
     tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
 
     et = MPI_Wtime();
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchBodies: MPI: " << (et-bt) << " [s]" << std::endl;
+    }
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
 
 #ifdef TAPAS_DEBUG_DUMP

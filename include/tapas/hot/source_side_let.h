@@ -359,9 +359,10 @@ struct SourceSideLET {
       }
     }
 
-    double bt2 = MPI_Wtime();
     std::vector<KATuple> recv_buf;
     std::vector<int> recv_count;
+
+    double bt2 = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
     double et2 = MPI_Wtime();
 
