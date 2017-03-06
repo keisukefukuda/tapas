@@ -19,7 +19,7 @@ CXXFLAGS += -DFP64
 CXXFLAGS += -DEXPANSION=$(EXPANSION)
 
 CXX ?= g++
-MPICXX ?= mpicxx -cxx=$(CXX) # assume mpich-like MPI
+MPICXX ?= env OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) mpicxx
 
 CXX_VER=$(shell $(CXX) --version)
 
@@ -89,21 +89,21 @@ endif
 
 all: tapas
 
-tapas: parallel_tapas parallel_tapas_mutual
+fmm: fmm fmm_mutual
 
-parallel_tapas: tapas_exafmm.cxx
+fmm: tapas_exafmm.cxx
 	$(MPICXX) $(CXXFLAGS) -DUSE_MPI tapas_exafmm.cxx $(LDFLAGS) -o $@
 
-parallel_tapas_mutual: tapas_exafmm.cxx
+fmm_mutual: tapas_exafmm.cxx
 	$(MPICXX) $(CXXFLAGS) -DUSE_MPI -DFMM_MUTUAL tapas_exafmm.cxx $(LDFLAGS) -o $@
 
 tapas.d:
-	$(MPICXX) -DUSE_MPI $(CXXFLAGS) -M -MQ parallel_tapas -MQ parallel_tapas_mutual tapas_exafmm.cxx $(LDFLAGS) -o $@
+	$(MPICXX) -DUSE_MPI $(CXXFLAGS) -M -MQ fmm -MQ fmm_mutual tapas_exafmm.cxx $(LDFLAGS) -o $@
 
 clean:
 	rm -rf *.o *.dSYM
 	rm -rf *.d
-	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | grep parallel_tapas | cut -d ":" -f 1 | xargs rm -f
+	find . -maxdepth 1 -exec file {} \; | grep -E "(Mach-O|ELF) .* executable" | grep fmm | cut -d ":" -f 1 | xargs rm -f
 
 -include tapas.d
 

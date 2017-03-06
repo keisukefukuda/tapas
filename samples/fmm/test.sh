@@ -78,17 +78,17 @@ function build() {
         MAKE_FLAGS="${MAKE_FLAGS} WEIGHT=0"
     fi
 
-    echoCyan ${MAKE_FLAGS} VERBOSE=1 clean tapas
-    ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean tapas &&:
+    echoCyan ${MAKE_FLAGS} VERBOSE=1 clean fmm
+    ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean fmm &&:
 }
 
 function run() {
     rm -f "${TMPFILE}"
     
     # Run the non-mutual version
-    echoCyan ${MPIEXEC} -n ${NP} ./parallel_tapas \
+    echoCyan ${MPIEXEC} -n ${NP} ./fmm \
              --numBodies ${NB} --ncrit=${NC} --dist ${D}
-    ${MPIEXEC} -n ${NP} ./parallel_tapas \
+    ${MPIEXEC} -n ${NP} ./fmm \
                --numBodies ${NB} --ncrit=${NC} --dist ${D} \
                >${TMPFILE} &&:
     local STAT="$?"
@@ -107,9 +107,9 @@ function run() {
     # cat $TMPFILE ||:
 
     # Run the mutual version
-    echoCyan ${MPIEXEC} -n ${NP} ./parallel_tapas_mutual \
+    echoCyan ${MPIEXEC} -n ${NP} ./fmm_mutual \
              --numBodies ${NB} --ncrit=${NC} --dist ${D}
-    ${MPIEXEC} -n ${NP} ./parallel_tapas_mutual \
+    ${MPIEXEC} -n ${NP} ./fmm_mutual \
                --numBodies ${NB} --ncrit=${NC} --dist ${D} \
                >${TMPFILE} &&:
     local STAT="$?"
