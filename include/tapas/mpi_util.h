@@ -275,8 +275,8 @@ void Alltoallv2(VectorType& send_buf, std::vector<int>& dest,
 #ifdef TAPAS_DEBUG
   {
     // Check type and VectorType::value_type are consistent
-    MPI_Aint extent;
-    MPI_Type_extent(dtype, &extent);
+    MPI_Aint extent, lb;
+    MPI_Type_get_extent(dtype, &lb, &extent);
     TAPAS_ASSERT(extent == sizeof(typename VectorType::value_type));
   }
 #endif

@@ -22,7 +22,7 @@ class DepthBBMap {
   
   const int mpi_size_;
   const int mpi_rank_;
-  const int mpi_comm_;
+  const MPI_Comm mpi_comm_;
   const int max_depth_;
   RankToMap map_;
 
