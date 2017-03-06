@@ -268,17 +268,23 @@ struct TargetSideLET {
 
     // ===== 2. communication =====
     // Send response keys and attributes
-    bt = MPI_Wtime();
 
+
+#if 1
+    // compare two MPI_Alltoallv() or single MPI_Alltoallv
+    bt = MPI_Wtime();
     tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks,
                            req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
     tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks,
                            res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
-
     et = MPI_Wtime();
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchCells: MPI: " << (et-bt) << " [s]" << std::endl;
     }
+#else
+    std::tie(req_attr_keys, res_cell_attrs) = ExchCells(attr_keys_send, attr_sendbuf, attr_dest_ranks, data);
+#endif
+
     
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
 
@@ -294,13 +300,9 @@ struct TargetSideLET {
       }
     }
 #endif
-
+    
     // ===== 3. Post-comm computation =====
     // Preapre all bodies to send to <leaf_src_ranks> processes
-    // body_destは、いまのままalltoallvに渡すとエラーになる。
-    // TODO: leaf_keys_send と body_dest と一緒にSortByKeysして（すでにされている？）、
-    //       leaf_src_ranks を body_dest に書き換える必要がある（ループをまわす）
-
     std::vector<int> leaf_dest = leaf_src_ranks;         // copy
     std::vector<KeyType> leaf_keys_sendbuf = req_leaf_keys; // copy
     res_bodies.clear();
@@ -381,6 +383,43 @@ struct TargetSideLET {
 
     et_all = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
+  }
+
+  static std::tuple<std::vector<KeyType>, std::vector<CellAttr>>
+  ExchCells(const std::vector<KeyType> &send_keys,
+            const std::vector<CellAttr> &send_attrs,
+            const std::vector<int>& dest_ranks,
+            const Data &data) {
+    using KATuple = std::tuple<KeyType, CellAttr>;
+
+    std::vector<KATuple> send_buf(send_keys.size());
+    std::vector<int> send_counts(data.mpi_size_);
+
+    TAPAS_ASSERT(send_keys.size() == send_attrs.size() && send_attrs.size() == dest_ranks.size());
+
+    for (size_t i = 0; i < dest_ranks.size(); i++) {
+      int d = dest_ranks[i];
+      send_buf[i] = std::make_tuple(send_keys[i], send_attrs[i]);
+      send_counts[d]++;
+    }
+
+    std::vector<KATuple> recv_buf;
+    std::vector<int> recv_count;
+
+    double bt = MPI_Wtime();
+    tapas::mpi::Alltoallv(send_buf, send_counts, recv_buf, recv_count, data.mpi_comm_);
+    double et = MPI_Wtime();
+    
+    std::vector<KeyType> keys(recv_buf.size());
+    std::vector<CellAttr> attrs(recv_buf.size());
+    for (size_t i = 0; i < recv_buf.size(); i++) {
+      std::tie(keys[i], attrs[i]) = recv_buf[i];
+    }
+
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchCells: MPI: " << (et-bt) << " [s]" << std::endl;
+    }
+    return std::make_tuple(keys, attrs);
   }
 
   /**

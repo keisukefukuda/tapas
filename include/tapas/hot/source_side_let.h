@@ -338,6 +338,7 @@ struct SourceSideLET {
     }
   };
 
+#if 1 // single alltoallv
   std::vector<std::tuple<KeyType, CellAttr>>
   static ExchCellAttrs(const Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
     double bt = MPI_Wtime();
@@ -349,7 +350,7 @@ struct SourceSideLET {
       if (rank == data.mpi_rank_ || attr_keys.count(rank) == 0) { continue; }
       const auto &keys = attr_keys.at(rank);
       send_count[rank] = keys.size();
-      
+
       int pos = send_buf.size();
       send_buf.resize(send_buf.size() + keys.size());
       for (KeyType k : keys) {
@@ -373,6 +374,44 @@ struct SourceSideLET {
     }
     return recv_buf;
   }
+#else
+  // Send cell attributes using two MPI_Alltoallv() calls.
+  std::vector<std::tuple<KeyType, CellAttr>>
+  static ExchCellAttrs(const Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
+    double bt = MPI_Wtime();
+    using KATuple = std::tuple<KeyType, CellAttr>;
+    std::vector<int> send_count(data.mpi_size_);
+    std::vector<KATuple> send_buf;
+
+    for (int rank = 0; rank < data.mpi_size_; rank++) {
+      if (rank == data.mpi_rank_ || attr_keys.count(rank) == 0) { continue; }
+      const auto &keys = attr_keys.at(rank);
+      send_count[rank] = keys.size();
+
+      int pos = send_buf.size();
+      send_buf.resize(send_buf.size() + keys.size());
+      for (KeyType k : keys) {
+        TAPAS_ASSERT(data.ht_.count(k) > 0);
+        send_buf[pos] = std::make_pair(k, data.ht_.at(k)->attr());
+        pos++;
+      }
+    }
+
+    std::vector<KATuple> recv_buf;
+    std::vector<int> recv_count;
+
+    double bt2 = MPI_Wtime();
+    tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
+    double et2 = MPI_Wtime();
+
+    double et = MPI_Wtime();
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchCells: " << (et-bt) << " [s]" << std::endl;
+      std::cout << "ExchCells: MPI: " << (et2-bt2) << " [s]" << std::endl;
+    }
+    return recv_buf;
+  }
+#endif
 
   /**
    *
