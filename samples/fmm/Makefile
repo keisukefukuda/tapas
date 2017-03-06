@@ -66,9 +66,9 @@ endif
 MODE ?= release
 
 ifeq ($(MODE),debug)
-	CXXFLAGS += -O0 -DTAPAS_DEBUG=1 -g -gdwarf-2 -DTAPAS_LOG_LEVEL=1
+	CXXFLAGS += -O0 -DTAPAS_DEBUG -g -gdwarf-2 -DTAPAS_LOG_LEVEL=1
 else
-	CXXFLAGS += -O3 -DTAPAS_DEBUG=0 -DTAPAS_LOG_LEVEL=0
+	CXXFLAGS += -O3 -DTAPAS_LOG_LEVEL=0
 endif
 
 ifneq (,$(COUNT))
@@ -87,9 +87,7 @@ else ifeq (1,$(USE_TARGET_SIDE_LET))
 endif
 
 
-all: tapas
-
-fmm: fmm fmm_mutual
+all: fmm fmm_mutual
 
 fmm: tapas_exafmm.cxx
 	$(MPICXX) $(CXXFLAGS) -DUSE_MPI tapas_exafmm.cxx $(LDFLAGS) -o $@

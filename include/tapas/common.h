@@ -45,13 +45,8 @@
 #include <fstream>
 #include <algorithm>
 
-#ifdef TAPAS_DEBUG
-# if TAPAS_DEBUG == 0
-#  undef TAPAS_DEBUG
-#  define TAPAS_MEASURE
-# endif
-#else  // TAPAS_DEBUG
-# define TAPAS_DEBUG // default
+#if defined(TAPAS_DEBUG) && TAPAS_DEBUG == 0
+# undef TAPAS_DEBUG
 #endif // TAPAS_DEBUG
 
 // for debug
