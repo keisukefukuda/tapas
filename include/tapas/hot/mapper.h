@@ -553,7 +553,11 @@ struct CPUMapper {
 
     // myth_start_papi_counter("PAPI_FP_OPS");
     // Body of traverse
+#if 0
     f(c1, c2, std::forward<Args>(args)...);
+#else
+    # warning "Ignoreing user function"
+#endif
     // myth_stop_papi_counter();
 
     if (c1.IsRoot() && c2.IsRoot()) {

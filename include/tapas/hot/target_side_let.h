@@ -213,6 +213,150 @@ struct TargetSideLET {
     data.time_rec_.Record(data.timestep_, "Map2-LET-req", et_all - bt_all);
   }
 
+  static void ExchCells(Data &data,
+                        std::vector<KeyType> &req_attr_keys,
+                        std::vector<int> &attr_src_ranks,
+                        std::vector<CellAttr> &res_cell_attrs) {
+    double bt = MPI_Wtime();
+
+    // ===== Pre-comm computation =====
+    // Create and send responses to the src processes of requests.
+    double bt_comp1 = MPI_Wtime();
+
+    const auto &ht = data.ht_;
+    int mpi_size = data.mpi_size_;
+
+    // Prepare cell attributes to send to <attr_src_ranks> processes
+    std::vector<KeyType> attr_keys_send = req_attr_keys; // copy (split senbuf and recvbuf)
+    std::vector<int> attr_dest_ranks = attr_src_ranks;
+    res_cell_attrs.clear();
+    std::vector<CellAttr> attr_sendbuf;
+    Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
+
+    double et_comp1 = MPI_Wtime();
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et_comp1 - bt_comp1);
+
+    // ===== 2. communication =====
+    // Send response keys and attributes
+
+
+    if (data.mpi_rank_ == 0) {
+      size_t count = attr_keys_send.size();
+      double size = count * sizeof(attr_keys_send[0]);
+      std::cout << "ExchCells: #cells = " << count << "  size=" << std::fixed << std::setprecision(2) << size
+                << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
+                << std::endl;
+      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    }
+    MPI_Barrier(data.mpi_comm_);
+
+    double bt_mpi = MPI_Wtime();
+    tapas::mpi::Alltoallv2_X(attr_keys_send, attr_dest_ranks,
+                             req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv2_X(attr_sendbuf,   attr_dest_ranks,
+                             res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
+    double et_mpi = MPI_Wtime();
+    double et = MPI_Wtime();
+
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchCells: " << (et - bt) << " [s]" << std::endl;
+      std::cout << "ExchCells: MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
+    }
+
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
+  }
+
+  static void ExchBodies(Data &data, 
+                         std::vector<KeyType> &req_leaf_keys,
+                         std::vector<int> &leaf_src_ranks,
+                         std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies,
+                         std::vector<index_t> &res_nb){
+    // Preapre all bodies to send to <leaf_src_ranks> processes
+    double bt = MPI_Wtime();
+
+    std::vector<int> leaf_dest = leaf_src_ranks;         // copy
+    std::vector<KeyType> leaf_keys_sendbuf = req_leaf_keys; // copy
+    res_bodies.clear();
+
+    // First, leaf_keys_sendbuf must be ordered by thier destination processes
+    // (Since we need to send bodies later, leaf_keys_sendbuf must NOT be sorted ever again.)
+    tapas::SortByKeys(leaf_dest, leaf_keys_sendbuf);
+
+    std::vector<index_t> leaf_nb_sendbuf (leaf_keys_sendbuf.size()); // Cell <leaf_keys_sendbuf[i]> has <leaf_nb_sendbuf[i]> bodies.
+    std::vector<BodyType> body_sendbuf;
+
+    std::vector<int> leaf_sendcnt(data.mpi_size_, 0); // used for <leaf_keys_sendbuf> and <leaf_nb_sendbuf>.
+    std::vector<int> body_sendcnt(data.mpi_size_, 0);    // used for <bodies_sendbuf>
+
+    for (size_t i = 0; i < leaf_keys_sendbuf.size(); i++) {
+      KeyType k = leaf_keys_sendbuf[i];
+      CellType *c = data.ht_.at(k);
+      TAPAS_ASSERT(c->IsLeaf());
+      leaf_nb_sendbuf[i] = c->nb();
+
+      int dest = leaf_dest[i];
+      leaf_sendcnt[dest]++;
+
+      for (index_t bi = 0; bi < c->nb(); bi++) {
+        body_sendbuf.push_back(c->body(bi));
+        body_sendcnt[dest]++;
+      }
+    }
+
+#ifdef TAPAS_DEBUG
+    index_t nb_total  = std::accumulate(leaf_nb_sendbuf.begin(), leaf_nb_sendbuf.end(), 0);
+    index_t nb_total2 = body_sendbuf.size();
+    index_t nb_total3 = std::accumulate(body_sendcnt.begin(), body_sendcnt.end(), 0);
+
+    TAPAS_ASSERT(nb_total  == nb_total2);
+    TAPAS_ASSERT(nb_total2 == nb_total3);
+#endif
+
+    res_nb.clear();
+
+    // This information is not necessary because source ranks of boides can be computed from
+    // leaf_src_ranks_ranks and res_nb.
+    std::vector<int> leaf_recvcnt; // we don't use this
+    std::vector<int> body_recvcnt; // we don't use this
+
+#if 1 // performance measurement
+    if (data.mpi_rank_ == 0) {
+      size_t count = leaf_keys_sendbuf.size();
+      double size = count * sizeof(leaf_keys_sendbuf[0]);
+      std::cout << "ExchBodies: #leavess = " << count << "  size=" << std::fixed << size
+                << "(=" << std::fixed << (size/1024/1024) << " MB)"
+                << std::endl;
+      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    }
+
+    if (data.mpi_rank_ == 0) {
+      size_t count = body_sendbuf.size();
+      double size = count * sizeof(body_sendbuf[0]);
+      std::cout << "ExchBodies: #bodies = " << count << "  size=" << std::fixed << size
+                << "(=" << std::fixed << (size/1024/1024) << " MB)"
+                << std::endl;
+      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    }
+#endif
+
+    MPI_Barrier(data.mpi_comm_);
+    double bt_mpi = MPI_Wtime();
+
+    // Send response keys and bodies
+    tapas::mpi::Alltoallv(leaf_keys_sendbuf, leaf_sendcnt, req_leaf_keys, leaf_recvcnt, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv(leaf_nb_sendbuf,   leaf_sendcnt, res_nb,        leaf_recvcnt, MPI_COMM_WORLD);
+    tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
+
+    double et_mpi = MPI_Wtime();
+    double et = MPI_Wtime();
+
+    if (data.mpi_rank_ == 0) {
+      std::cout << "ExchBodies: MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
+      std::cout << "ExchBodies: " << (et - bt) << " [s]" << std::endl;
+    }
+
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
+  }
 
   /**
    * \brief Select cells and send response to the requesters.
@@ -241,139 +385,19 @@ struct TargetSideLET {
     //   1. Pre-comm computation
     //   2. Communication (Alltoallv)
     //   3. Post-comm computation
-    double bt_all=0, et_all=0;
     double bt=0, et=0;
-
-    // ===== Pre-comm computation =====
-    // Create and send responses to the src processes of requests.
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    bt_all = MPI_Wtime();
+    double bt_all=0, et_all=0;
 
     Partitioner<TSP>::SelectResponseCells(req_attr_keys, attr_src_ranks,
                                           req_leaf_keys, leaf_src_ranks,
                                           data.ht_);
 
-    const auto &ht = data.ht_;
-    int mpi_size = data.mpi_size_;
+    ExchCells(data, req_attr_keys, attr_src_ranks, res_cell_attrs);
 
-    // Prepare cell attributes to send to <attr_src_ranks> processes
-    std::vector<KeyType> attr_keys_send = req_attr_keys; // copy (split senbuf and recvbuf)
-    std::vector<int> attr_dest_ranks = attr_src_ranks;
-    res_cell_attrs.clear();
-    std::vector<CellAttr> attr_sendbuf;
-    Partitioner<TSP>::KeysToAttrs(attr_keys_send, attr_sendbuf, data.ht_);
-
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et - bt);
-
-    // ===== 2. communication =====
-    // Send response keys and attributes
-
-
-#if 1
-    // compare two MPI_Alltoallv() or single MPI_Alltoallv
-    bt = MPI_Wtime();
-    tapas::mpi::Alltoallv2(attr_keys_send, attr_dest_ranks,
-                           req_attr_keys,  attr_src_ranks, data.mpi_type_key_, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv2(attr_sendbuf,   attr_dest_ranks,
-                           res_cell_attrs, attr_src_ranks, data.mpi_type_attr_, MPI_COMM_WORLD);
-    et = MPI_Wtime();
-    if (data.mpi_rank_ == 0) {
-      std::cout << "ExchCells: MPI: " << (et-bt) << " [s]" << std::endl;
-    }
-#else
-    std::tie(req_attr_keys, res_cell_attrs) = ExchCells(attr_keys_send, attr_sendbuf, attr_dest_ranks, data);
-#endif
-
-    
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
-
-#if 0
-    // Dump request keys
-    {
-      tapas::debug::DebugStream e("attr_res_exa");
-      for (size_t i = 0; i < attr_keys_send.size(); i++) {
-        auto k = attr_keys_send[i];
-        e.out() << SFC::Decode(k)
-                << " (" << k << ")"
-                << " to " << attr_dest_ranks[i] << std::endl;
-      }
-    }
-#endif
-    
-    // ===== 3. Post-comm computation =====
-    // Preapre all bodies to send to <leaf_src_ranks> processes
-    std::vector<int> leaf_dest = leaf_src_ranks;         // copy
-    std::vector<KeyType> leaf_keys_sendbuf = req_leaf_keys; // copy
-    res_bodies.clear();
-
-    // First, leaf_keys_sendbuf must be ordered by thier destination processes
-    // (Since we need to send bodies later, leaf_keys_sendbuf must NOT be sorted ever again.)
-    tapas::SortByKeys(leaf_dest, leaf_keys_sendbuf);
-
-    std::vector<index_t> leaf_nb_sendbuf (leaf_keys_sendbuf.size()); // Cell <leaf_keys_sendbuf[i]> has <leaf_nb_sendbuf[i]> bodies.
-    std::vector<BodyType> body_sendbuf;
-
-    std::vector<int> leaf_sendcnt(mpi_size, 0); // used for <leaf_keys_sendbuf> and <leaf_nb_sendbuf>.
-    std::vector<int> body_sendcnt(mpi_size, 0);    // used for <bodies_sendbuf>
-
-    for (size_t i = 0; i < leaf_keys_sendbuf.size(); i++) {
-      KeyType k = leaf_keys_sendbuf[i];
-      CellType *c = ht.at(k);
-      TAPAS_ASSERT(c->IsLeaf());
-      leaf_nb_sendbuf[i] = c->nb();
-
-      int dest = leaf_dest[i];
-      leaf_sendcnt[dest]++;
-
-      for (index_t bi = 0; bi < c->nb(); bi++) {
-        body_sendbuf.push_back(c->body(bi));
-        body_sendcnt[dest]++;
-      }
-    }
-
-#ifdef TAPAS_DEBUG
-    index_t nb_total  = std::accumulate(leaf_nb_sendbuf.begin(), leaf_nb_sendbuf.end(), 0);
-    index_t nb_total2 = body_sendbuf.size();
-    index_t nb_total3 = std::accumulate(body_sendcnt.begin(), body_sendcnt.end(), 0);
-
-    TAPAS_ASSERT(nb_total  == nb_total2);
-    TAPAS_ASSERT(nb_total2 == nb_total3);
-#endif
-
-    res_nb.clear();
-
-    // This information is not necessary because source ranks of boides can be computed from
-    // leaf_src_ranks_ranks and res_nb.
-    std::vector<int> leaf_recvcnt; // we don't use this
-    std::vector<int> body_recvcnt; // we don't use this
-    
-    bt = MPI_Wtime();
-
-    // Send response keys and bodies
-    tapas::mpi::Alltoallv(leaf_keys_sendbuf, leaf_sendcnt, req_leaf_keys, leaf_recvcnt, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv(leaf_nb_sendbuf,   leaf_sendcnt, res_nb,        leaf_recvcnt, MPI_COMM_WORLD);
-    tapas::mpi::Alltoallv(body_sendbuf,      body_sendcnt, res_bodies,    body_recvcnt, MPI_COMM_WORLD);
-
-    et = MPI_Wtime();
-    if (data.mpi_rank_ == 0) {
-      std::cout << "ExchBodies: MPI: " << (et-bt) << " [s]" << std::endl;
-    }
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
-
-#ifdef TAPAS_DEBUG_DUMP
-    tapas::debug::BarrierExec([&](int, int) {
-        std::cout << "ht.size() = " << ht.size() << std::endl;
-        std::cout << "req_attr_keys.size() = " << req_attr_keys.size() << std::endl;
-        std::cout << "body_sendbuf.size() = " << body_sendbuf.size() << std::endl;
-        std::cout << "local_bodies.size() = " << data.local_bodies_.size() << std::endl;
-        std::cout << "res_bodies.size() = " << res_bodies.size() << std::endl;
-      });
-#endif
+    ExchBodies(data, req_leaf_keys, leaf_src_ranks, res_cell_attrs, res_bodies, res_nb);
 
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
-
 
     data.let_bodies_.assign(std::begin(res_bodies), std::end(res_bodies));
     data.let_body_attrs_.resize(res_bodies.size());
@@ -383,43 +407,6 @@ struct TargetSideLET {
 
     et_all = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
-  }
-
-  static std::tuple<std::vector<KeyType>, std::vector<CellAttr>>
-  ExchCells(const std::vector<KeyType> &send_keys,
-            const std::vector<CellAttr> &send_attrs,
-            const std::vector<int>& dest_ranks,
-            const Data &data) {
-    using KATuple = std::tuple<KeyType, CellAttr>;
-
-    std::vector<KATuple> send_buf(send_keys.size());
-    std::vector<int> send_counts(data.mpi_size_);
-
-    TAPAS_ASSERT(send_keys.size() == send_attrs.size() && send_attrs.size() == dest_ranks.size());
-
-    for (size_t i = 0; i < dest_ranks.size(); i++) {
-      int d = dest_ranks[i];
-      send_buf[i] = std::make_tuple(send_keys[i], send_attrs[i]);
-      send_counts[d]++;
-    }
-
-    std::vector<KATuple> recv_buf;
-    std::vector<int> recv_count;
-
-    double bt = MPI_Wtime();
-    tapas::mpi::Alltoallv(send_buf, send_counts, recv_buf, recv_count, data.mpi_comm_);
-    double et = MPI_Wtime();
-    
-    std::vector<KeyType> keys(recv_buf.size());
-    std::vector<CellAttr> attrs(recv_buf.size());
-    for (size_t i = 0; i < recv_buf.size(); i++) {
-      std::tie(keys[i], attrs[i]) = recv_buf[i];
-    }
-
-    if (data.mpi_rank_ == 0) {
-      std::cout << "ExchCells: MPI: " << (et-bt) << " [s]" << std::endl;
-    }
-    return std::make_tuple(keys, attrs);
   }
 
   /**

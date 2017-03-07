@@ -360,9 +360,19 @@ struct SourceSideLET {
       }
     }
 
+    if (data.mpi_rank_ == 0) {
+      size_t count = send_buf.size();
+      double size = count * sizeof(send_buf[0]);
+      std::cout << "ExchCells: #cells = " << count << "  size=" << std::fixed << std::setprecision(2) << size
+                << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
+                << std::endl;
+      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    }
+
     std::vector<KATuple> recv_buf;
     std::vector<int> recv_count;
 
+    MPI_Barrier(data.mpi_comm_);
     double bt2 = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
     double et2 = MPI_Wtime();
@@ -455,6 +465,24 @@ struct SourceSideLET {
     std::vector<BTuple> recv_bodies;
     std::vector<int>    recv_bodies_cnt;
 
+    if (data.mpi_rank_ == 0) {
+      size_t count = send_buf.size();
+      double size = count * sizeof(send_buf[0]);
+      std::cout << "ExchBodies: #leaves = " << count << "  size=" << std::fixed << std::setprecision(2) << size
+                << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
+                << std::endl;
+      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    }
+    
+    if (data.mpi_rank_ == 0) {
+      size_t count = send_buf_bodies.size();
+      double size = count * sizeof(send_buf_bodies[0]);
+      std::cout << "ExchBodies: #bodies = " << count << "  size=" << std::fixed << std::setprecision(2) << size
+                << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
+                << std::endl;
+      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    }
+    
     double bt2 = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_keys, recv_keys_cnt, data.mpi_comm_);
     tapas::mpi::Alltoallv(send_buf_bodies, send_count_bodies, recv_bodies, recv_bodies_cnt, data.mpi_comm_);
