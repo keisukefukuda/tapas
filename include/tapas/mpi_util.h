@@ -450,38 +450,34 @@ void Alltoallv2_X(VectorType& send_buf, std::vector<int>& dest,
   int mpi_size, mpi_rank;
   double bt, et;
 
-  double total_bt = MPI_Wtime();
+  double bt_total = MPI_Wtime();
 
   MPI_Comm_size(comm, &mpi_size);
   MPI_Comm_rank(comm, &mpi_rank);
 
-  // if (mpi_rank == 0) {
-  //   std::cout << "********** Alltoallv2" << std::endl;
-  // }
-  
   TAPAS_ASSERT(send_buf.size() == dest.size());
   SortByKeys(dest, send_buf);
 
   // #1
-  //bt = MPI_Wtime();
+  bt = MPI_Wtime();
   std::vector<int> send_counts(mpi_size);
   for(int p = 0; p < mpi_size; p++) {
     auto range = std::equal_range(dest.begin(), dest.end(), p);
     send_counts[p] = range.second - range.first;
     TAPAS_ASSERT(send_counts[p] >= 0); // check overflow
   }
-  // et = MPI_Wtime();
-  // if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #1 " << (et-bt) << " [s]" << std::endl;}
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #1 " << (et-bt) << " [s]" << std::endl;}
 
   std::vector<int> recv_counts(mpi_size);
 
   // #2
-  //bt = MPI_Wtime();
+  bt = MPI_Wtime();
   int err = MPI_Alltoall((void*)send_counts.data(), 1, MPI_INT,
                          (void*)recv_counts.data(), 1, MPI_INT,
                          comm);
-  //et = MPI_Wtime();
-  //if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #2 " << (et-bt) << " [s]" << std::endl; }
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #2 " << (et-bt) << " [s]" << std::endl; }
 
   if (err != MPI_SUCCESS) {
     TAPAS_ASSERT(!"MPI_Alltoall failed.");
@@ -491,38 +487,37 @@ void Alltoallv2_X(VectorType& send_buf, std::vector<int>& dest,
   std::vector<int> recv_disp(mpi_size, 0);
 
   // #3
-  //bt = MPI_Wtime();
-  // exclusive scan
-  for (int p = 1; p < mpi_size; p++) {
+  bt = MPI_Wtime();
+  for (int p = 1; p < mpi_size; p++) {   // exclusive scan
     send_disp[p] = send_disp[p-1] + send_counts[p-1];
     recv_disp[p] = recv_disp[p-1] + recv_counts[p-1];
 
     TAPAS_ASSERT(send_disp[p] >= 0); // check overflow
     TAPAS_ASSERT(recv_disp[p] >= 0); // check overflow
   }
-  // et = MPI_Wtime();
-  // if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #3 " << (et-bt) << " [s]" << std::endl; }
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #3 " << (et-bt) << " [s]" << std::endl; }
 
   // #4
-  //bt = MPI_Wtime();
+  bt = MPI_Wtime();
   int total_recv_counts = std::accumulate(recv_counts.begin(), recv_counts.end(), 0);
-  // et = MPI_Wtime();
-  // if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #4 " << (et-bt) << " [s]" << std::endl; }
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #4 " << (et-bt) << " [s]" << std::endl; }
 
   recv_buf.resize(total_recv_counts);
   TAPAS_ASSERT(send_disp.size() == recv_disp.size());
 
   // #5
-  //bt = MPI_Wtime();
+  bt = MPI_Wtime();
   int ret = MPI_Alltoallv((void*)send_buf.data(), send_counts.data(), send_disp.data(), dtype,
                           (void*)recv_buf.data(), recv_counts.data(), recv_disp.data(), dtype,
                           comm);
-  // et = MPI_Wtime();
-  // if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #5 " << (et-bt) << " [s]" << std::endl; }
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #5 " << (et-bt) << " [s]" << std::endl; }
   MPI_CHECK(ret, comm);
 
   // #6
-  //bt = MPI_Wtime();
+  bt = MPI_Wtime();
   // Build src[] array
   src.clear();
   src.resize(total_recv_counts, 0);
@@ -537,11 +532,11 @@ void Alltoallv2_X(VectorType& send_buf, std::vector<int>& dest,
     }
   }
 
-  // et = MPI_Wtime();
-  // if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #6 " << (et-bt) << " [s]" << std::endl; }
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #6 " << (et-bt) << " [s]" << std::endl; }
 
   // #7
-  //bt = MPI_Wtime();
+  bt = MPI_Wtime();
   auto src2 = src;
   src2.clear(); src2.resize(src.size(), 0);
 
@@ -554,15 +549,12 @@ void Alltoallv2_X(VectorType& send_buf, std::vector<int>& dest,
     }
   }
 
-  // et = MPI_Wtime();
-  // if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #7 " << (et-bt) << " [s]" << std::endl; }
-#if 1
-  // TODO: bug? May be src2 is the correct answer?
-  src = src2;
-#endif
+  et = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: #7 " << (et-bt) << " [s]" << std::endl; }
+  src = std::move(src2);
 
-  double total_et = MPI_Wtime();
-  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: Total " << (total_et - total_bt) << " [s]" << std::endl; }
+  double et_total = MPI_Wtime();
+  if (mpi_rank == 0) { std::cout << "mpi::Alltoallv2_X: Total " << (et_total - bt_total) << " [s]" << std::endl; }
 }
 
 
