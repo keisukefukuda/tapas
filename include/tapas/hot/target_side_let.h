@@ -205,9 +205,8 @@ struct TargetSideLET {
             std::vector<KeyType> &keys,   /* in, out */
             std::vector<int> &dest_ranks, /* in, out */
             std::vector<CellAttr> &attrs) /* out */ {
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
     double bt = MPI_Wtime();
-    
     double bt_comp1 = MPI_Wtime();
     std::vector<AttrTuple> send_buf(keys.size());
     std::vector<int> send_count(data.mpi_size_);
@@ -238,7 +237,7 @@ struct TargetSideLET {
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
     double et_mpi = MPI_Wtime();
 
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
 
     double bt_comp2 = MPI_Wtime();
     std::vector<KeyType> res_keys(recv_buf.size());
@@ -247,7 +246,7 @@ struct TargetSideLET {
     //res_attrs.reserve(recv_buf.size());
     double et_comp2 = MPI_Wtime();
 
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
 
     double bt_comp3 = MPI_Wtime();
     for (size_t i = 0; i < recv_buf.size(); i++) {
@@ -256,8 +255,6 @@ struct TargetSideLET {
     }
     double et_comp3 = MPI_Wtime();
     double et = MPI_Wtime();
-
-    MPI_Barrier(data.mpi_comm_);
 
 #if 1
     tapas::debug::BarrierExec([&](int rank, int) {
