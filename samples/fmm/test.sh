@@ -78,8 +78,8 @@ function build() {
         MAKE_FLAGS="${MAKE_FLAGS} WEIGHT=0"
     fi
 
-    echoCyan ${MAKE_FLAGS} VERBOSE=1 clean fmm
-    ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean fmm &&:
+    echoCyan ${MAKE_FLAGS} VERBOSE=1 clean all
+    ${MAKE} ${MAKE_FLAGS} VERBOSE=1 clean all &&:
 }
 
 function run() {
