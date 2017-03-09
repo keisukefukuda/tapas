@@ -48,6 +48,8 @@ struct TargetSideLET {
   using Reg = Region<Dim, FP>;
 
   using AttrTuple = std::tuple<KeyType, CellAttr>;
+  using HT = typename CellType::CellHashTable;
+  using SendKeys = std::unordered_map<int, std::set<KeyType>>; // map { destination rank => [keys] }
 
   /**
    * Direction of Map-1 (Upward/Downward)
@@ -203,15 +205,17 @@ struct TargetSideLET {
   static std::tuple<std::vector<KeyType>, std::vector<CellAttr>, std::vector<AttrTuple>>
   ExchCells(Data &data,
             std::vector<KeyType> &keys,   /* in, out */
-            std::vector<int> &dest_ranks, /* in, out */
-            std::vector<CellAttr> &attrs) /* out */ {
-    //MPI_Barrier(data.mpi_comm_);
+            std::vector<int> &dest_ranks,
+            const SendKeys &amap){
+    MPI_Barrier(data.mpi_comm_);
     double bt = MPI_Wtime();
     double bt_comp1 = MPI_Wtime();
     std::vector<AttrTuple> send_buf(keys.size());
     std::vector<int> send_count(data.mpi_size_);
 
     int prev_rank = dest_ranks[0];
+
+    int size = data.mpi_size_;
 
     for (size_t i = 0; i < keys.size(); i++) {
       KeyType k = keys[i];
@@ -231,14 +235,13 @@ struct TargetSideLET {
     std::vector<int> recv_count;
 
     double et_comp1 = MPI_Wtime();
-    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et_comp1 - bt_comp1);
-
+    
+    MPI_Barrier(data.mpi_comm_);
     double bt_mpi = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
     double et_mpi = MPI_Wtime();
 
-    //MPI_Barrier(data.mpi_comm_);
-
+    MPI_Barrier(data.mpi_comm_);
     double bt_comp2 = MPI_Wtime();
     std::vector<KeyType> res_keys(recv_buf.size());
     std::vector<CellAttr> res_attrs(recv_buf.size());
@@ -246,8 +249,7 @@ struct TargetSideLET {
     //res_attrs.reserve(recv_buf.size());
     double et_comp2 = MPI_Wtime();
 
-    //MPI_Barrier(data.mpi_comm_);
-
+    MPI_Barrier(data.mpi_comm_);
     double bt_comp3 = MPI_Wtime();
     for (size_t i = 0; i < recv_buf.size(); i++) {
       res_keys[i] = std::get<0>(recv_buf[i]);
@@ -256,8 +258,9 @@ struct TargetSideLET {
     double et_comp3 = MPI_Wtime();
     double et = MPI_Wtime();
 
+    if (data.mpi_rank_ == 0) { std::cout << "debug: " << __FILE__ << ":" << __LINE__ << std::endl; }
 #if 1
-    tapas::debug::BarrierExec([&](int rank, int) {
+    tapas::debug::BarrierExec([&](int, int) {
         size_t count = send_buf.size();
         double size = count * sizeof(send_buf[0]);
         std::cout << "ExchCells: #cells = " << count << "  size=" << std::fixed << std::setprecision(2) << size
@@ -266,15 +269,20 @@ struct TargetSideLET {
         std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
       });
 
-    tapas::debug::BarrierExec([&](int rank, int) {
+    tapas::debug::BarrierExec([&](int rank, int size) {
         std::cout << "ExchCell: [" << rank << "] send_count = ";
         for (int i : send_count) {
           std::cout << i << " ";
         }
         std::cout << std::endl;
+        for (int r = 0; r < size; r++) {
+          std::cout << amap.at(r).size() << " ";
+        }
+        std::cout << std::endl;
       });
 #endif
     
+    if (data.mpi_rank_ == 0) { std::cout << "debug: " << __FILE__ << ":" << __LINE__ << std::endl; }
     // if (data.mpi_rank_ == 0) {
     //   std::cout << "ExchCells: " << (et - bt) << " [s]" << std::endl;
     //   std::cout << "ExchCells: MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
@@ -299,6 +307,7 @@ struct TargetSideLET {
         // std::cout << "ExchCells: [" << rank << "] Pre2: " << (et_comp2 - bt_comp2) << " [s]" << std::endl;
       });
 
+    data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et_comp1 - bt_comp1);
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
     return std::make_tuple(res_keys, res_attrs, recv_buf);
   }
@@ -396,6 +405,105 @@ struct TargetSideLET {
   }
 
   /**
+   * \brief Select cells to be sent as a response in Insp2::Exchange
+   * The request lists are made conservatively, thus not all the requested cells exist in the sender process.
+   * Check the requested list and replace non-existing cells with existing cells by the their finest anscestors.
+   * If attribute of a cell is requested but the cell is actually a leaf,
+   * both of the attribut and body must be sent.
+   * 
+   * Returns a SendKeyMap for CellAttrs
+   */
+  static std::tuple<SendKeys, SendKeys>
+  SelectResponseCells(Data &data,
+                      std::vector<KeyType> &cell_attr_keys,
+                      std::vector<int> &attr_src_ranks,
+                      std::vector<KeyType> &leaf_keys,
+                      std::vector<int> &leaf_src_ranks,
+                      const HT& hash) {
+    std::set<std::pair<int, KeyType>> res_attr; // keys (and their destinations) of which attributes will be sent as response.
+    std::set<std::pair<int, KeyType>> res_body; // keys (and their destinations) of which bodies will be sent as response.
+
+    SendKeys amap; // keys to be sent and their destination ranks, of which CellAttr are sent.
+    SendKeys bmap; // keys to be sent and their destination ranks, of which bodies are sent.
+
+    TAPAS_ASSERT(cell_attr_keys.size() == attr_src_ranks.size());
+    TAPAS_ASSERT(leaf_keys.size() == leaf_src_ranks.size());
+
+    for (size_t i = 0; i < cell_attr_keys.size(); i++) {
+      KeyType k = cell_attr_keys[i];
+      int r = attr_src_ranks[i]; // rank that requested k.
+
+      while(hash.count(k) == 0) {
+        k = SFC::Parent(k);
+      }
+
+      if (k == 0) {
+        // This should not happend because if k is root node,
+        // that means the process does not have any anscestor of the original k (except the root).
+        // The requester sent the request to a wrong process
+        TAPAS_ASSERT(false);
+      }
+
+      res_attr.insert(std::make_pair(r, k));
+      amap[r].insert(k);
+
+      if (hash.at(k)->IsLeaf()) {
+        res_body.insert(std::make_pair(r, k));
+        bmap[r].insert(k);
+      }
+    }
+
+    for (size_t i = 0; i < leaf_keys.size(); i++) {
+      KeyType k = leaf_keys[i];
+      int r = leaf_src_ranks[i];
+
+      while(hash.count(k) == 0) {
+        k = SFC::Parent(k);
+      }
+
+      TAPAS_ASSERT(k != 0); // the same reason above
+      TAPAS_ASSERT(hash.count(k) > 0);
+      TAPAS_ASSERT(hash.at(k)->IsLeaf());
+
+      res_body.insert(std::make_pair(r, k));
+      bmap[r].insert(k);
+    }
+
+#ifdef TAPAS_DEBUG_DUMP
+    BarrierExec([&res_attr, &res_body](int rank, int) {
+        std::cerr << "Rank " << rank << " SelectResponseCells: keys_attr.size() = " << res_attr.size() << std::endl;
+        std::cerr << "Rank " << rank << " SelectResponseCells: keys.body.size() = " << res_body.size() << std::endl;
+      });
+#endif
+
+    // Set values to the vectors
+    cell_attr_keys.resize(res_attr.size());
+    attr_src_ranks.resize(res_attr.size());
+
+    int idx = 0;
+    for (auto & iter : res_attr) {
+      attr_src_ranks[idx] = iter.first;
+      cell_attr_keys[idx] = iter.second;
+      idx++;
+    }
+
+    leaf_keys.resize(res_body.size());
+    leaf_src_ranks.resize(res_body.size());
+
+    idx = 0;
+    for (auto & iter : res_body) {
+      leaf_src_ranks[idx] = iter.first;
+      leaf_keys[idx] = iter.second;
+
+      idx++;
+    }
+
+    amap[data.mpi_rank_];
+    bmap[data.mpi_rank_];
+    return std::make_tuple(amap, bmap);
+  }
+
+  /**
    * \brief Select cells and send response to the requesters.
    * \param data Data structure
    * \param [in,out] req_attr_keys Vector of SFC keys of cells of which attributes are sent in response
@@ -422,21 +530,22 @@ struct TargetSideLET {
     //   1. Pre-comm computation
     //   2. Communication (Alltoallv)
     //   3. Post-comm computation
-    double bt=0, et=0;
     double bt_all=0, et_all=0;
 
     using AttrTuple = std::tuple<KeyType, CellAttr>;
     std::vector<AttrTuple> recv_attrs;
 
-    Partitioner<TSP>::SelectResponseCells(req_attr_keys, attr_src_ranks,
-                                          req_leaf_keys, leaf_src_ranks,
-                                          data.ht_);
+    SendKeys amap, bmap;
+    
+    std::tie(amap, bmap) = SelectResponseCells(data, req_attr_keys, attr_src_ranks,
+                                               req_leaf_keys, leaf_src_ranks,
+                                               data.ht_);
 
     std::tie(req_attr_keys, res_cell_attrs, recv_attrs)
-        = ExchCells(data, req_attr_keys, attr_src_ranks, res_cell_attrs);
-
+        = ExchCells(data, req_attr_keys, attr_src_ranks, amap);
+    
     ExchBodies(data, req_leaf_keys, leaf_src_ranks, res_cell_attrs, res_bodies, res_nb);
-
+    
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
 
@@ -445,11 +554,11 @@ struct TargetSideLET {
     bzero(&data.let_body_attrs_[0], data.let_body_attrs_.size() * sizeof(data.let_body_attrs_[0]));
 
     TAPAS_ASSERT(data.let_bodies_.size() == res_bodies.size());
-
+    
     et_all = MPI_Wtime();
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-all", et_all - bt_all);
   }
-
+  
   /**
    * \breif Register the received response cells to local LET hash table
    * \param [in,out] data Data structure (cells are registered to data->ht_lt_)
