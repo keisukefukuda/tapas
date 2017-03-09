@@ -122,7 +122,7 @@ struct TargetSideLET {
     const auto &ht = data.ht_;
     double bt_all, et_all, bt_comm, et_comm;
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     bt_all = MPI_Wtime();
 
     // return values
@@ -186,7 +186,7 @@ struct TargetSideLET {
     std::vector<int> attr_dest = Partitioner<TSP>::FindOwnerProcess(data.proc_first_keys_, keys_attr_send);
     std::vector<int> body_dest = Partitioner<TSP>::FindOwnerProcess(data.proc_first_keys_, keys_body_send);
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     bt_comm = MPI_Wtime();
 
     tapas::mpi::Alltoallv2(keys_attr_send, attr_dest, keys_attr_recv, attr_src, data.mpi_type_key_, MPI_COMM_WORLD);
@@ -203,32 +203,21 @@ struct TargetSideLET {
    * \brief Send response cells to each other
    */
   static std::tuple<std::vector<KeyType>, std::vector<CellAttr>, std::vector<AttrTuple>>
-  ExchCells(Data &data,
-            std::vector<KeyType> &keys,   /* in, out */
-            std::vector<int> &dest_ranks,
-            const SendKeys &amap){
-    MPI_Barrier(data.mpi_comm_);
+  ExchCells(Data &data, const SendKeys &amap){
+    //MPI_Barrier(data.mpi_comm_);
     double bt = MPI_Wtime();
     double bt_comp1 = MPI_Wtime();
-    std::vector<AttrTuple> send_buf(keys.size());
+    std::vector<AttrTuple> send_buf;
     std::vector<int> send_count(data.mpi_size_);
-
-    int prev_rank = dest_ranks[0];
 
     int size = data.mpi_size_;
 
-    for (size_t i = 0; i < keys.size(); i++) {
-      KeyType k = keys[i];
-      int r = dest_ranks[i];
+    auto keys2attrs = [&data](KeyType k) -> AttrTuple { return std::make_tuple(k, data.ht_[k]->attr()); };
 
-      // debug
-      assert(prev_rank <= r);
-      assert(r < data.mpi_size_);
-      assert(data.ht_.count(k) > 0);
-
-      send_buf[i] = std::make_tuple(k, data.ht_.at(k)->attr());
-      send_count[r]++;
-      prev_rank = r;
+    for (int r = 0; r < size; r++) {
+      const auto &keys = amap.at(r);
+      send_count[r] = keys.size();
+      std::transform(keys.begin(), keys.end(), std::back_inserter(send_buf), keys2attrs);
     }
 
     std::vector<AttrTuple> recv_buf;
@@ -236,12 +225,12 @@ struct TargetSideLET {
 
     double et_comp1 = MPI_Wtime();
     
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
     double bt_mpi = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
     double et_mpi = MPI_Wtime();
 
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
     double bt_comp2 = MPI_Wtime();
     std::vector<KeyType> res_keys(recv_buf.size());
     std::vector<CellAttr> res_attrs(recv_buf.size());
@@ -249,7 +238,7 @@ struct TargetSideLET {
     //res_attrs.reserve(recv_buf.size());
     double et_comp2 = MPI_Wtime();
 
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
     double bt_comp3 = MPI_Wtime();
     for (size_t i = 0; i < recv_buf.size(); i++) {
       res_keys[i] = std::get<0>(recv_buf[i]);
@@ -258,8 +247,7 @@ struct TargetSideLET {
     double et_comp3 = MPI_Wtime();
     double et = MPI_Wtime();
 
-    if (data.mpi_rank_ == 0) { std::cout << "debug: " << __FILE__ << ":" << __LINE__ << std::endl; }
-#if 1
+#if 0
     tapas::debug::BarrierExec([&](int, int) {
         size_t count = send_buf.size();
         double size = count * sizeof(send_buf[0]);
@@ -280,7 +268,6 @@ struct TargetSideLET {
         }
         std::cout << std::endl;
       });
-#endif
     
     if (data.mpi_rank_ == 0) { std::cout << "debug: " << __FILE__ << ":" << __LINE__ << std::endl; }
     // if (data.mpi_rank_ == 0) {
@@ -291,9 +278,9 @@ struct TargetSideLET {
     // }
     tapas::debug::BarrierExec([&](int rank, int) {
         if (rank == 0) {
-          printf("%3s %7s %7s %7s %7s %7s %7s ExchCells\n", "rank", "Total", "MPI", "Comp1", "Comp2", "Comp3", "recvbuf.size()");
+          printf("%3s %10s %10s %10s %10s %10s %10s ExchCells\n", "rank", "Total", "MPI", "Comp1", "Comp2", "Comp3", "recvbuf.size()");
         }
-        printf("%3d %10.4f %10.4f %10.4f %10.4f %10.4f %10d ExchCells\n",
+        printf("%4d %10.4f %10.4f %10.4f %10.4f %10.4f %12d ExchCells\n",
                rank,
                et-bt,
                et_mpi - bt_mpi,
@@ -306,7 +293,8 @@ struct TargetSideLET {
         // std::cout << "ExchCells: [" << rank << "] Pre1: " << (et_comp1 - bt_comp1) << " [s]" << std::endl;
         // std::cout << "ExchCells: [" << rank << "] Pre2: " << (et_comp2 - bt_comp2) << " [s]" << std::endl;
       });
-
+#endif
+    
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-comp1", et_comp1 - bt_comp1);
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-attr-comm", et - bt);
     return std::make_tuple(res_keys, res_attrs, recv_buf);
@@ -315,8 +303,9 @@ struct TargetSideLET {
   static void ExchBodies(Data &data, 
                          std::vector<KeyType> &req_leaf_keys,
                          std::vector<int> &leaf_src_ranks,
-                         std::vector<CellAttr> &res_cell_attrs, std::vector<BodyType> &res_bodies,
-                         std::vector<index_t> &res_nb){
+                         std::vector<CellAttr> &/*res_cell_attrs*/, std::vector<BodyType> &res_bodies,
+                         std::vector<index_t> &res_nb,
+                         const SendKeys &/*bmap*/){
     // Preapre all bodies to send to <leaf_src_ranks> processes
     double bt = MPI_Wtime();
 
@@ -365,7 +354,7 @@ struct TargetSideLET {
     std::vector<int> leaf_recvcnt; // we don't use this
     std::vector<int> body_recvcnt; // we don't use this
 
-#if 1 // performance measurement
+#if 0 // performance measurement
     if (data.mpi_rank_ == 0) {
       size_t count = leaf_keys_sendbuf.size();
       double size = count * sizeof(leaf_keys_sendbuf[0]);
@@ -385,7 +374,7 @@ struct TargetSideLET {
     }
 #endif
 
-    MPI_Barrier(data.mpi_comm_);
+    //MPI_Barrier(data.mpi_comm_);
     double bt_mpi = MPI_Wtime();
 
     // Send response keys and bodies
@@ -396,10 +385,12 @@ struct TargetSideLET {
     double et_mpi = MPI_Wtime();
     double et = MPI_Wtime();
 
+#if 0
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchBodies: MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
       std::cout << "ExchBodies: " << (et - bt) << " [s]" << std::endl;
     }
+#endif
 
     data.time_rec_.Record(data.timestep_, "Map2-LET-res-body-comm", et - bt);
   }
@@ -541,10 +532,9 @@ struct TargetSideLET {
                                                req_leaf_keys, leaf_src_ranks,
                                                data.ht_);
 
-    std::tie(req_attr_keys, res_cell_attrs, recv_attrs)
-        = ExchCells(data, req_attr_keys, attr_src_ranks, amap);
+    std::tie(req_attr_keys, res_cell_attrs, recv_attrs) = ExchCells(data, amap);
     
-    ExchBodies(data, req_leaf_keys, leaf_src_ranks, res_cell_attrs, res_bodies, res_nb);
+    ExchBodies(data, req_leaf_keys, leaf_src_ranks, res_cell_attrs, res_bodies, res_nb, bmap);
     
     // TODO: send body attributes
     // Now we assume body_attrs from remote process is all "0" data.
@@ -569,7 +559,7 @@ struct TargetSideLET {
                        const std::vector<KeyType> &res_leaf_keys,
                        const std::vector<index_t> &res_nb) {
     SCOREP_USER_REGION("LET-Register", SCOREP_USER_REGION_TYPE_FUNCTION);
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     double beg = MPI_Wtime();
 
     // Register received LET cells to local ht_let_ hash table.
