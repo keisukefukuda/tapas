@@ -204,7 +204,7 @@ struct TargetSideLET {
    */
   static std::tuple<std::vector<KeyType>, std::vector<CellAttr>, std::vector<AttrTuple>>
   ExchCells(Data &data, const SendKeys &amap){
-    //MPI_Barrier(data.mpi_comm_);
+    MPI_Barrier(data.mpi_comm_);
     double bt = MPI_Wtime();
     double bt_comp1 = MPI_Wtime();
     std::vector<AttrTuple> send_buf;
@@ -225,12 +225,18 @@ struct TargetSideLET {
 
     double et_comp1 = MPI_Wtime();
     
-    //MPI_Barrier(data.mpi_comm_);
+    MPI_Barrier(data.mpi_comm_);
     double bt_mpi = MPI_Wtime();
+    if (data.mpi_rank_ == 0) {
+      std::cout << "before mpi::Alltoallv" << std::endl;
+    }
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
+    if (data.mpi_rank_ == 0) {
+      std::cout << "after mpi::Alltoallv" << std::endl;
+    }
     double et_mpi = MPI_Wtime();
 
-    //MPI_Barrier(data.mpi_comm_);
+    MPI_Barrier(data.mpi_comm_);
     double bt_comp2 = MPI_Wtime();
     std::vector<KeyType> res_keys(recv_buf.size());
     std::vector<CellAttr> res_attrs(recv_buf.size());
@@ -238,7 +244,7 @@ struct TargetSideLET {
     //res_attrs.reserve(recv_buf.size());
     double et_comp2 = MPI_Wtime();
 
-    //MPI_Barrier(data.mpi_comm_);
+    MPI_Barrier(data.mpi_comm_);
     double bt_comp3 = MPI_Wtime();
     for (size_t i = 0; i < recv_buf.size(); i++) {
       res_keys[i] = std::get<0>(recv_buf[i]);
@@ -247,29 +253,28 @@ struct TargetSideLET {
     double et_comp3 = MPI_Wtime();
     double et = MPI_Wtime();
 
-#if 0
-    tapas::debug::BarrierExec([&](int, int) {
-        size_t count = send_buf.size();
-        double size = count * sizeof(send_buf[0]);
-        std::cout << "ExchCells: #cells = " << count << "  size=" << std::fixed << std::setprecision(2) << size
-                  << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
-                  << std::endl;
-        std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
-      });
+#if 1
+    // tapas::debug::BarrierExec([&](int, int) {
+    //     size_t count = send_buf.size();
+    //     double size = count * sizeof(send_buf[0]);
+    //     std::cout << "ExchCells: #cells = " << count << "  size=" << std::fixed << std::setprecision(2) << size
+    //               << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
+    //               << std::endl;
+    //     std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
+    //   });
 
-    tapas::debug::BarrierExec([&](int rank, int size) {
-        std::cout << "ExchCell: [" << rank << "] send_count = ";
-        for (int i : send_count) {
-          std::cout << i << " ";
-        }
-        std::cout << std::endl;
-        for (int r = 0; r < size; r++) {
-          std::cout << amap.at(r).size() << " ";
-        }
-        std::cout << std::endl;
-      });
+    // tapas::debug::BarrierExec([&](int rank, int size) {
+    //     std::cout << "ExchCell: [" << rank << "] send_count = ";
+    //     for (int i : send_count) {
+    //       std::cout << i << " ";
+    //     }
+    //     std::cout << std::endl;
+    //     for (int r = 0; r < size; r++) {
+    //       std::cout << amap.at(r).size() << " ";
+    //     }
+    //     std::cout << std::endl;
+    //   });
     
-    if (data.mpi_rank_ == 0) { std::cout << "debug: " << __FILE__ << ":" << __LINE__ << std::endl; }
     // if (data.mpi_rank_ == 0) {
     //   std::cout << "ExchCells: " << (et - bt) << " [s]" << std::endl;
     //   std::cout << "ExchCells: MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
@@ -280,18 +285,15 @@ struct TargetSideLET {
         if (rank == 0) {
           printf("%3s %10s %10s %10s %10s %10s %10s ExchCells\n", "rank", "Total", "MPI", "Comp1", "Comp2", "Comp3", "recvbuf.size()");
         }
-        printf("%4d %10.4f %10.4f %10.4f %10.4f %10.4f %12d ExchCells\n",
+        printf("%4d %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f ExchCells\n",
                rank,
                et-bt,
                et_mpi - bt_mpi,
                et_comp1 - bt_comp1,
                et_comp2 - bt_comp2,
                et_comp3 - bt_comp3,
-               (int)recv_buf.size());
-        // std::cout << "ExchCells: [" << rank << "] " << (et - bt) << " [s]" << std::endl;
-        // std::cout << "ExchCells: [" << rank << "] MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
-        // std::cout << "ExchCells: [" << rank << "] Pre1: " << (et_comp1 - bt_comp1) << " [s]" << std::endl;
-        // std::cout << "ExchCells: [" << rank << "] Pre2: " << (et_comp2 - bt_comp2) << " [s]" << std::endl;
+               (int)send_buf.size() * sizeof(send_buf[0]) / 1024./1024.,
+               (int)recv_buf.size() * sizeof(recv_buf[0]) / 1024./1024.);
       });
 #endif
     

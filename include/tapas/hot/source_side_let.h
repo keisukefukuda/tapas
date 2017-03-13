@@ -341,11 +341,13 @@ struct SourceSideLET {
 #if 1 // single alltoallv
   std::vector<std::tuple<KeyType, CellAttr>>
   static ExchCellAttrs(const Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
+    MPI_Barrier(data.mpi_comm_);
     double bt = MPI_Wtime();
     using KATuple = std::tuple<KeyType, CellAttr>;
     std::vector<int> send_count(data.mpi_size_);
     std::vector<KATuple> send_buf;
 
+    double bt_comp1 = MPI_Wtime();
     for (int rank = 0; rank < data.mpi_size_; rank++) {
       if (rank == data.mpi_rank_ || attr_keys.count(rank) == 0) { continue; }
       const auto &keys = attr_keys.at(rank);
@@ -360,28 +362,33 @@ struct SourceSideLET {
       }
     }
 
-    if (data.mpi_rank_ == 0) {
-      size_t count = send_buf.size();
-      double size = count * sizeof(send_buf[0]);
-      std::cout << "ExchCells: #cells = " << count << "  size=" << std::fixed << std::setprecision(2) << size
-                << "(=" << std::fixed << std::setprecision(2) << (size/1024/1024) << " MB)"
-                << std::endl;
-      std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
-    }
-
     std::vector<KATuple> recv_buf;
     std::vector<int> recv_count;
+    double et_comp1 = MPI_Wtime();
 
     MPI_Barrier(data.mpi_comm_);
-    double bt2 = MPI_Wtime();
+    double bt_mpi = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
-    double et2 = MPI_Wtime();
+    double et_mpi = MPI_Wtime();
 
     double et = MPI_Wtime();
+
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchCells: " << (et-bt) << " [s]" << std::endl;
-      std::cout << "ExchCells: MPI: " << (et2-bt2) << " [s]" << std::endl;
+      std::cout << "ExchCells: MPI: " << (et_mpi-bt_mpi) << " [s]" << std::endl;
     }
+    tapas::debug::BarrierExec([&](int rank, int) {
+        if (rank == 0) {
+          printf("%3s %10s %10s %10s %10s %10s ExchCells\n", "rank", "Total", "MPI", "Comp1", "sendbuf(MB)", "recvbuf(MB)");
+        }
+        printf("%4d %10.4f %10.4f %10.4f %10.4f %10.4f ExchCells\n",
+               rank,
+               et-bt,
+               et_mpi - bt_mpi,
+               et_comp1 - bt_comp1,
+               (int)send_buf.size() * sizeof(send_buf[0]) / 1024./1024.,
+               (int)recv_buf.size() * sizeof(recv_buf[0]) / 1024./1024.);
+      });
     return recv_buf;
   }
 #else
