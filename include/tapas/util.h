@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <vector>
 #include <numeric>
+#include <set>
+#include <unordered_set>
 
 #ifdef USE_MPI
 # include <mpi.h>
@@ -472,6 +474,38 @@ FP NearZeroValue(FP a) {
       return v;
     }
   }
+}
+
+/**
+ * \brief Compute a difference of two sets (include std::unordered_set)
+ */
+template<class T>
+std::set<T> SetDiff(const std::set<T> &a, const std::set<T> &b) {
+  std::set<T> s;
+  std::set_difference(a.begin(), a.end(), b.begin(), b.end(), std::inserter(s, s.end()));
+
+  return s;
+}
+
+template<class T>
+std::unordered_set<T> SetDiff(const std::unordered_set<T> &a, const std::unordered_set<T> &b) {
+  std::unordered_set<T> s;
+  std::copy_if(a.begin(), a.end(), std::inserter(s, s.end()),
+               [&b](const T &e) { return b.count(e) == 0; });
+
+  return s;
+}
+
+template<class MapType, class ReturnType>
+ReturnType GetKeys(const MapType &map) {
+  using KT = typename MapType::key_type;
+  using VT = typename MapType::mapped_type;
+  ReturnType v;
+  v.clear();
+  v.reserve(map.size());
+  std::transform(map.begin(), map.end(), std::inserter(v, v.end()),
+                 [](std::pair<KT, VT> kv) { return kv.first; });
+  return v;
 }
 
 } // namespace util

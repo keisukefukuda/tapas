@@ -5,6 +5,7 @@
 #include <tapas/common.h>
 #include <tapas/test.h>
 #include <tapas/map.h>
+#include <tapas/util.h>
 
 SETUP_TEST;
 
@@ -42,11 +43,29 @@ void Test_IfSetIsSorted() {
   }
 }
 
+template<class SetType>
+void Test_Diff() {
+  SetType a = {1,2, 3, 4};
+  SetType b = {2, 3};
+  SetType c = tapas::util::SetDiff(a, b);
+  SetType d = tapas::util::SetDiff(b, a);
+
+  ASSERT_TRUE(c.size() == 2);
+  ASSERT_TRUE(c.count(1) == 1);
+  ASSERT_TRUE(c.count(2) == 0);
+  ASSERT_TRUE(c.count(3) == 0);
+  ASSERT_TRUE(c.count(4) == 1);
+
+  ASSERT_TRUE(d.size() == 0);
+}
+
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
 
   Test_IfSetIsSorted();
   Test_SortByKeys();
+  Test_Diff<std::set<int>>();
+  Test_Diff<std::unordered_set<int>>();
 
   TEST_REPORT_RESULT();
   
