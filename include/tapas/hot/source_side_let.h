@@ -519,11 +519,9 @@ struct SourceSideLET {
     // Traverse
     KeySet req_cell_attr_keys; // cells of which attributes are to be transfered from remotes to local
     KeySet req_leaf_keys; // cells of which bodies are to be transfered from remotes to local
-    KeySet send_attr_keys; // cells of which attributes are to be transfered from remotes to local
-    KeySet send_leaf_keys; // cells of which bodies are to be transfered from remotes to local
 
-    std::unordered_map<int, KeySet> send_attr_keys2;
-    std::unordered_map<int, KeySet> send_leaf_keys2;
+    std::unordered_map<int, KeySet> send_attr_keys;
+    std::unordered_map<int, KeySet> send_leaf_keys;
     
     LetInspectorAction callback(data, req_cell_attr_keys, req_leaf_keys);
 
@@ -535,14 +533,17 @@ struct SourceSideLET {
     if (tapas::mpi::Rank() == 0) std::cout << "Using Source-side LET" << std::endl;
 
     // Test source-side LET inspection
-    send_attr_keys.clear();
-    send_leaf_keys.clear();
     bt = MPI_Wtime();
-    for (int r = 0; r < data.mpi_size_; r++) {
-      KeySet &akeys = send_attr_keys2[r]; // implicitly initialize
-      KeySet &lkeys = send_leaf_keys2[r];
+
+    const KeySet gtree = tapas::util::GetKeys<decltype(data.ht_gtree_), KeySet>(data.ht_gtree_);
+
+    // for each target rank
+    for (int r = 0; r < data.mpi_size_; r++) { // r : rank
+      KeySet &akeys = send_attr_keys[r];
+      KeySet &lkeys = send_leaf_keys[r];
       LetInspectorAction callback(data, akeys, lkeys);
       if (r != data.mpi_rank_) {
+        //invoke inspector
         inspector.Inspect(r, root.key(), callback, f, args...);
       }
     }
@@ -552,18 +553,57 @@ struct SourceSideLET {
       std::cout << "Inspector2 : " << std::scientific << (et-bt) << " [s]" << std::endl;
     }
 
+    // eliminate redundant keys (The global tree is shared among all processes)
+    tapas::debug::BarrierExec([&](int rank, int) {
+        std::cout << "From rank " << rank << std::endl;
+        for (int r = 0; r < data.mpi_size_; r++) {
+          if (r != rank) {
+            KeySet &A = send_attr_keys[r];
+            const KeySet &B = gtree;
+            A.insert((KeyType)0);
+            KeySet D = tapas::util::SetDiff(A, B);
+            // std::set_difference(A.begin(), A.end(),
+            //                     B.begin(), B.end(),
+            //                     std::inserter(D, D.end()));
+            std::cout << "A.count(0)=" << A.count(0) << " "
+                      << "B.count(0)=" << B.count(0) << " "
+                      << "D.count(0)=" << D.count(0) << " "
+                      << "Ratio=" << (D.size() / (double)data.ht_.size())
+                      << std::endl;
+            std::cout << r << " " << A.size() << " -> " << D.size()
+                      << std::endl;
+            A = D;
+          }
+        }
+      });
+    
     std::vector<std::tuple<KeyType, CellAttr>>  recv_attrs;  // received keys and cell attributes
     std::vector<std::tuple<KeyType, int>>       recv_leaves; // keys of received bodies and numbers of bodies.
     std::vector<std::tuple<BodyType, BodyAttrType>> recv_bodies; // received bodies and body attributes
 
     // perform MPI communication and exchange necessary data
-    recv_attrs = ExchCellAttrs(root.data(), send_attr_keys2);
-    std::tie(recv_leaves, recv_bodies) = ExchBodies(root.data(), send_leaf_keys2);
-
+    recv_attrs = ExchCellAttrs(root.data(), send_attr_keys);
+    std::tie(recv_leaves, recv_bodies) = ExchBodies(root.data(), send_leaf_keys);
+    
     Register2(data, recv_attrs, recv_leaves, recv_bodies);
 
     double end = MPI_Wtime();
     root.data().time_rec_.Record(root.data().timestep_, "Map2-LET-all", end - beg);
+
+    tapas::debug::BarrierExec([&](int rank, int size) {
+        if (rank == 0) {
+          printf("Send data ratio\n");
+        }
+
+        for (int r = 0; r < size; r++) {
+          double ratio = (r == rank) ? 0.0 : ((double)send_attr_keys[r].size() / data.ht_.size());
+          printf("%0.3f ", ratio);
+        }
+        printf("\n");
+        if (rank == size-1) {
+          printf("\n");
+        }
+      });
   }
 
   static void DebugDumpCells(Data &data) {
