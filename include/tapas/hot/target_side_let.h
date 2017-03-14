@@ -387,6 +387,7 @@ struct TargetSideLET {
     double et_mpi = MPI_Wtime();
     double et = MPI_Wtime();
 
+    (void)bt_mpi; (void)et_mpi;
 #if 0
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchBodies: MPI: " << (et_mpi - bt_mpi) << " [s]" << std::endl;
