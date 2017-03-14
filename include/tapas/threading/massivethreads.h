@@ -81,7 +81,7 @@ class MassiveThreads {
 
   // Threading::yield
   static void yield() {
-    myth_yield(0);
+    myth_yield();
   }
 
   template<class F>
