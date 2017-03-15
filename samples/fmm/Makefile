@@ -38,6 +38,8 @@ else ifneq (,$(findstring icpc,$(CXX)))
 	# for ICC, we don't use -static option (as well as -fast which implicitly includes it) because it causes a linking error.
 	INTEL_INLINE=-no-inline-max-per-routine -no-inline-max-per-compile -inline-max-total-size=3000
 	CXXFLAGS += -std=c++11 -Wall -Wextra -funroll-loops -xHOST -O3 -no-prec-div -fp-model fast=2 $(INTEL_INLINE)
+else ifneq (,$(findstring FCC,$(CXX)))
+	CXXFLAGS += -Kfast -std=c++11 -Wall -Wextra
 endif
 
 # Profiling flags (gprof)
