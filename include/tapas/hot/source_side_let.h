@@ -340,7 +340,7 @@ struct SourceSideLET {
 
 #if 1 // single alltoallv
   std::vector<std::tuple<KeyType, CellAttr>>
-  static ExchCellAttrs(const Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
+  static ExchCellAttrs(Data &data, const std::unordered_map<int, KeySet> &attr_keys) {
     MPI_Barrier(data.mpi_comm_);
     double bt = MPI_Wtime();
     using KATuple = std::tuple<KeyType, CellAttr>;
@@ -370,6 +370,19 @@ struct SourceSideLET {
     double bt_mpi = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_buf, recv_count, data.mpi_comm_);
     double et_mpi = MPI_Wtime();
+
+    // Record received data in data.recv_keys_
+    size_t idx = 0;
+    for (int r = 0; r < data.mpi_size_; r++) { // r : rank
+      auto &keys = data.recv_keys_[r];
+      int rc = recv_count[r];
+      std::transform(&(recv_buf[idx]),
+                     &(recv_buf[idx + rc]),
+                     std::back_inserter(keys),
+                     [](KATuple &t) { return std::get<0>(t); });
+      //keys.insert(keys.end(), &(recv_buf[idx]), &(recv_buf[idx + rc]));
+      idx += rc;
+    }
 
     double et = MPI_Wtime();
 
@@ -594,7 +607,7 @@ struct SourceSideLET {
         if (rank == 0) {
           printf("Send data ratio\n");
         }
-
+        
         for (int r = 0; r < size; r++) {
           double ratio = (r == rank) ? 0.0 : ((double)send_attr_keys[r].size() / data.ht_.size());
           printf("%0.3f ", ratio);

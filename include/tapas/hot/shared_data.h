@@ -115,6 +115,10 @@ struct SharedData {
   MPI_Datatype mpi_type_battr_;
 #endif
 
+  // Debug data
+  std::unordered_map<int, std::vector<KeyType>> recv_keys_;
+  std::unordered_set<KeyType> key_used_; // Key used in the traversal
+
   SharedData(MPI_Comm comm)
       : mpi_rank_(0)
       , mpi_size_(1)
