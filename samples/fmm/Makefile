@@ -21,12 +21,13 @@ CXXFLAGS += -DEXPANSION=$(EXPANSION)
 CXX ?= g++
 MPICXX ?= env OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) mpicxx
 
-CXX_VER=$(shell $(CXX) --version | tr '[:upper:]' '[:lower:]')
+CXX_VER=$(shell $(CXX) --version | tr '[:upper:]' '[:lower:]' | sed -e 's/gcc/g++/g')
+$(warning CXX_VER=)
 $(warning $(CXX_VER))
 
 ifneq (,$(findstring LLVM,$(CXX_VER)))
 	CXXFLAGS += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -Wno-unused-function
-else ifneq (,$(findstring gcc,$(CXX_VER)))
+else ifneq (,$(findstring g++,$(CXX_VER)))
 	GCC_INLINE=-finline-functions --param max-inline-insns-recursive=2000 --param max-inline-recursive-depth=10 --param max-inline-insns-single=1000
   GCC_WARNING=-pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Winit-self \
               -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual \
