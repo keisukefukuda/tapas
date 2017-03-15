@@ -30,7 +30,7 @@ before_install:
   -
     if [[ ! -f "${MYTH_DIR}/lib/libmyth.a" ]]; then
       mkdir -p "${MYTH_DIR}";
-      wget -O "${MYTH_DIR}/mt.zip" "https://github.com/massivethreads/massivethreads/archive/2664bcbaf30aaf52f4b60b72dd76ffb262a8838e.zip";
+      wget -O "${MYTH_DIR}/mt.zip" "https://github.com/massivethreads/massivethreads/archive/master.zip";
       pushd "${MYTH_DIR}";
       unzip mt.zip;
       pushd massivethreads-*;
