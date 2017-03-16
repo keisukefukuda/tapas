@@ -29,12 +29,20 @@ function accuracyCheck() {
     MAX_ERR=5e-3
 
     local fname=$1
-    PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
-    AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+
+    # Check if PERR and AERR are included in the file
+    if fgrep -q "Rel. L2 Error" "$fname"; then
+        local PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+        local AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+    else
+        echoRed "*** Error check failed. \"L2 Error\" is not included in the output."
+        STATUS=$(expr $STATUS + 1)
+        cat "$fname"
+        exit -1
+    fi
 
     echo "PERR='$PERR'"
     echo "AERR='$AERR'"
-
 
     if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
@@ -103,9 +111,7 @@ function run() {
             echo "cat status=$?"
         fi
     fi
-    echo "###"
     accuracyCheck $TMPFILE
-    echo "###"
     # cat $TMPFILE ||:
 
     # Run the mutual version
