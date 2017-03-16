@@ -126,6 +126,8 @@ function run() {
     fi
     accuracyCheck $TMPFILE
     #cat $TMPFILE ||:
+
+    return 0
 }
 
 #----------------------------------------------------------------------------
