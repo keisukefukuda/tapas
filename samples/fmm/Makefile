@@ -21,23 +21,26 @@ CXXFLAGS += -DEXPANSION=$(EXPANSION)
 CXX ?= g++
 MPICXX ?= env OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) mpicxx
 
-CXX_VER=$(shell $(CXX) --version)
+CXX_VER=$(shell $(CXX) --version | tr '[:upper:]' '[:lower:]' | sed -e 's/gcc/g++/g')
+$(warning CXX_VER=)
+$(warning $(CXX_VER))
 
 ifneq (,$(findstring LLVM,$(CXX_VER)))
 	CXXFLAGS += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -Wno-unused-function
-else ifneq (,$(findstring g++,$(CXX)))
+else ifneq (,$(findstring g++,$(CXX_VER)))
 	GCC_INLINE=-finline-functions --param max-inline-insns-recursive=2000 --param max-inline-recursive-depth=10 --param max-inline-insns-single=1000
   GCC_WARNING=-pedantic -Wall -Wextra -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Winit-self \
               -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual \
               -Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel -Wstrict-overflow=5 -Wswitch-default -Wundef \
               -Wno-unused -Wno-unused-function # -Wsign-conversion
-	# Mark MPI headers as system
 	GCC_SYSTEM := $(shell $(MPICXX) -show | grep -oE "[-]I(\S)+" | sed -e 's/-I//g')
 	CXXFLAGS += -std=c++11 -Wall -Wextra -funroll-loops -fdiagnostics-color=auto -Wno-unused-function -fno-openmp $(GCC_INLINE) #$(GCC_WARNING) -isystem $(GCC_SYSTEM)
 else ifneq (,$(findstring icpc,$(CXX)))
 	# for ICC, we don't use -static option (as well as -fast which implicitly includes it) because it causes a linking error.
 	INTEL_INLINE=-no-inline-max-per-routine -no-inline-max-per-compile -inline-max-total-size=3000
 	CXXFLAGS += -std=c++11 -Wall -Wextra -funroll-loops -xHOST -O3 -no-prec-div -fp-model fast=2 $(INTEL_INLINE)
+else ifneq (,$(findstring FCC,$(CXX)))
+	CXXFLAGS += -Kfast -std=c++11 -Wall -Wextra
 endif
 
 # Profiling flags (gprof)
