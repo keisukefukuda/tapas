@@ -37,7 +37,10 @@ function accuracyCheck() {
     else
         echoRed "*** Error check failed. \"L2 Error\" is not included in the output."
         STATUS=$(expr $STATUS + 1)
+        echo "Contents of $fname"
+        echo "-----------------------------------"
         cat "$fname"
+        echo "-----------------------------------"
         exit -1
     fi
 
@@ -47,6 +50,10 @@ function accuracyCheck() {
     if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
+        echo "Contents of $fname"
+        echo "-----------------------------------"
+        cat "$fname"
+        echo "-----------------------------------"
         exit -1
     else
         echoGreen pot check OK
@@ -55,6 +62,10 @@ function accuracyCheck() {
     if [[ $(python -c "print(float('$AERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
+        echo "Contents of $fname"
+        echo "-----------------------------------"
+        cat "$fname"
+        echo "-----------------------------------"
         exit -1
     else
         echoGreen acc check OK
