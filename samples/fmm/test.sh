@@ -92,7 +92,7 @@ function run() {
                --numBodies ${NB} --ncrit=${NC} --dist ${D} \
                >${TMPFILE} &&:
     local STAT="$?"
-    echo exit status $STAT
+    echo "exit status $STAT"
     
     if [[ "${STAT}" != 0 ]]; then
         echoRed "ERROR: program filed with exit code ${STAT}"
@@ -103,7 +103,9 @@ function run() {
             echo "cat status=$?"
         fi
     fi
+    echo "###"
     accuracyCheck $TMPFILE
+    echo "###"
     # cat $TMPFILE ||:
 
     # Run the mutual version
@@ -113,7 +115,7 @@ function run() {
                --numBodies ${NB} --ncrit=${NC} --dist ${D} \
                >${TMPFILE} &&:
     local STAT="$?"
-    echo exit status $STAT
+    echo "exit status $STAT"
 
     if [[ "${STAT}" != 0 ]]; then
         echoRed "ERROR: program filed with exit code ${STAT}"
