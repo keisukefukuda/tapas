@@ -173,7 +173,7 @@ if [[ $command != "load" ]]; then
     done
     done
 
-    echo status=$STATUS
+    echo FMM tests status=$STATUS
 
     if [[ "${STATUS}" != 0 ]]; then
         echoRed "${STATUS} tests failed."
