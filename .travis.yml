@@ -39,6 +39,8 @@ before_install:
       make install;
       popd;
       popd;
+    else
+      echo "Skipping MassiveThread installation";
     fi;
       
 matrix:
