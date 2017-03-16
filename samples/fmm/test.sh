@@ -31,9 +31,9 @@ function accuracyCheck() {
     local fname=$1
 
     # Check if PERR and AERR are included in the file
-    if fgrep "Rel. L2 Error" "$fname"; then
-        local PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
-        local AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+    if fgrep -a "Rel. L2 Error" "$fname"; then
+        local PERR=$(grep -a "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+        local AERR=$(grep -a "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
     else
         echoRed "*** Error check failed. \"L2 Error\" is not included in the output."
         STATUS=$(expr $STATUS + 1)
