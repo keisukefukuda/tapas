@@ -22,8 +22,8 @@ CXX ?= g++
 MPICXX ?= env OMPI_CXX=$(CXX) MPICH_CXX=$(CXX) mpicxx
 
 CXX_VER=$(shell $(CXX) --version | tr '[:upper:]' '[:lower:]' | sed -e 's/gcc/g++/g')
-$(warning CXX_VER=)
-$(warning $(CXX_VER))
+#$(warning CXX_VER=)
+#$(warning $(CXX_VER))
 
 ifneq (,$(findstring LLVM,$(CXX_VER)))
 	CXXFLAGS += -std=c++11 -Wall -Wextra -O2 -funroll-loops -fcolor-diagnostics -Wno-unused-function
