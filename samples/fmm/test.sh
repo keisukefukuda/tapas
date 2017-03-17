@@ -31,6 +31,8 @@ function accuracyCheck() {
     local fname=$1
 
     # Check if PERR and AERR are included in the file
+    # Using "-a" option, which is "process binary file as text file", because Travis CI's grep
+    # command sometimes recognize the file as a binary file.
     if fgrep -a "Rel. L2 Error" "$fname"; then
         local PERR=$(grep -a "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
         local AERR=$(grep -a "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
