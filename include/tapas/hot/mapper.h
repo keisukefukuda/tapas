@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <cxxabi.h>
-#include <chrono>
 
 #include "tapas/util.h"
 #include "tapas/iterator.h"
@@ -57,12 +56,7 @@ struct CheckMutualBody {
 namespace tapas {
 namespace hot {
 
-using std::chrono::duration_cast;
-using std::chrono::milliseconds;
-using clock = std::chrono::system_clock;
-
 template<class Cell, class Body, class LET, class Insp1> struct CPUMapper;
-
 
 /**
  * @brief Helper subroutine called from Mapper::Map, the body of Map-2 operation
@@ -655,7 +649,8 @@ struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
 
   Vectormap vmap_;
 
-  std::chrono::high_resolution_clock::time_point map2_all_beg_, map2_all_end_;
+  double map2_all_beg_;
+  double map2_all_end_;
 
   /**
    * @brief Map function f over product of two iterators
@@ -734,7 +729,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
   template <class Funct, class...Args>
   void Map2_Init(Funct f, Cell&c1, Cell&c2, Args&&...args) {
     auto &data = c1.data();
-    map2_all_beg_ = std::chrono::high_resolution_clock::now();
+    map2_all_beg_ = MPI_Wtime();
 
     // -- Perform LET exchange if more than 1 MPI process
     if (c1.data().mpi_size_ > 1) {
@@ -772,11 +767,11 @@ struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
     data.time_rec_.Record(data.timestep_, "Map2-device", vmap_.time_device_call_);
 
     // collect runtime information
-    map2_all_end_  = std::chrono::high_resolution_clock::now();
+    map2_all_end_  = MPI_Wtime();
     auto dt = map2_all_end_ - map2_all_beg_;
-    data.time_rec_.Record(data.timestep_, "Map2-all", std::chrono::duration_cast<std::chrono::microseconds>(dt).count() * 1e-6);
+    data.time_rec_.Record(data.timestep_, "Map2-all", dt);
   }
-
+  
   /*
    * \brief Main routine of dual tree traversal (2-param Map())
    * GPUMapper::Map
@@ -785,7 +780,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
    */
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, Cell &c2, Args&&... args) {
-    static std::chrono::high_resolution_clock::time_point t1, t2;
+    static double t1, t2
 
     //std::cout << "GPUMapper::Map(2)  " << c1.key() << ", " << c2.key() << std::endl;
 

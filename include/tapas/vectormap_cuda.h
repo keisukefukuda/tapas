@@ -19,7 +19,6 @@
 
 #include <atomic>
 #include <mutex>
-#include <chrono>
 
 namespace tapas {
 
@@ -801,7 +800,6 @@ class Applier2 : public AbstractApplier<Vectormap> {
   virtual void apply(Vectormap *vm) override {
     using BV = Body;
     using BA = BodyAttr;
-    using namespace std::chrono;
 
     using MapData2 = typename Vectormap::MapData2;
 
@@ -892,7 +890,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
                  ParamIdxSeq());
 
     // Report time (In a ad-hoc way using std::cout. Needs refactoring)
-    double time_mcopy = duration_cast<microseconds>(t2-t1).count() * 1e-6;
+    double time_mcopy = t2 - t1;
   }
 
   virtual ~Applier2() {
@@ -1096,7 +1094,7 @@ struct Vectormap_CUDA_Packed
   /* Starts launching a kernel on collected cells. */
 
   void on_collected2() {
-    auto t1 = std::chrono::high_resolution_clock::now();
+    double t1 = MPI_Wtime();
 
     TAPAS_ASSERT(applier2_ != nullptr);
 
@@ -1104,9 +1102,9 @@ struct Vectormap_CUDA_Packed
 
     vectormap_check_error("Vectormap_CUDA_Packed::end", __FILE__, __LINE__);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
-    auto t2 = std::chrono::high_resolution_clock::now();
+    double t2 = MPI_Wtime();
 
-    time_device_call_ = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() * 1e-6;
+    time_device_call_ = t2 - t1;
   }
 
   void Finish2() {
