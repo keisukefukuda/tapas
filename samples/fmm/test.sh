@@ -29,16 +29,33 @@ function accuracyCheck() {
     MAX_ERR=5e-3
 
     local fname=$1
-    PERR=$(grep "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
-    AERR=$(grep "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+
+    # Check if PERR and AERR are included in the file
+    # Using "-a" option, which is "process binary file as text file", because Travis CI's grep
+    # command sometimes recognize the file as a binary file.
+    if fgrep -a "Rel. L2 Error" "$fname"; then
+        local PERR=$(grep -a "Rel. L2 Error" $fname | grep pot | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+        local AERR=$(grep -a "Rel. L2 Error" $fname | grep acc | sed -e "s/^.*://" | grep -oE "[0-9.e+-]+")
+    else
+        echoRed "*** Error check failed. \"L2 Error\" is not included in the output."
+        STATUS=$(expr $STATUS + 1)
+        echo "Contents of $fname"
+        echo "-----------------------------------"
+        cat "$fname"
+        echo "-----------------------------------"
+        exit -1
+    fi
 
     echo "PERR='$PERR'"
     echo "AERR='$AERR'"
 
-
     if [[ $(python -c "print(float('$PERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (pot) $PERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
+        echo "Contents of $fname"
+        echo "-----------------------------------"
+        cat "$fname"
+        echo "-----------------------------------"
         exit -1
     else
         echoGreen pot check OK
@@ -47,6 +64,10 @@ function accuracyCheck() {
     if [[ $(python -c "print(float('$AERR') < $MAX_ERR)") != "True" ]]; then
         echoRed "*** Error check failed. L2 Error (acc) $AERR > $MAX_ERR"
         STATUS=$(expr $STATUS + 1)
+        echo "Contents of $fname"
+        echo "-----------------------------------"
+        cat "$fname"
+        echo "-----------------------------------"
         exit -1
     else
         echoGreen acc check OK
@@ -92,7 +113,7 @@ function run() {
                --numBodies ${NB} --ncrit=${NC} --dist ${D} \
                >${TMPFILE} &&:
     local STAT="$?"
-    echo exit status $STAT
+    echo "exit status $STAT"
     
     if [[ "${STAT}" != 0 ]]; then
         echoRed "ERROR: program filed with exit code ${STAT}"
@@ -113,7 +134,7 @@ function run() {
                --numBodies ${NB} --ncrit=${NC} --dist ${D} \
                >${TMPFILE} &&:
     local STAT="$?"
-    echo exit status $STAT
+    echo "exit status $STAT"
 
     if [[ "${STAT}" != 0 ]]; then
         echoRed "ERROR: program filed with exit code ${STAT}"
@@ -126,6 +147,8 @@ function run() {
     fi
     accuracyCheck $TMPFILE
     #cat $TMPFILE ||:
+
+    return 0
 }
 
 #----------------------------------------------------------------------------
@@ -173,7 +196,7 @@ if [[ $command != "load" ]]; then
     done
     done
 
-    echo status=$STATUS
+    echo FMM tests status=$STATUS
 
     if [[ "${STATUS}" != 0 ]]; then
         echoRed "${STATUS} tests failed."
