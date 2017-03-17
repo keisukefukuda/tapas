@@ -385,7 +385,7 @@ struct SourceSideLET {
 
     double et = MPI_Wtime();
 
-#if 0
+#if 1
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchCells: " << (et-bt) << " [s]" << std::endl;
       std::cout << "ExchCells: MPI: " << (et_mpi-bt_mpi) << " [s]" << std::endl;
@@ -532,7 +532,7 @@ struct SourceSideLET {
     }
 
     // eliminate redundant keys (The global tree is shared among all processes)
-#if 0
+#if 1
     tapas::debug::BarrierExec([&](int rank, int) {
         std::cout << "From rank " << rank << std::endl;
         for (int r = 0; r < data.mpi_size_; r++) {
@@ -570,7 +570,7 @@ struct SourceSideLET {
     double end = MPI_Wtime();
     root.data().time_rec_.Record(root.data().timestep_, "Map2-LET-all", end - beg);
 
-#if 0
+#if 1
     tapas::debug::BarrierExec([&](int rank, int size) {
         if (rank == 0) {
           printf("Send data ratio\n");
