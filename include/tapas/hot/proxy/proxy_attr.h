@@ -5,15 +5,20 @@ namespace tapas {
 namespace hot {
 namespace proxy {
 
+/* Remove "friend PROXY_CELL" and make "operator=" public in class
+   ProxyAttr for CUDA8.  CUDAFE badly translates "friend PROXY_CELL"
+   of a template parameter to "friend ::PROXY_CELL". */
+
 /**
  * \brief Proxy class for user-specified CellAttr.
  */
 template<class PROXY_CELL>
 class ProxyAttr : public PROXY_CELL::TSP::CellAttr {
-  friend PROXY_CELL;
+  //friend PROXY_CELL;
   using CellAttr = typename PROXY_CELL::TSP::CellAttr; // real cell attributes
     
- protected:
+  //protected:
+ public:
   ProxyAttr &operator=(const ProxyAttr &rhs) {
     this->CellAttr::operator=(rhs);
     cell_ = rhs.cell_;
