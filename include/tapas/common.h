@@ -11,7 +11,8 @@
 /* Intel ICC/ICPC. ------------------------------------------ */
 # define TAPAS_COMPILER_INTEL
 
-# define INLINE __forceinline
+/*# define INLINE __forceinline*/
+# define INLINE __forceinline__
 
 #elif defined(__GNUC__) || defined(__GNUG__)
 /* GNU GCC/G++. --------------------------------------------- */
