@@ -504,10 +504,6 @@ int main(int argc, char ** argv) {
     dumpM(*root);
 #endif
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << __FILE__ << ":" << __LINE__ << "Traverse" << std::endl;
-    }
-
     {
 #ifdef USE_MPI
       MPI_Barrier(MPI_COMM_WORLD);
@@ -520,9 +516,6 @@ int main(int argc, char ** argv) {
       logger::stopTimer("Traverse");
     }
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << __FILE__ << ":" << __LINE__ << " Downward" << std::endl;
-    }
     TAPAS_LOG_DEBUG() << "Dual Tree Traversal done\n";
 
 #ifdef TAPAS_DEBUG_DUMP
@@ -552,9 +545,6 @@ int main(int argc, char ** argv) {
 
     // Copy BodyAttr values back to Body
 
-    if (tapas::mpi::Rank() == 0) {
-      std::cout << __FILE__ << ":" << __LINE__ << " Check" << std::endl;
-    }
     logger::startTimer("CopyBackResult");
     TapasFMM::Map([](Body &b, BodyAttr &a) {
         b.TRG = a;
