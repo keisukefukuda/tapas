@@ -11,6 +11,18 @@
 namespace tapas {
 namespace threading {
 
+extern void *enabler;
+
+template<typename F, typename std::enable_if<tapas::util::is_callable<F, int>::value>::type *& = enabler>
+void call_myth_yield() {
+  myth_yield(1);
+}
+
+template<typename F, typename std::enable_if<tapas::util::is_callable<F>::value>::type *& = enabler>
+void call_myth_yield() {
+  myth_yield();
+}
+
 /**
  * MassiveThreads
  */
@@ -81,14 +93,14 @@ class MassiveThreads {
 
   // Threading::yield
   static void yield() {
-    myth_yield();
+    // myth_yield() has different arities depending on MassiveThreads' version
+    call_myth_yield<decltype(myth_yield)>();
   }
 
   template<class F>
   static void run(F f) {
     CallableTask<F>(f).execute();
   }
-  
 };
 
 }
