@@ -54,7 +54,7 @@ endif
 
 ifneq (,$(MTHREAD))
 	CXXFLAGS += -DMTHREAD -I$(MYTH_DIR)/include
-	LDFLAGS += -L$(MYTH_DIR)/lib -lmyth
+	LDFLAGS += -L$(MYTH_DIR)/lib -lmyth -pthread # -lmyth-dl
 endif
 
 ifneq (,$(TBB))
