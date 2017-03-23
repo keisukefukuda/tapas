@@ -385,7 +385,7 @@ struct SourceSideLET {
 
     double et = MPI_Wtime();
 
-#if 1
+#if 0
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchCells: " << (et-bt) << " [s]" << std::endl;
       std::cout << "ExchCells: MPI: " << (et_mpi-bt_mpi) << " [s]" << std::endl;
@@ -450,6 +450,7 @@ struct SourceSideLET {
     std::vector<BTuple> recv_bodies;
     std::vector<int>    recv_bodies_cnt;
 
+#if 0
     if (data.mpi_rank_ == 0) {
       size_t count = send_buf.size();
       double size = count * sizeof(send_buf[0]);
@@ -467,6 +468,7 @@ struct SourceSideLET {
                 << std::endl;
       std::cout << "           ht_.size() = " << data.ht_.size() << std::endl;
     }
+#endif
     
     double bt2 = MPI_Wtime();
     tapas::mpi::Alltoallv(send_buf, send_count, recv_keys, recv_keys_cnt, data.mpi_comm_);
@@ -474,10 +476,14 @@ struct SourceSideLET {
     double et2 = MPI_Wtime();
 
     double et = MPI_Wtime();
+#if 0
     if (data.mpi_rank_ == 0) {
       std::cout << "ExchBodies: " << (et-bt) << " [s]" << std::endl;
       std::cout << "ExchBodies: MPI: " << (et2-bt2) << " [s]" << std::endl;
     }
+#endif
+    (void)bt; (void)et;
+    (void)bt2; (void)et2;
     return std::make_tuple(recv_keys, recv_bodies);
   }
     
@@ -532,7 +538,7 @@ struct SourceSideLET {
     }
 
     // eliminate redundant keys (The global tree is shared among all processes)
-#if 1
+#if 0
     tapas::debug::BarrierExec([&](int rank, int) {
         std::cout << "From rank " << rank << std::endl;
         for (int r = 0; r < data.mpi_size_; r++) {
@@ -570,7 +576,7 @@ struct SourceSideLET {
     double end = MPI_Wtime();
     root.data().time_rec_.Record(root.data().timestep_, "Map2-LET-all", end - beg);
 
-#if 1
+#if 0
     tapas::debug::BarrierExec([&](int rank, int size) {
         if (rank == 0) {
           printf("Send data ratio\n");
