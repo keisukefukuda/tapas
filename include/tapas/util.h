@@ -508,6 +508,19 @@ ReturnType GetKeys(const MapType &map) {
   return v;
 }
 
+template <typename Func, typename... Args>
+struct is_callable
+{
+private:
+    template <typename CheckType>
+    static std::true_type check(decltype(std::declval<CheckType>()(std::declval<Args>()...)) *);
+    template <typename CheckType>
+    static std::false_type check(...);
+public:
+    typedef decltype(check<Func>(nullptr)) type;
+    static constexpr bool value = type::value;
+};
+
 } // namespace util
 } // namespace tapas
 
