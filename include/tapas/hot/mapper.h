@@ -780,7 +780,7 @@ struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
    */
   template <class Funct, class...Args>
   inline void Map(Funct f, Cell &c1, Cell &c2, Args&&... args) {
-    static double t1, t2
+    //static double t1, t2
 
     //std::cout << "GPUMapper::Map(2)  " << c1.key() << ", " << c2.key() << std::endl;
 

@@ -834,7 +834,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
     vm->body_list2().assure_size(nn);
     vm->attr_list2().assure_size(nn);
 
-    auto t1 = high_resolution_clock::now();
+    auto t1 = std::chrono::high_resolution_clock::now();
 
     auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(); // compare func
     std::sort(cellpairs.begin(), cellpairs.end(), comp);
@@ -850,7 +850,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
     vm->body_list2().copy_in(nn);
     vm->attr_list2().copy_in(nn);
 
-    auto t2 = high_resolution_clock::now();
+    auto t2 = std::chrono::high_resolution_clock::now();
 
     Cell_Data<BV> xr = std::get<2>(cellpairs[0]);
     int xncells = 0;
@@ -890,7 +890,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
                  ParamIdxSeq());
 
     // Report time (In a ad-hoc way using std::cout. Needs refactoring)
-    double time_mcopy = t2 - t1;
+    double time_mcopy = (std::chrono::duration<double>(t2 - t1)).count();
   }
 
   virtual ~Applier2() {

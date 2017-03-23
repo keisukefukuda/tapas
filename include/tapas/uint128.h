@@ -4,8 +4,13 @@
 #include <ostream>
 
 // Do all compilers have these extensions?
-using int128_t = signed __int128;
+#if !defined(TAPAS_COMPILER_INTEL) || defined(__CUDACC__)
+using int128_t = __int128;
 using uint128_t = unsigned __int128;
+#else
+using int128_t = __int128_t;
+using uint128_t = unsigned __int128_t;
+#endif
 
 namespace std {
 
