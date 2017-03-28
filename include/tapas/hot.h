@@ -42,7 +42,7 @@
 
 #if defined(TAPAS_USE_MYTH) || defined(TAPAS_USE_MTHREAD) || defined(TAPAS_USE_MTHREADS)
 #include "tapas/threading/massivethreads.h"
-#elsif defined(TAPAS_USE_TBB)
+#elif defined(TAPAS_USE_TBB)
 #include "tapas/threading/tbb.h"
 #else
 #include "tapas/threading/default.h"
@@ -440,7 +440,7 @@ struct HOT {
 
 #if defined(TAPAS_USE_MYTH) || defined(TAPAS_USE_MTHREAD) || defined(TAPAS_USE_MTHREADS)
   using Threading = tapas::threading::MassiveThreads;
-#elsif defined(TAPAS_USE_TBB)
+#elif defined(TAPAS_USE_TBB)
   using Threading = tapas::threading::TBB;
 #else
   using Threading = tapas::threading::Serial;
