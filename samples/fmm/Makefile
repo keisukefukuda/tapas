@@ -53,7 +53,7 @@ ifneq (,$(ENABLE_SCOREP))
 endif
 
 ifneq (,$(MTHREAD))
-	CXXFLAGS += -DMTHREAD -I$(MYTH_DIR)/include
+	CXXFLAGS += -DTAPAS_USE_MTHREAD -I$(MYTH_DIR)/include
 	LDFLAGS += -L$(MYTH_DIR)/lib -lmyth -pthread # -lmyth-dl
 endif
 

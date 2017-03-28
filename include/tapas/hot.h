@@ -39,7 +39,15 @@
 #include "tapas/logging.h"
 #include "tapas/mpi_util.h"
 #include "tapas/sfc_morton.h"
+
+#if defined(TAPAS_USE_MYTH) || defined(TAPAS_USE_MTHREAD) || defined(TAPAS_USE_MTHREADS)
+#include "tapas/threading/massivethreads.h"
+#elsif defined(TAPAS_USE_TBB)
+#include "tapas/threading/tbb.h"
+#else
 #include "tapas/threading/default.h"
+#endif
+
 
 #include "tapas/hot/buildtree.h"
 #include "tapas/hot/global_tree.h"
@@ -429,7 +437,14 @@ struct HOT {
   using BodyAttr = _BODY_ATTR;
   using CellAttr = _CELL_ATTR;
   using SFC = tapas::sfc::Morton<_DIM, _KEY_TYPE>;
-  using Threading = tapas::threading::Default;
+
+#if defined(TAPAS_USE_MYTH) || defined(TAPAS_USE_MTHREAD) || defined(TAPAS_USE_MTHREADS)
+  using Threading = tapas::threading::MassiveThreads;
+#elsif defined(TAPAS_USE_TBB)
+  using Threading = tapas::threading::TBB;
+#else
+  using Threading = tapas::threading::Serial;
+#endif
 
 #ifdef __CUDACC__
   using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
@@ -468,6 +483,7 @@ struct Tapas {
   using BodyIterator = typename Cell::BodyIterator;
   using Body = typename TSP::Body;
   using BodyAttr = typename TSP::BodyAttr;
+  using Threading = typename _TSP::Threading;
 
   // Proxy cell for one-side traverse
   using ProxyCell1 = tapas::hot::proxy::ProxyCell<TSP, tapas::hot::proxy::OnesideTraversePolicy<Dim, FP, Data>>;

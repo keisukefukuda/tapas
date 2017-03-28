@@ -400,13 +400,11 @@ int main(int argc, char ** argv) {
   tapas::SetGPU();
 
   if (args.mpi_rank == 0) {
-    std::cout << "Threading model " << FMM_Threading::name() << std::endl;
+    std::cout << "Threading model " << TapasFMM::Threading::name() << std::endl;
   }
 
   // ad-hoc code for MassiveThreads when used with mvapich.
-#ifdef MTHREADS
-  FMM_Threading::init();
-#endif
+  TapasFMM::Threading::init();
 
   Bodies bodies;
   //Cells cells, jcells;
