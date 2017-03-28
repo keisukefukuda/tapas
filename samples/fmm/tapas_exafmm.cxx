@@ -274,6 +274,7 @@ void CheckResult(Bodies &bodies, int numSamples, real_t cycle, int images) {
 #endif
   }
 
+  fflush(stdout);
   MPI_Barrier(MPI_COMM_WORLD);
 
   // Traversal::normalize()
