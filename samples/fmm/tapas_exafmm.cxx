@@ -359,6 +359,10 @@ void PrintProcInfo() {
 #endif
 }
 
+void TestStarPU() {
+  return;
+}
+
 int main(int argc, char ** argv) {
   Args args(argc, argv);
 
@@ -405,6 +409,9 @@ int main(int argc, char ** argv) {
 
   // ad-hoc code for MassiveThreads when used with mvapich.
   TapasFMM::Threading::init();
+
+  // StarPUの動作テスト
+  TestStarPU();
 
   Bodies bodies;
   //Cells cells, jcells;

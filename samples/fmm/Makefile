@@ -54,7 +54,12 @@ endif
 
 ifneq (,$(MTHREAD))
 	CXXFLAGS += -DTAPAS_USE_MTHREAD -I$(MYTH_DIR)/include
-	LDFLAGS += -L$(MYTH_DIR)/lib -lmyth -pthread # -lmyth-dl
+	LDFLAGS  += -L$(MYTH_DIR)/lib -lmyth -pthread # -lmyth-dl
+endif
+
+ifneq (,$(STARPU))
+	CXXFLAGS += -DTAPAS_USE_STARPU $(shell pkg-config --cflags starpu-1.2)
+	LDFLAGS  += $(shell pkg-config --libs starpu-1.2)
 endif
 
 ifneq (,$(TBB))

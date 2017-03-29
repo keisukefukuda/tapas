@@ -48,6 +48,7 @@
 #include "tapas/threading/default.h"
 #endif
 
+#include <starpu.h>
 
 #include "tapas/hot/buildtree.h"
 #include "tapas/hot/global_tree.h"
