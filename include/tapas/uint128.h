@@ -4,7 +4,16 @@
 #include <ostream>
 
 // Do all compilers have these extensions?
-#if !defined(TAPAS_COMPILER_INTEL) || defined(__CUDACC__)
+#if defined(TAPAS_COMPILER_GCC)
+using int128_t = __int128_t;
+using uint128_t = __uint128_t;
+#elfi defined(TAPAS_COMPILER_CLANG)
+using int128_t = __int128_t;
+using uint128_t = __uint128_t;
+#elif defined(TAPAS_COMPILER_INTEL)
+using int128_t = __int128_t;
+using uint128_t = __uint128_t;
+#elif defined(__CUDACC__)
 using int128_t = __int128;
 using uint128_t = unsigned __int128;
 #else

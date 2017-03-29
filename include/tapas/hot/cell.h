@@ -113,6 +113,8 @@ class Cell {
   using Inspector1 = Insp1<TSP>;
   using Mapper = typename TSP::template Mapper<CellType, Body, LET, Inspector1>;
 
+  using TSP_0 = TSP;
+
   using BodyIterator = iter::BodyIterator<Cell>;
   using SubCellIterator = iter::SubCellIterator<Cell>;
 

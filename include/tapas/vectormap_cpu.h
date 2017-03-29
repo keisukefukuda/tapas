@@ -23,6 +23,7 @@ namespace tapas {
 
 template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CPU {
+  static const int vector_mapper_discriminator = 0;
 
   template <typename T>
   using um_allocator = std::allocator<T>;
@@ -34,6 +35,19 @@ struct Vectormap_CPU {
 
   template<class Funct, class Cell, class ...Args>
   static void vectormap_finish(Funct, Cell, Args...) {}
+
+  void Setup(int cta, int nstreams) {}
+  void Start2() {}
+  void Finish2() {}
+
+  template <class Funct, class Cell, class...Args>
+    void map1(Funct f, BodyIterator<Cell> iter, Args... args)
+  {assert(0); abort();}
+
+  template <class Funct, class Cell, class...Args>
+    void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
+              Args... args)
+  {assert(0); abort();}
 
 #if 0
   template <class Funct, class Cell, class...Args>
@@ -86,7 +100,6 @@ struct Vectormap_CPU {
       vectormap_map_loop2(f, c1, c0, args...);
     }
   }
-
 };
 
 }

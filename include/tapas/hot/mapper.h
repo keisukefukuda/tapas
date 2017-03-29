@@ -6,6 +6,7 @@
 
 #include "tapas/util.h"
 #include "tapas/iterator.h"
+#include "tapas/vectormap.h"
 
 extern "C" {
   // for performance debugging
@@ -56,7 +57,7 @@ struct CheckMutualBody {
 namespace tapas {
 namespace hot {
 
-template<class Cell, class Body, class LET, class Insp1> struct CPUMapper;
+template<class Cell, class Body, class LET, class Insp1> struct HOTMapper;
 
 /**
  * @brief Helper subroutine called from Mapper::Map, the body of Map-2 operation
@@ -164,7 +165,7 @@ static void ProductMapImpl(Mapper &mapper,
  * \brief Overloaded version of ProductMapImpl for bodies x bodies.
  */
 template<class CELL, class BODY, class LET, class INSP1, class Funct, class...Args>
-static void ProductMapImpl(CPUMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
+static void ProductMapImpl_body(HOTMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
                            typename CELL::BodyIterator iter1,
                            int beg1, int end1,
                            typename CELL::BodyIterator iter2,
@@ -216,7 +217,7 @@ static void ProductMapImpl(CPUMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
 }
 
 template<class Cell, class Body, class LET, class INSP1>
-struct CPUMapper {
+struct HOTMapper {
   enum class Map1Dir {
     None,
     Upward,
@@ -232,7 +233,13 @@ struct CPUMapper {
   using Data = typename Cell::Data;
   using Insp1 = INSP1;
 
-  CPUMapper() : map1_dir_(Map1Dir::None), label_() { }
+  using TSP_1 = typename Cell::TSP_0;
+  using Vectormap = typename TSP_1::Vectormap;
+  template <class T> using Allocator = typename TSP_1::Allocator<T>;
+
+  Vectormap vmap_;
+
+  HOTMapper() : map1_dir_(Map1Dir::None), label_() { }
 
   /**
    * @brief Map function f over product of two iterators
@@ -247,6 +254,25 @@ struct CPUMapper {
     }
   }
 
+  /* Maps as MapP2(), but specializes for bodies. */
+
+  template<class Funct, class...Args>
+  inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args&&...args) {
+    //std::cout << "MapP2 (body)" << std::endl;
+    if (vmap_.vector_mapper_discriminator == 0) {
+      if (prod.size() > 0) {
+        ProductMapImpl_body(*this,
+                            prod.t1_, 0, prod.t1_.size(),
+                            prod.t2_, 0, prod.t2_.size(),
+                            f, std::forward<Args>(args)...);
+      }
+    } else {
+      if (prod.size() > 0) {
+        vmap_.map2(f, prod, std::forward<Args>(args)...);
+      }
+    }
+  }
+
   template <class Funct, class T1_Iter, class ...Args>
   inline void MapP1(Funct f, ProductIterator<T1_Iter> prod, Args&&...args) {
     if (prod.size() > 0) {
@@ -256,6 +282,34 @@ struct CPUMapper {
                      f, std::forward<Args>(args)...);
     }
   }
+
+  /* Maps as MapP1(), but specializes for bodies. */
+
+  template <class Funct, class ...Args>
+  inline void MapP1(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
+    if (vmap_.vector_mapper_discriminator == 0) {
+      if (prod.size() > 0) {
+        ProductMapImpl_body(*this,
+                            prod.t1_, 0, prod.t1_.size(),
+                            prod.t2_, 0, prod.t2_.size(),
+                            f, std::forward<Args>(args)...);
+      }
+    } else {
+      if (prod.size() > 0) {
+        vmap_.map2(f, prod, std::forward<Args>(args)...);
+      }
+    }
+  }
+
+  /* (AHO) This is a GPU version. I cannot find CPU version. */
+
+#if 0 /*AHO*/
+  template <class Funct, class...Args>
+  inline void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
+    assert(vmap_.vector_mapper_discriminator != 0);
+    vmap_.map2(f, prod, std::forward<Args>(args)...);
+  }
+#endif
 
   // before running upward traversal from the root,
   // we need to run local upward first and communicate the global leaf values between processes.
@@ -428,7 +482,7 @@ struct CPUMapper {
   }
 
   /**
-   * CPUMapper::Map (Bodies)
+   * HOTMapper::Map (Bodies)
    * Apply f to `all` bodies in parallel
    */
   template<class Funct, class...Args>
@@ -442,7 +496,7 @@ struct CPUMapper {
   }
 
   /**
-   * CPUMapper::Map  (1-parameter)
+   * HOTMapper::Map  (1-parameter)
    * Map-1 with SubCelliterator is for Upward or Downward operation.
    * First, determine the direction (up/down) and if up start from local upward.
    */
@@ -543,6 +597,8 @@ struct CPUMapper {
       data.time_rec_.Record(data.timestep_, label_ + "-insp", insp_et - insp_bt);
 
       exec_bt = MPI_Wtime();
+
+      vmap_.Start2();
     }
 
     // myth_start_papi_counter("PAPI_FP_OPS");
@@ -555,9 +611,12 @@ struct CPUMapper {
     // myth_stop_papi_counter();
 
     if (c1.IsRoot() && c2.IsRoot()) {
+      vmap_.Finish2();
+
       // Post-traverse procedure
       exec_et = MPI_Wtime();
       c1.data().time_rec_.Record(data.timestep_, label_ + "-exec", exec_et - exec_bt);
+
       SCOREP_USER_REGION_END(trav_handle);
     }
   }
@@ -607,9 +666,13 @@ struct CPUMapper {
   // bodies
   template <class Funct, class...Args>
   void Map(Funct f, BodyIterator<Cell> iter, Args&&...args) {
-    for (size_t i = 0; i < iter.size(); ++i) {
-      f(iter.cell(), *iter, iter.attr(), std::forward<Args>(args)...);
-      iter++;
+    if (vmap_.vector_mapper_discriminator == 0) {
+      for (size_t i = 0; i < iter.size(); ++i) {
+        f(iter.cell(), *iter, iter.attr(), std::forward<Args>(args)...);
+        iter++;
+      }
+    } else {
+      vmap_.map1(f, iter, std::forward<Args>(args)...);
     }
   }
 
@@ -622,263 +685,11 @@ struct CPUMapper {
     f(*b1, b1.attr(), *b2, b2.attr(), std::forward<Args>(args)...);
   }
 
-  inline void Setup() {  }
-
-  inline void Start2() { }
-
-  inline void Finish() {  }
-
-}; // class CPUMapper
-
-
-#ifdef __CUDACC__
-
-#include "tapas/vectormap.h"
-#include "tapas/vectormap_cuda.h"
-
-template<class Cell, class Body, class LET, class Insp1>
-struct GPUMapper : CPUMapper<Cell, Body, LET, Insp1> {
-
-  using Base = CPUMapper<Cell, Body, LET, Insp1>;
-  using Data = typename Cell::Data;
-  using Vectormap = tapas::Vectormap_CUDA_Packed<Cell::Dim,
-                                                 typename Cell::FP,
-                                                 typename Cell::Body,
-                                                 typename Cell::BodyAttr,
-                                                 typename Cell::CellAttr>;
-
-  Vectormap vmap_;
-
-  double map2_all_beg_;
-  double map2_all_end_;
-
-  /**
-   * @brief Map function f over product of two iterators
-   */
-  template <class Funct, class T1_Iter, class T2_Iter, class... Args>
-  inline void MapP2(Funct f, ProductIterator<T1_Iter, T2_Iter> prod, Args&&...args) {
-    if (prod.size() > 0) {
-      ProductMapImpl(*this,
-                     prod.t1_, 0, prod.t1_.size(),
-                     prod.t2_, 0, prod.t2_.size(),
-                     f, std::forward<Args>(args)...);
-    }
-  }
-
-  template<class Funct, class...Args>
-  inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args&&...args) {
-    //std::cout << "MapP2 (body)" << std::endl;
-
-    if (prod.size() > 0) {
-      vmap_.map2(f, prod, std::forward<Args>(args)...);
-    }
-  }
-
-  template <class Funct, class T1_Iter, class ...Args>
-  inline void MapP1(Funct f, ProductIterator<T1_Iter> prod, Args&&...args) {
-    if (prod.size() > 0) {
-      //vmap_.map2(f, prod, args...);
-      ProductMapImpl(*this,
-                     prod.t1_, 0, prod.t1_.size(),
-                     prod.t2_, 0, prod.t2_.size(),
-                     f, std::forward<Args>(args)...);
-    }
-  }
-
-  template <class Funct, class ...Args>
-  inline void MapP1(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
-    if (prod.size() > 0) {
-      vmap_.map2(f, prod, std::forward<Args>(args)...);
-    }
-  }
-
-  GPUMapper() : CPUMapper<Cell, Body, LET, Insp1>() { }
-
-  /**
-   * \brief Specialization of Map() over body x body product for GPU
-   */
-  template <class Funct, class...Args>
-  inline void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
-    // Offload bodies x bodies interaction to GPU
-    vmap_.map2(f, prod, std::forward<Args>(args)...);
-  }
-
   inline void Setup() {
-    // Called in tapas/hot.h
     vmap_.Setup(64,31);
   }
 
-  // GPUMapper::Start for 2-param Map()
-  inline void Start2() {
-    //std::cout << "*** Start2()" << std::endl;
-    vmap_.Start2();
-  }
-
-  // GPUMapper::Finish for 2-param Map()
-  inline void Finish() {
-    //std::cout << "*** Finish()" << std::endl;
-    vmap_.Finish2();
-  }
-
-  /**
-   * @brief Initialization of 2-param Map()
-   *
-   * - Setup CUDA device and variables
-   * - Construct & exchange LET
-   */
-  template <class Funct, class...Args>
-  void Map2_Init(Funct f, Cell&c1, Cell&c2, Args&&...args) {
-    auto &data = c1.data();
-    map2_all_beg_ = MPI_Wtime();
-
-    // -- Perform LET exchange if more than 1 MPI process
-    if (c1.data().mpi_size_ > 1) {
-#ifdef TAPAS_DEBUG
-      char t[] = "TAPAS_IN_LET=1";
-      putenv(t); // to avoid warning "convertion from const char* to char*"
-#endif
-      LET::Exchange(c1, f, std::forward<Args>(args)...);
-
-#ifdef TAPAS_DEBUG
-      unsetenv("TAPAS_IN_LET");
-#endif
-    }
-
-    // -- initialize GPU for 2-Param Map()
-#ifdef TAPAS_DEBUG
-    std::cout << "Calling Start2()" << std::endl;
-#endif
-    Start2();
-    
-    // -- check
-  }
-
-  /**
-   * @brief Finalization of 2-param Map()
-   *
-   * - Execute CUDA kernel on the interaction list
-   * - Collect time information
-   */
-  template <class Funct, class...Args>
-  void Map2_Finish(Funct, Cell &c1, Cell &c2, Args&&...) {
-    auto &data = c1.data();
-    Finish(); // Execute CUDA kernel
-
-    data.time_rec_.Record(data.timestep_, "Map2-device", vmap_.time_device_call_);
-
-    // collect runtime information
-    map2_all_end_  = MPI_Wtime();
-    auto dt = map2_all_end_ - map2_all_beg_;
-    data.time_rec_.Record(data.timestep_, "Map2-all", dt);
-  }
-  
-  /*
-   * \brief Main routine of dual tree traversal (2-param Map())
-   * GPUMapper::Map
-   *
-   * Cell x Cell
-   */
-  template <class Funct, class...Args>
-  inline void Map(Funct f, Cell &c1, Cell &c2, Args&&... args) {
-    //static double t1, t2
-
-    //std::cout << "GPUMapper::Map(2)  " << c1.key() << ", " << c2.key() << std::endl;
-
-    if (c1.IsRoot() && c2.IsRoot()) {
-      Map2_Init(f, c1, c2, std::forward<Args>(args)...);
-    }
-
-    f(c1, c2, std::forward<Args>(args)...);
-
-    if (c1.IsRoot() && c2.IsRoot()) {
-      Map2_Finish(f, c1, c2, std::forward<Args>(args)...);
-    }
-  }
-
-  // cell x cell iter
-  template <class Funct, class...Args>
-  inline void Map(Funct f, Cell &c1, CellIterator<Cell> &c2, Args&&...args) {
-    Map(f, c1, *c2, std::forward<Args>(args)...);
-  }
-
-  // cell iter x cell iter
-  template <class Funct, class...Args>
-  inline void Map(Funct f, CellIterator<Cell> &c1, CellIterator<Cell> &c2, Args&&...args) {
-    Map(f, *c1, *c2, std::forward<Args>(args)...);
-  }
-
-  // cell X subcell iter
-  template <class Funct, class...Args>
-  inline void Map(Funct f, Cell &c1, SubCellIterator<Cell> &c2, Args&&...args) {
-    Map(f, c1, *c2, std::forward<Args>(args)...);
-  }
-
-  // cell iter X subcell iter
-  template <class Funct, class...Args>
-  inline void Map(Funct f, CellIterator<Cell> &c1, SubCellIterator<Cell> &c2, Args&&...args) {
-    Map(f, *c1, *c2, std::forward<Args>(args)...);
-  }
-
-  // subcell iter X cell iter
-  template <class Funct, class...Args>
-  inline void Map(Funct f, SubCellIterator<Cell> &c1, CellIterator<Cell> &c2, Args&&...args) {
-    Map(f, *c1, *c2, std::forward<Args>(args)...);
-  }
-
-  // subcell iter X subcell iter
-  template <class Funct, class...Args>
-  inline void Map(Funct f, SubCellIterator<Cell> &c1, SubCellIterator<Cell> &c2, Args&&...args) {
-    Map(f, *c1, *c2, std::forward<Args>(args)...);
-  }
-
-  // bodies
-  template <class Funct, class... Args>
-  inline void Map(Funct f, BodyIterator<Cell> iter, Args&&...args) {
-#if 0
-    for (int i = 0; i < iter.size(); ++i) {
-      f(*iter, iter.attr(), std::forward<Args>(args)...);
-      iter++;
-    }
-#else
-    vmap_.map1(f, iter, std::forward<Args>(args)...);
-#endif
-  }
-
-  template<class Funct, class...Args>
-  inline void Map(Funct f, Cell &c, Args&&...args) {
-    Base::Map(f, c, std::forward<Args>(args)...);
-  }
-
-  /**
-   * GPUMapper::Map (Bodies)
-   * Delegate to CPUMapper::Map
-   */
-  template<class Funct, class...Args>
-  inline void Map(Funct f, tapas::iterator::Bodies<Cell> bodies, Args&&...args) {
-    Base::Map(f, bodies, std::forward<Args>(args)...);
-  }
-  
-  /**
-   * GPUMapper::Map (subcelliterator)
-   */
-  template <class Funct, class... Args>
-  inline void Map(Funct f, tapas::iterator::SubCellIterator<Cell> iter, Args&&...args) {
-    // nvcc cannot find this function in the Base (=CPUMapper) class, so it's explicitly written
-    Base::Map(f, iter, std::forward<Args>(args)...);
-  }
-
-  template<class Funct, class...Args>
-  inline void Map(Funct f, BodyIterator<Cell> b1, BodyIterator<Cell> b2, Args&&...args) {
-#ifdef TAPAS_COMPILER_INTEL
-# pragma forceinline
-#endif
-    std::cout << "*** Map(body) Wrong one!!" << std::endl;
-    abort();
-    f(*b1, b1.attr(), *b2, b2.attr(), std::forward<Args>(args)...);
-  }
-}; // class GPUMapper
-
-#endif /* __CUDACC__ */
+}; // class HOTMapper
 
 } // namespace hot
 } // namespace tapas

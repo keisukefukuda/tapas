@@ -431,14 +431,17 @@ struct HOT {
   using SFC = tapas::sfc::Morton<_DIM, _KEY_TYPE>;
   using Threading = tapas::threading::Default;
 
+  template<class _CELL, class _BODY, class _INSP2, class _INSP1>
+  using Mapper = hot::HOTMapper<_CELL, _BODY, _INSP2, _INSP1>;
+
+  template <class _TSP> using Partitioner = hot::Partitioner<_TSP>;
+
 #ifdef __CUDACC__
+
   using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
   
   template<class T>
   using Allocator = typename Vectormap::template um_allocator<T>;
-  
-  template<class _CELL, class _BODY, class _INSP2, class _INSP1>
-  using Mapper = hot::GPUMapper<_CELL, _BODY, _INSP2, _INSP1>;
   
 #else
   
@@ -447,11 +450,7 @@ struct HOT {
   template<class T>
   using Allocator = std::allocator<T>;
   
-  template<class _CELL, class _BODY, class _INSP2, class _INSP1>
-  using Mapper = hot::CPUMapper<_CELL, _BODY, _INSP2, _INSP1>;
 #endif
-
-  template <class _TSP> using Partitioner = hot::Partitioner<_TSP>;
 };
 
 template<class _TSP>

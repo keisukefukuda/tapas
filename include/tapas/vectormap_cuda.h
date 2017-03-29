@@ -1,4 +1,3 @@
-
 /* vectormap_cuda.h -*- Coding: us-ascii-unix; -*- */
 /* Copyright (C) 2015-2015 RIKEN AICS */
 
@@ -280,6 +279,8 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
 
 template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Base {
+  static const int vector_mapper_discriminator = 1;
+
   using Body = _BT;
   using BodyAttr = _BT_ATTR;
   using CellAttr = _CELL_ATTR;
