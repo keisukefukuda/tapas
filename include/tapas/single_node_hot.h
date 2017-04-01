@@ -779,6 +779,7 @@ struct HOT {
 
 #ifdef __CUDACC__
 
+#if 0 /*UNUSED*/
 template<int _DIM, class _FP, class _BODY_TYPE, size_t _BODY_COORD_OFST, class _BODY_ATTR, class _CELL_ATTR>
 struct HOT_GPU {
   using SFC = tapas::sfc::Morton<_DIM, uint64_t>;
@@ -786,6 +787,7 @@ struct HOT_GPU {
   using Body = _BODY_TYPE;
   static const constexpr int kBodyCoordOffset = _BODY_COORD_OFST;
 };
+#endif /*UNUSED*/
 
 #endif // __CUDACC__
 

@@ -1,5 +1,5 @@
-/* vectormap_cuda.h -*- Coding: us-ascii-unix; -*- */
-/* Copyright (C) 2015-2015 RIKEN AICS */
+/* vectormap_cuda.h -*- Mode: C++; Coding: us-ascii-unix; -*- */
+/* Copyright (C) 2015-2017 RIKEN AICS */
 
 #include <type_traits>
 
@@ -279,8 +279,6 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
 
 template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Base {
-  static const int vector_mapper_discriminator = 1;
-
   using Body = _BT;
   using BodyAttr = _BT_ATTR;
   using CellAttr = _CELL_ATTR;
@@ -428,7 +426,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 
 #if 1
   template <class Funct, class Cell, class... Args>
-  void map1(Funct f, BodyIterator<Cell> iter, Args... args) {
+  void vmap1(Funct f, BodyIterator<Cell> iter, Args... args) {
     //std::cout << "Vectormap_CUDA_Simple::map1() is called. " << iter.size() << std::endl;
     int sz = iter.size();
     for (int i = 0; i < sz; i++) {
@@ -439,7 +437,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 #else
   // WIP: inactivated.
   template <class Funct, class Cell, class... Args>
-  void map1(Funct f, BodyIterator<Cell> b0, Args... args) {
+  void vmap1(Funct f, BodyIterator<Cell> b0, Args... args) {
     static std::mutex mutex0;
     static struct cudaFuncAttributes tesla_attr0;
 
@@ -550,8 +548,8 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
    *        BodyAttr&, and extra call arguments.
    */
   template <class Funct, class Cell, class...Args>
-  void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
-                   Args... args) {
+  void vmap2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
+             bool mutualinteraction, Args... args) {
     //printf("Vectormap_CUDA_Simple::map2\n"); fflush(0);
 
     typedef BodyIterator<Cell> Iter;
@@ -1009,7 +1007,7 @@ struct Vectormap_CUDA_Packed
   }
 
   template <class Funct, class Cell, class... Args>
-  inline void map1(Funct f, BodyIterator<Cell> iter, Args... args) {
+  inline void vmap1(Funct f, BodyIterator<Cell> iter, Args... args) {
     //std::cout << "Yey! new Vectormap_CUDA_Packed::Map1() is called. " << iter.size() << std::endl;
     int sz = iter.size();
     for (int i = 0; i < sz; i++) {
@@ -1024,7 +1022,8 @@ struct Vectormap_CUDA_Packed
    * \brief Vectormap_CUDA_Packed::map2
    */
   template <class Cell, class Funct, class... Args>
-  void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args... args) {
+  void vmap2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
+             bool mutualinteraction, Args... args) {
     static_assert(std::is_same<typename Cell::Body, Body>::value, "inconsistent Cell and Body types");
     static_assert(std::is_same<typename Cell::BodyAttr, BodyAttr>::value, "inconsistent Cell and BodyAttr types");
 

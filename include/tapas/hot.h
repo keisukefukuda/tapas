@@ -441,7 +441,7 @@ struct HOT {
   using Vectormap = tapas::Vectormap_CUDA_Packed<_DIM, _FP, _BODY_TYPE, _BODY_ATTR, _CELL_ATTR>;
   
   template<class T>
-  using Allocator = typename Vectormap::template um_allocator<T>;
+  using Allocator = std::allocator<T>;
   
 #else
   

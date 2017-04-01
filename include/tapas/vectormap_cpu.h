@@ -1,5 +1,5 @@
-/* vectormap_cpu.h -*- Coding: us-ascii-unix; -*- */
-/* Copyright (C) 2015-2015 RIKEN AICS */
+/* vectormap_cpu.h -*- Mode: C++; Coding: us-ascii-unix; -*- */
+/* Copyright (C) 2015-2017 RIKEN AICS */
 
 #ifndef TAPAS_VECTORMAP_CPU_H_
 #define TAPAS_VECTORMAP_CPU_H_
@@ -19,12 +19,16 @@
    is fixed on the current definition of "AllowMutualInteraction()".
    The code should be fixed as it changes. */
 
+#ifdef TAPAS_COMPILER_INTEL
+#define TAPAS_FORCEINLINE _Pragma("forceinline")
+#else
+#define TAPAS_FORCEINLINE
+#endif
+
 namespace tapas {
 
 template<int _DIM, class _FP, class _BT, class _BT_ATTR, class _CELL_ATTR>
 struct Vectormap_CPU {
-  static const int vector_mapper_discriminator = 0;
-
   template <typename T>
   using um_allocator = std::allocator<T>;
 
@@ -40,64 +44,62 @@ struct Vectormap_CPU {
   void Start2() {}
   void Finish2() {}
 
-  template <class Funct, class Cell, class...Args>
-    void map1(Funct f, BodyIterator<Cell> iter, Args... args)
-  {assert(0); abort();}
-
-  template <class Funct, class Cell, class...Args>
-    void map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
-              Args... args)
-  {assert(0); abort();}
-
-#if 0
-  template <class Funct, class Cell, class...Args>
-  static void vector_map1(Funct f, BodyIterator<Cell> iter,
-                          Args... args) {
-    int sz = iter.size();
-    for (int i = 0; i < sz; i++) {
-      f(*(iter + i), args...);
+  template <class Fn, class Cell, class...Args>
+  void vmap1(Fn f, BodyIterator<Cell> iter, Args... args) {
+    for (size_t i = 0; i < iter.size(); ++i) {
+      f(iter.cell(), *iter, iter.attr(), std::forward<Args>(args)...);
+      iter++;
     }
   }
-#endif
 
-  template <class Funct, class Cell, class...Args>
-  static void vectormap_map_loop2(Funct f, Cell &c0, Cell &c1,
-                                  Args... args) {
-    typedef typename Cell::BT::type BV;
-    typedef typename Cell::BT_ATTR BA;
+  /* This was ProductMapImpl() in hot/mapper.h. */
 
-    assert(c0.IsLeaf() && c1.IsLeaf());
-    /* (Cast to drop const, below). */
-    BV* v0 = (BV*)&(c0.body(0));
-    BV* v1 = (BV*)&(c1.body(0));
-    BA* a0 = (BA*)&(c0.body_attr(0));
-    size_t n0 = c0.nb();
-    size_t n1 = c1.nb();
-    assert(n0 != 0 && n1 != 0);
+  template <class Fn, class CELL, class...Args>
+  void vmap2(Fn f, ProductIterator<BodyIterator<CELL>> prod,
+             bool mutualinteraction, Args&&... args) {
+    //using BodyIterator = typename CELL::BodyIterator;
+    typename CELL::BodyIterator iter1 = prod.t1_;
+    int beg1 = 0;
+    int end1 = prod.t1_.size();
+    typename CELL::BodyIterator iter2 = prod.t2_;
+    int beg2 = 0;
+    int end2 = prod.t2_.size();
 
-    for (size_t i = 0; i < n0; i++) {
-      BA attr = BA(0.0);
-      for (size_t j = 0; j < n1; j++) {
-        if (!(c0 == c1 && i == j)) {
-          f((v0 + i), (v1 + j), attr, args...);
+    TAPAS_ASSERT(beg1 < end1 && beg2 < end2);
+
+    using Body = typename CELL::Body;
+    using BodyAttr = typename CELL::BodyAttr;
+    bool mutual = mutualinteraction && (iter1.cell() == iter2.cell());
+
+    CELL &c1 = iter1.cell();
+    CELL &c2 = iter2.cell();
+
+    c1.WeightLf((end1 - beg1) * (end2 - beg2));
+    if (mutual) {
+      c2.WeightLf((end1 - beg1) * (end2 - beg2));
+    }
+
+    auto *bodies1 = &c1.body(0);
+    auto *bodies2 = &c2.body(0);
+    auto *attrs1 = &c1.body_attr(0);
+    auto *attrs2 = &c2.body_attr(0);
+
+    if (mutual) {
+      for (int i = beg1; i < end1; i++) {
+        for (int j = beg2; j <= i; j++) {
+          if (1) {
+            TAPAS_FORCEINLINE
+              f(bodies1[i], attrs1[i], bodies2[j], attrs2[j], std::forward<Args>(args)...);
+          }
         }
       }
-      *(a0 + i) += attr;
-    }
-  }
-
-  template <class Funct, class Cell, class...Args>
-  static void vector_map2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
-                          Args... args) {
-    //typedef BodyIterator<Cell> Iter;
-    const Cell &c0 = prod.first().cell();
-    const Cell &c1 = prod.second().cell();
-    /*bool equalcell = b0.AllowMutualInteraction(b1);*/
-    if (c0 == c1) {
-      vectormap_map_loop2(f, c0, c1, args...);
     } else {
-      vectormap_map_loop2(f, c0, c1, args...);
-      vectormap_map_loop2(f, c1, c0, args...);
+      for (int i = beg1; i < end1; i++) {
+        for (int j = beg2; j < end2; j++) {
+          TAPAS_FORCEINLINE
+            f(bodies1[i], attrs1[i], bodies2[j], attrs2[j], std::forward<Args>(args)...);
+        }
+      }
     }
   }
 };

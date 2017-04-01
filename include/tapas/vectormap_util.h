@@ -1,5 +1,5 @@
-/* vectormap_util.h -*- Coding: us-ascii-unix; -*- */
-/* Copyright (C) 2015-2015 RIKEN AICS */
+/* vectormap_util.h -*- Mode: C++;; Coding: us-ascii-unix; -*- */
+/* Copyright (C) 2015-2017 RIKEN AICS */
 
 #ifndef TAPAS_VECTORMAP_UTIL_
 #define TAPAS_VECTORMAP_UTIL_

@@ -161,6 +161,7 @@ static void ProductMapImpl(Mapper &mapper,
   }
 }
 
+#if 0 /*UNUSED*/
 /**
  * \brief Overloaded version of ProductMapImpl for bodies x bodies.
  */
@@ -215,6 +216,7 @@ static void ProductMapImpl_body(HOTMapper<CELL, BODY, LET, INSP1> & /*mapper*/,
     }
   }
 }
+#endif /*UNUSED*/
 
 template<class Cell, class Body, class LET, class INSP1>
 struct HOTMapper {
@@ -259,17 +261,11 @@ struct HOTMapper {
   template<class Funct, class...Args>
   inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args&&...args) {
     //std::cout << "MapP2 (body)" << std::endl;
-    if (vmap_.vector_mapper_discriminator == 0) {
-      if (prod.size() > 0) {
-        ProductMapImpl_body(*this,
-                            prod.t1_, 0, prod.t1_.size(),
-                            prod.t2_, 0, prod.t2_.size(),
-                            f, std::forward<Args>(args)...);
-      }
-    } else {
-      if (prod.size() > 0) {
-        vmap_.map2(f, prod, std::forward<Args>(args)...);
-      }
+    using Body = typename Cell::Body;
+    using BodyAttr = typename Cell::BodyAttr;
+    bool mutual = CheckMutualBody<Funct, Body, BodyAttr>::value;
+    if (prod.size() > 0) {
+      vmap_.vmap2(f, prod, mutual, std::forward<Args>(args)...);
     }
   }
 
@@ -287,17 +283,11 @@ struct HOTMapper {
 
   template <class Funct, class ...Args>
   inline void MapP1(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
-    if (vmap_.vector_mapper_discriminator == 0) {
-      if (prod.size() > 0) {
-        ProductMapImpl_body(*this,
-                            prod.t1_, 0, prod.t1_.size(),
-                            prod.t2_, 0, prod.t2_.size(),
-                            f, std::forward<Args>(args)...);
-      }
-    } else {
-      if (prod.size() > 0) {
-        vmap_.map2(f, prod, std::forward<Args>(args)...);
-      }
+    using Body = typename Cell::Body;
+    using BodyAttr = typename Cell::BodyAttr;
+    bool mutual = CheckMutualBody<Funct, Body, BodyAttr>::value;
+    if (prod.size() > 0) {
+      vmap_.vmap2(f, prod, mutual, std::forward<Args>(args)...);
     }
   }
 
@@ -306,7 +296,6 @@ struct HOTMapper {
 #if 0 /*AHO*/
   template <class Funct, class...Args>
   inline void Map(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
-    assert(vmap_.vector_mapper_discriminator != 0);
     vmap_.map2(f, prod, std::forward<Args>(args)...);
   }
 #endif
@@ -666,14 +655,7 @@ struct HOTMapper {
   // bodies
   template <class Funct, class...Args>
   void Map(Funct f, BodyIterator<Cell> iter, Args&&...args) {
-    if (vmap_.vector_mapper_discriminator == 0) {
-      for (size_t i = 0; i < iter.size(); ++i) {
-        f(iter.cell(), *iter, iter.attr(), std::forward<Args>(args)...);
-        iter++;
-      }
-    } else {
-      vmap_.map1(f, iter, std::forward<Args>(args)...);
-    }
+    vmap_.vmap1(f, iter, std::forward<Args>(args)...);
   }
 
   // body x body
