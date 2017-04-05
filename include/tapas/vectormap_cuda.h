@@ -13,11 +13,9 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-
-#include "tapas/vectormap_util.h"
-
 #include <atomic>
 #include <mutex>
+#include "tapas/vectormap_util.h"
 
 namespace tapas {
 
@@ -65,6 +63,7 @@ struct TESLA {
 #define TAPAS_FLOOR(X,Y) ((X) / (Y))
 
 namespace {
+
 inline void vectormap_check_error(const char *msg, const char *file, const int line) {
   cudaError_t ce = cudaGetLastError();
   if (ce != cudaSuccess) {
@@ -80,10 +79,11 @@ inline void vectormap_check_error(const char *msg, const char *file, const int l
 /**
  * \breif Atomic-add code from cuda-c-programming-guide (double precision version)
  */
+
 __device__
 static double atomicAdd(double* address, double val) {
   // Should we use uint64_t ?
-  static_assert(sizeof(unsigned long long int) == sizeof(double),   "sizeof(unsigned long long int) == sizeof(double)");
+  static_assert(sizeof(unsigned long long int) == sizeof(double), "sizeof(unsigned long long int) == sizeof(double)");
   static_assert(sizeof(unsigned long long int) == sizeof(uint64_t), "sizeof(unsigned long long int) == sizeof(uint64_t)");
 
   unsigned long long int* address1 = (unsigned long long int*)address;
@@ -101,6 +101,7 @@ static double atomicAdd(double* address, double val) {
 /**
  * \breif Atomic-add code from cuda-c-programming-guide (double precision version)
  */
+
 __device__
 static float atomicAdd(float* address, float val) {
   // Should we use uint32_t ?
@@ -119,7 +120,7 @@ static float atomicAdd(float* address, float val) {
   return __int_as_float(old);
 }
 
-template<class T0, class T1, class T2>
+template <class T0, class T1, class T2>
 struct cellcompare_r {
   inline bool operator() (const std::tuple<T0, T1, T2> &i,
                           const std::tuple<T0, T1, T2> &j) {
@@ -129,11 +130,12 @@ struct cellcompare_r {
   }
 };
 
-} // anon namespace
+}
 
 /**
  * \brief Single argument mapping over bodies on GPU
  */
+
 template <class CA, class V3, class BT, class BT_ATTR, class Funct, class... Args>
 __global__
 void vectormap_cuda_plain_kernel1(const CA c_attr, const V3 c_center,
@@ -215,7 +217,6 @@ void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
   }
 }
 
-
 template <class Funct, class BT, class BT_ATTR,
           template <class T> class CELLDATA, class... Args>
 __global__
@@ -255,7 +256,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
       scratchpad[threadIdx.x] = rdata[tilesize * t + threadIdx.x]; // <-- HERE!!
     }
     __syncthreads();
-    
+
     if (cell != -1) {
       unsigned int jlim = min(tilesize, (int)(rsize - tilesize * t));
 #pragma unroll 128
@@ -266,7 +267,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
     }
     __syncthreads();
   }
-  
+
   if (cell != -1) {
     assert(item < a[cell].size);
     // BT_ATTR &a0 = a[cell].data[item];
@@ -277,7 +278,7 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
   }
 }
 
-template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+template <int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Base {
   using Body = _BT;
   using BodyAttr = _BT_ATTR;
@@ -289,6 +290,7 @@ struct Vectormap_CUDA_Base {
    * vector allocators.  (N.B. Its name should be generic because it
    * is used in CPUs also.)
    */
+
   template <typename T>
   struct um_allocator : public std::allocator<T> {
    public:
@@ -322,17 +324,19 @@ struct Vectormap_CUDA_Base {
       : std::allocator<T>(a) {}
 
     ~um_allocator() throw() {}
-  }; // end of class um_allocator
+  };
 
   /**
    * CUDA GPU device information
    */
+
   TESLA tesla_dev_;
   inline TESLA& tesla_dev() { return tesla_dev_; }
 
   /**
    * \brief Setup CUDA devices: allocate 1 GPU per process (considering multiple processes per node)
    */
+
   void Setup(int cta, int nstreams) {
     assert(nstreams <= TAPAS_CUDA_MAX_NSTREAMS);
 
@@ -362,7 +366,7 @@ struct Vectormap_CUDA_Base {
     CUDA_SAFE_CALL(cudaGetDeviceCount(&ngpus));
 #if 0
     if (ngpus < nprocsinnode) {
-      fprintf(stderr, "More ranks than GPUs on a node  ngpus = %d, nprocsinnode = %d\n", ngpus, nprocsinnode);
+      fprintf(stderr, "More ranks than GPUs on a node ngpus = %d, nprocsinnode = %d\n", ngpus, nprocsinnode);
       assert(ngpus >= nprocsinnode);
     }
 #endif
@@ -371,7 +375,7 @@ struct Vectormap_CUDA_Base {
     // Each process should find 1 GPU.
     assert(ngpus == 1);
 
-    tesla_dev_.gpuno = 0; // Fixed. Always use the first GPU  (see above).
+    tesla_dev_.gpuno = 0; // Fixed. Always use the first GPU (see above).
     //tesla_dev_.gpuno = rankinnode;
     cudaDeviceProp prop;
     CUDA_SAFE_CALL(cudaGetDeviceProperties(&prop, tesla_dev_.gpuno));
@@ -405,14 +409,15 @@ struct Vectormap_CUDA_Base {
   /**
    * \brief Release the CUDA device
    */
+
   void Release() {
     for (int i = 0; i < tesla_dev_.n_streams; i++) {
       CUDA_SAFE_CALL( cudaStreamDestroy(tesla_dev_.streams[i]) );
     }
   }
-}; // end of class Vectormap_CUDA_Base
+};
 
-template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+template <int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
   using Body = _BT;
   using BodyAttr = _BT_ATTR;
@@ -474,6 +479,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
    * cell rounded down to multiples of 64 (tile size is the count of
    * preloading of the second cells).
    */
+
   template <class Funct, class Cell, class... Args>
   void Plain2(Funct f, Cell &c0, Cell &c1, Args... args) {
     static_assert(std::is_same<Body, typename Cell::BT::type>::value, "inconsistent template arguments");
@@ -531,7 +537,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 
     // array of bodies for c0
     //BT *bodies0 = c0.IsLocal() ? data.local_bodies_ : data.let_bodies_;
-    
+
     // array of bodies for c1
     //BT *bodies1 = c1.IsLocal() ? data.local_bodies_ : data.let_bodies_;
 
@@ -539,7 +545,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
         dev.streams[s]>>>
         (v0, v1, a0, n0, n1, tilesize, f, args...);
-  } // end of void Plain2
+  }
 
   /**
    * \fn Vectormap_CUDA_Simple::map2
@@ -547,6 +553,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
    *        cells.  f takes arguments of Body&, Body&,
    *        BodyAttr&, and extra call arguments.
    */
+
   template <class Funct, class Cell, class...Args>
   void vmap2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
              bool mutualinteraction, Args... args) {
@@ -562,7 +569,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
       //Plain2(f, c1, c0, args...); // mutual is not supported
     }
   }
-}; // end of class Vectormap_CUD_Simple
+};
 
 // Cell_Data
 // T is expected to be Body or BodyAttr of a certain cell
@@ -570,6 +577,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 // Thus i-th Body/BodyAttr of the cell is
 //    base_ptr[ofst + i]
 // where (0 <= i < size)
+
 template <class T>
 struct Cell_Data {
   int size;
@@ -593,6 +601,7 @@ struct Cell_Data {
  * Launches a kernel on Tesla.
  * Used by Vectormap_CUDA_Pakced and Applier.
  */
+
 template <class Caller, class Funct, class... Args>
 void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
              int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
@@ -622,7 +631,7 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
 
   streamid++;
   int s = (streamid % tesla_dev.n_streams);
-  
+
   vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
       tesla_dev.streams[s]>>>
       (&(caller->body_list2_.ddata[start]),
@@ -632,13 +641,14 @@ void invoke2(Caller *caller, int start, int nc, Cell_Data<Body> &r,
 }
 
 // Utility routine to support delayed dispatch of function template with variadic parameters.
-template<int ...>
+
+template <int ...>
 struct seq { };
 
-template<int N, int ...S>
+template <int N, int ...S>
 struct gens : gens<N-1, N-1, S...> { };
 
-template<int...S>
+template <int...S>
 struct gens<0, S...> {
   typedef seq<S...> type;
 };
@@ -658,10 +668,10 @@ struct gens<0, S...> {
  * A subclass of AbstractApplier is a template class with a parameter of `class Funct` and
  * they hold the callback function and variadic parameters.
  */
-template<class Vectormap>
-class AbstractApplier {
- public:
-  virtual void apply(Vectormap *vm) = 0;
+
+template <class Vectormap>
+struct AbstractApplier {
+  virtual void invoke() = 0;
   virtual ~AbstractApplier() { }
 };
 
@@ -669,16 +679,14 @@ class AbstractApplier {
  * Applier for Map-2 (2-parameter map)
  */
 // When tapas::Map <Body x Body> (corresponds to Map-2)
-template<class Vectormap, class Funct, class...Args>
-class Applier2 : public AbstractApplier<Vectormap> {
+
+template <class Vectormap, class Funct, class...Args>
+struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
+  Vectormap* vm;
   Funct f_;
   std::tuple<Args...> args_; // variadic arguments
   std::mutex mutex_;
   cudaFuncAttributes func_attrs_;
-
-  using ParamIdxSeq = typename gens<sizeof...(Args)>::type; // used to hold args... for invoke
-
- public:
 
   using Body = typename Vectormap::Body;
   using BodyAttr = typename Vectormap::BodyAttr;
@@ -696,18 +704,22 @@ class Applier2 : public AbstractApplier<Vectormap> {
   Body *dev_let_bodies_;
   BodyAttr *dev_local_attrs_;
 
+#if 0
   // Call ::invoke() function with args...
-  template<int ...ParamIdx>
+  template <int ...ParamIdx>
   inline void invoke(Vectormap *caller, int start, int nc, Cell_Data<Body> &r,
                      int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
                      seq<ParamIdx...>) {
     ::tapas::invoke2(caller, start, nc, r, tilesize, nblocks, ctasize, scratchpadsize, f_, std::get<ParamIdx>(args_)...);
   }
+#endif
 
   // ctor. not thread safe.
-  Applier2(Body *local_bodies, Body *let_bodies, BodyAttr *local_attrs, size_t local_nb, size_t let_nb,
-           Funct f, Args... args)
-      : f_(f), args_(args...), func_attrs_()
+
+  Kernel2_Thunk(Vectormap* vm_,
+                Body *local_bodies, Body *let_bodies, BodyAttr *local_attrs, size_t local_nb, size_t let_nb,
+                Funct f, Args... args)
+    : vm (vm_), f_(f), args_(args...), func_attrs_()
       , local_nb_(local_nb), let_nb_(let_nb)
       , host_local_bodies_(local_bodies), host_let_bodies_(let_bodies), host_local_attrs_(local_attrs)
       , dev_local_bodies_(nullptr), dev_let_bodies_(nullptr), dev_local_attrs_(nullptr) {
@@ -723,10 +735,10 @@ class Applier2 : public AbstractApplier<Vectormap> {
               " binaryVersion=%d, cacheModeCA=%d, constSizeBytes=%zd,"
               " localSizeBytes=%zd, maxThreadsPerBlock=%d, numRegs=%d,"
               " ptxVersion=%d, sharedSizeBytes=%zd\n",
-              func_attrs_.binaryVersion,      func_attrs_.cacheModeCA,
-              func_attrs_.constSizeBytes,     func_attrs_.localSizeBytes,
+              func_attrs_.binaryVersion, func_attrs_.cacheModeCA,
+              func_attrs_.constSizeBytes, func_attrs_.localSizeBytes,
               func_attrs_.maxThreadsPerBlock, func_attrs_.numRegs,
-              func_attrs_.ptxVersion,         func_attrs_.sharedSizeBytes);
+              func_attrs_.ptxVersion, func_attrs_.sharedSizeBytes);
 #endif
     }
 
@@ -735,7 +747,7 @@ class Applier2 : public AbstractApplier<Vectormap> {
 
   void CopyH2D(CellPairs &host_data) {
     // A subroutine for apply()
-    // Each Cell_Data in cell_pairs have (1) base_ptr, (2) offset, (3) size, 
+    // Each Cell_Data in cell_pairs have (1) base_ptr, (2) offset, (3) size,
     // which respectively mean (1) SharedData::local_bodies_ or let_bodies_,
     // (2) starting offset of bodies of the cell, and (3) number of bodies of the leaf cell.
     // This function allocates device memory correspoinding to local_bodies and let_bodies_
@@ -745,29 +757,28 @@ class Applier2 : public AbstractApplier<Vectormap> {
     dev_local_attrs_ = nullptr;
 
     cudaMalloc(&dev_local_bodies_, sizeof(dev_local_bodies_[0]) * local_nb_);
-    cudaMalloc(&dev_let_bodies_,   sizeof(dev_let_bodies_[0]) * let_nb_);
-    cudaMalloc(&dev_local_attrs_,  sizeof(dev_local_attrs_[0]) * local_nb_);
+    cudaMalloc(&dev_let_bodies_, sizeof(dev_let_bodies_[0]) * let_nb_);
+    cudaMalloc(&dev_local_attrs_, sizeof(dev_local_attrs_[0]) * local_nb_);
 
     cudaMemcpy(dev_local_bodies_, host_local_bodies_, sizeof(host_local_bodies_[0]) * local_nb_, cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_let_bodies_,   host_let_bodies_,   sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyHostToDevice);
-    cudaMemcpy(dev_local_attrs_,  host_local_attrs_,  sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_let_bodies_, host_let_bodies_, sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_local_attrs_, host_local_attrs_, sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyHostToDevice);
 
-    int rank = 0;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    //int rank = 0;
+    //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    //MPI_Barrier(MPI_COMM_WORLD);
     for (size_t i = 0; i < host_data.size(); i++) {
       Cell_Data<Body> &trgb = std::get<0>(host_data[i]); // trg bodies
       Cell_Data<BodyAttr> &trga = std::get<1>(host_data[i]); // trg attr
       Cell_Data<Body> &srcb = std::get<2>(host_data[i]); // src bodies
 
       // Rewirte CellData::base_ptr to device memory pointeres.
-        
+
       // target cell's base_ptr must be SharedData::local_bodies_
       // (because target cells are always local)
       TAPAS_ASSERT(trgb.base_ptr == host_local_bodies_);
       trgb.base_ptr = dev_local_bodies_;
-        
+
       TAPAS_ASSERT(trga.base_ptr == host_local_attrs_);
       trga.base_ptr = dev_local_attrs_;
 
@@ -780,14 +791,14 @@ class Applier2 : public AbstractApplier<Vectormap> {
         assert(0);
       }
     }
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
   }
 
   void CopyD2H() {
     cudaMemcpy(host_local_bodies_, dev_local_bodies_, sizeof(host_local_bodies_[0]) * local_nb_, cudaMemcpyDeviceToHost);
-    cudaMemcpy(host_let_bodies_,   dev_let_bodies_,   sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyDeviceToHost);
-    cudaMemcpy(host_local_attrs_,  dev_local_attrs_,  sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyDeviceToHost);
-        
+    cudaMemcpy(host_let_bodies_, dev_let_bodies_, sizeof(host_let_bodies_[0]) * let_nb_, cudaMemcpyDeviceToHost);
+    cudaMemcpy(host_local_attrs_, dev_local_attrs_, sizeof(host_local_attrs_[0]) * local_nb_, cudaMemcpyDeviceToHost);
+
     cudaFree(dev_local_bodies_);
     cudaFree(dev_let_bodies_);
     cudaFree(dev_local_attrs_);
@@ -796,7 +807,14 @@ class Applier2 : public AbstractApplier<Vectormap> {
   /**
    * @brief Invoke CUDA kernel with the function (of type Funct) to the cellpairs list.
    */
-  virtual void apply(Vectormap *vm) override {
+
+  virtual void invoke() override {
+    using Tuple = std::tuple<Args...>;
+    (*this).invoke_impl_(typename gens<std::tuple_size<Tuple>::value>::type {});
+  }
+
+  template <int... NL>
+  void invoke_impl_(seq<NL...>) {
     using BV = Body;
     using BA = BodyAttr;
 
@@ -808,7 +826,6 @@ class Applier2 : public AbstractApplier<Vectormap> {
 #ifdef TAPAS_DEBUG
     printf(";; pairs=%ld\n", vm->cellpairs2_.size());
 #endif
-
 
     // cta = cooperative thread array = thread block
     int cta0 = (TAPAS_CEILING(tesla_dev.cta_size, 32) * 32);
@@ -860,9 +877,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
       Cell_Data<Body> &r = std::get<2>(c);
       if (xr.data() != r.data()) {
         assert(i != 0 && xncells > 0);
-        this->invoke(vm, (i - xncells), xncells, xr,
-                     tilesize, nblocks, ctasize, scratchpadsize,
-                     ParamIdxSeq());
+        ::tapas::invoke2(vm, (i - xncells), xncells, xr,
+                         tilesize, nblocks, ctasize, scratchpadsize,
+                         f_, std::get<NL>(args_)...);
         xncells = 0;
         xndata = 0;
         xr = r;
@@ -873,9 +890,9 @@ class Applier2 : public AbstractApplier<Vectormap> {
       if (nb > nblocks) {
         //std::cerr << "i = " << i << ", xncells = " << xncells << std::endl;
         assert(i != 0 && xncells > 0);
-        this->invoke(vm, (i - xncells), xncells, xr,
-                     tilesize, nblocks, ctasize, scratchpadsize,
-                     ParamIdxSeq());
+        ::tapas::invoke2(vm, (i - xncells), xncells, xr,
+                         tilesize, nblocks, ctasize, scratchpadsize,
+                         f_, std::get<NL>(args_)...);
         xncells = 0;
         xndata = 0;
         xr = r;
@@ -884,18 +901,16 @@ class Applier2 : public AbstractApplier<Vectormap> {
       xndata += (TAPAS_CEILING(l.size, 32) * 32);
     }
     assert(xncells > 0);
-    this->invoke(vm, (nn - xncells), xncells, xr,
-                 tilesize, nblocks, ctasize, scratchpadsize,
-                 ParamIdxSeq());
+    ::tapas::invoke2(vm, (nn - xncells), xncells, xr,
+                     tilesize, nblocks, ctasize, scratchpadsize,
+                     f_, std::get<NL>(args_)...);
 
     // Report time (In a ad-hoc way using std::cout. Needs refactoring)
     double time_mcopy = (std::chrono::duration<double>(t2 - t1)).count();
-  }
 
-  virtual ~Applier2() {
     CopyD2H();
   }
-}; // class Applier2
+};
 
 template <typename T>
 struct Mirror_Data {
@@ -934,7 +949,7 @@ struct Mirror_Data {
   }
 };
 
-template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+template <int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Packed
     : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
   using VectorMap = Vectormap_CUDA_Packed<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>; // self
@@ -982,6 +997,7 @@ struct Vectormap_CUDA_Packed
    * @brief ctor.
    * not thread safe
    */
+
   Vectormap_CUDA_Packed()
       : cellpairs2_()
       , body_list2_()
@@ -1021,6 +1037,7 @@ struct Vectormap_CUDA_Packed
   /**
    * \brief Vectormap_CUDA_Packed::map2
    */
+
   template <class Cell, class Funct, class... Args>
   void vmap2(Funct f, ProductIterator<BodyIterator<Cell>> prod,
              bool mutualinteraction, Args... args) {
@@ -1037,12 +1054,14 @@ struct Vectormap_CUDA_Packed
     if (applier2_ == nullptr) {
       applier2_mutex_.lock();
       if (applier2_ == nullptr) {
-        applier2_ = new Applier2<VectorMap, Funct, Args...>(c0.data().local_bodies_.data(),
-                                                            c0.data().let_bodies_.data(),
-                                                            c0.data().local_body_attrs_.data(),
-                                                            c0.data().local_bodies_.size(),
-                                                            c0.data().let_bodies_.size(),
-                                                            f, args...);
+        applier2_ = (new Kernel2_Thunk<VectorMap, Funct, Args...>
+                     (this,
+                      c0.data().local_bodies_.data(),
+                      c0.data().let_bodies_.data(),
+                      c0.data().local_body_attrs_.data(),
+                      c0.data().local_bodies_.size(),
+                      c0.data().let_bodies_.size(),
+                      f, args...));
         funct_id_ = Type2Int<Funct>::value();
 
         // Memo [Jan 18, 2016]
@@ -1063,11 +1082,11 @@ struct Vectormap_CUDA_Packed
     d0.size = c0.nb();
     d0.base_ptr = c0.body_base_ptr();
     d0.ofst = c0.body_offset();
-    
+
     a0.size = c0.nb();
     a0.base_ptr = c0.body_attr_base_ptr();
     a0.ofst = c0.body_offset();
-    
+
     d1.size = c1.nb();
     d1.base_ptr = c1.body_base_ptr();
     d1.ofst = c1.body_offset();
@@ -1086,19 +1105,19 @@ struct Vectormap_CUDA_Packed
       pack2_mutex_.unlock();
     }
   }
-  
+
   /* Limit of the number of threads in grids. */
 
   static const constexpr int N0 = (16 * 1024);
 
   /* Starts launching a kernel on collected cells. */
 
-  void on_collected2() {
+  void vmap_on_collected2() {
     double t1 = MPI_Wtime();
 
     TAPAS_ASSERT(applier2_ != nullptr);
 
-    applier2_->apply(this);
+    applier2_->invoke();
 
     vectormap_check_error("Vectormap_CUDA_Packed::end", __FILE__, __LINE__);
     CUDA_SAFE_CALL(cudaDeviceSynchronize());
@@ -1111,13 +1130,11 @@ struct Vectormap_CUDA_Packed
 #ifdef TAPAS_DEBUG
     printf(";; Vectormap_CUDA_Packed::Finish2\n"); fflush(0);
 #endif
-    on_collected2();
+
+    vmap_on_collected2();
 
     if (applier2_ != nullptr) {
       applier2_mutex_.lock();
-      
-      // record time
-
       if (applier2_ != nullptr) {
         delete applier2_;
         applier2_ = nullptr;
@@ -1126,9 +1143,9 @@ struct Vectormap_CUDA_Packed
       applier2_mutex_.unlock();
     }
   }
-}; // Vectormap_CUDA_Packed
+};
 
-} //namespace tapas
+}
 
 #endif /*__CUDACC__*/
 
