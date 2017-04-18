@@ -55,7 +55,7 @@ void Report(const Data &data) {
 
   // append .csv extension if necessary
   if (report_fname.find(".csv") == std::string::npos) {
-    report_fname = report_fname + ".csv";
+    report_fname = report_fname + ".csv.0";
   }
 
   std::ofstream ofs;
@@ -63,7 +63,7 @@ void Report(const Data &data) {
     // Check if report_fname already exists. If so, change the filename so
     // it does not conflict.
     while (tapas::util::FileExists(report_fname)) {
-      std::cout << report_fname << " already exists." << std::endl;
+      //std::cout << report_fname << " already exists." << std::endl;
       report_fname = (tapas::util::IncrPostfix(report_fname));
     }
 

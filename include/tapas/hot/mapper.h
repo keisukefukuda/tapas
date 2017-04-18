@@ -261,9 +261,9 @@ struct HOTMapper {
   template<class Funct, class...Args>
   inline void MapP2(Funct f, ProductIterator<BodyIterator<Cell>, BodyIterator<Cell>> prod, Args&&...args) {
     //std::cout << "MapP2 (body)" << std::endl;
-    using Body = typename Cell::Body;
+    using Body1 = typename Cell::Body;
     using BodyAttr = typename Cell::BodyAttr;
-    bool mutual = CheckMutualBody<Funct, Body, BodyAttr>::value;
+    bool mutual = CheckMutualBody<Funct, Body1, BodyAttr>::value;
     if (prod.size() > 0) {
       vmap_.vmap2(f, prod, mutual, std::forward<Args>(args)...);
     }
@@ -283,9 +283,9 @@ struct HOTMapper {
 
   template <class Funct, class ...Args>
   inline void MapP1(Funct f, ProductIterator<BodyIterator<Cell>> prod, Args&&...args) {
-    using Body = typename Cell::Body;
+    using Body1 = typename Cell::Body;
     using BodyAttr = typename Cell::BodyAttr;
-    bool mutual = CheckMutualBody<Funct, Body, BodyAttr>::value;
+    bool mutual = CheckMutualBody<Funct, Body1, BodyAttr>::value;
     if (prod.size() > 0) {
       vmap_.vmap2(f, prod, mutual, std::forward<Args>(args)...);
     }
@@ -306,7 +306,9 @@ struct HOTMapper {
   inline void LocalUpwardMap(Funct f, Cell &c, Args&&...args) {
     auto &data = c.data();
 
+#if 0 /*AHO*/
     MPI_Barrier(MPI_COMM_WORLD); // debug
+#endif
 
     // Apply the algorithm function f to local trees, of which roots are in data.lroots_
     for (auto &k : data.lroots_) {
@@ -604,7 +606,7 @@ struct HOTMapper {
 
       // Post-traverse procedure
       exec_et = MPI_Wtime();
-      c1.data().time_rec_.Record(data.timestep_, label_ + "-exec", exec_et - exec_bt);
+      c1.data().time_rec_.Record(data.timestep_, label_ + "-p2p", exec_et - exec_bt);
 
       SCOREP_USER_REGION_END(trav_handle);
     }

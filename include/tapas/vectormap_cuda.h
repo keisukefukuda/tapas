@@ -14,12 +14,15 @@
 #include <cuda_runtime.h>
 #include <atomic>
 #include <mutex>
+#include "vectormap_allpairs.h"
 #include "tapas/vectormap_util.h"
 
 #define BR0_ {
 #define BR1_ }
 
 namespace tapas BR0_
+
+#if 0 /*allpairs*/
 
 /* Table of core counts on an SM by compute-capability. (There is
    likely no way to get the core count; See deviceQuery in CUDA
@@ -63,6 +66,8 @@ struct TESLA {
 
 #define TAPAS_CEILING(X,Y) (((X) + (Y) - 1) / (Y))
 #define TAPAS_FLOOR(X,Y) ((X) / (Y))
+
+#endif /*allpairs*/
 
 namespace {
 
@@ -226,52 +231,36 @@ void vectormap_cuda_pack_kernel2(CELLDATA<BT>* v, CELLDATA<BT_ATTR>* a,
                                  size_t nc,
                                  int rsize, BT* rdata, int tilesize,
                                  Funct f, Args... args) {
-    // CELLDATA = Mirror_Data
-    // nc= #cells
-    //static_assert(std::is_same<BT_ATTR, kvec4>::value, "attribute type=kvec4");
-
     assert(tilesize <= blockDim.x);
     int index = (blockDim.x * blockIdx.x + threadIdx.x);
     extern __shared__ BT scratchpad[];
 
-    int cell = -1;
-    int item = 0;
-    int base = 0;
-    for (int c = 0; c < nc; c++) {
-        if (base <= index && index < base + v[c].size) {
-            assert(cell == -1);
-            cell = c;
-            item = (index - base);
-        }
-        base += (TAPAS_CEILING(v[c].size, 32) * 32);
-    }
+    bool valid_index;
+    BT& p0 = (*v).data_at_index(nc, index, &valid_index);
+    BT_ATTR& a0 = (*a).data_at_index(nc, index, &valid_index);
 
+    BT_ATTR q1 = {0.0f, 0.0f, 0.0f, 0.0f};
     int ntiles = TAPAS_CEILING(rsize, tilesize);
-    BT &p0 = (cell != -1) ? v[cell].data()[item] : v[cell].data()[0]; // body value
-    BT_ATTR q0 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
-    BT_ATTR q1 = {0.0f, 0.0f, 0.0f, 0.0f}; // bzero?
-
-    BT_ATTR &a0 = (cell != -1) ? a[cell].data()[item] : a[cell].data()[0];
 
     for (int t = 0; t < ntiles; t++) {
         if ((tilesize * t + threadIdx.x) < rsize && threadIdx.x < tilesize) {
-            scratchpad[threadIdx.x] = rdata[tilesize * t + threadIdx.x]; // <-- HERE!!
+            scratchpad[threadIdx.x] = rdata[tilesize * t + threadIdx.x];
         }
         __syncthreads();
 
-        if (cell != -1) {
+        if (valid_index) {
             unsigned int jlim = min(tilesize, (int)(rsize - tilesize * t));
 #pragma unroll 128
             for (unsigned int j = 0; j < jlim; j++) {
                 BT &p1 = scratchpad[j];
-                f(p0, a0, const_cast<const BT&>(p1), const_cast<const BT_ATTR&>(q1), args...); // q0 -> biattr
+                f(p0, a0, const_cast<const BT&>(p1), const_cast<const BT_ATTR&>(q1), args...);
             }
         }
         __syncthreads();
     }
 
-    if (cell != -1) {
-        assert(item < a[cell].size);
+    if (valid_index) {
+        //assert(item < a[cell].size);
         // BT_ATTR &a0 = a[cell].data[item];
         // atomicAdd(&(a0[0]), q0[0]);
         // atomicAdd(&(a0[1]), q0[1]);
@@ -573,6 +562,26 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     }
 };
 
+struct CELL_ITEM_T {int cell; int item;};
+
+template <class BT, template <class T> class CELLDATA>
+__device__
+struct CELL_ITEM_T
+vectormap_index_in_cell(CELLDATA<BT>* v, size_t nc, int index) {
+    int cell = -1;
+    int item = 0;
+    int base = 0;
+    for (int c = 0; c < nc; c++) {
+        if (base <= index && index < base + v[c].size) {
+            assert(cell == -1);
+            cell = c;
+            item = (index - base);
+        }
+        base += (TAPAS_CEILING(v[c].size, 32) * 32);
+    }
+    return CELL_ITEM_T {cell, item};
+}
+
 // Cell_Data
 // T is expected to be Body or BodyAttr of a certain cell
 // The cell's bodies/body attritbutes starts from (base_ptr + ofst).
@@ -583,9 +592,8 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 template <class T>
 struct Cell_Data {
     int size;
-    size_t ofst; // Offset from base_ptr
+    size_t ofst;
     T* base_ptr;
-    // data is removed.
 
     __host__ __device__ __forceinline__
     T* data() {
@@ -595,6 +603,38 @@ struct Cell_Data {
     __host__ __device__ __forceinline__
     const T* data() const {
         return base_ptr + ofst;
+    }
+
+    /* */
+
+    __host__ __device__ __forceinline__
+    T& data_in_cell(int item) {
+        return (base_ptr + ofst)[item];
+    }
+
+    /*
+    __host__ __device__ __forceinline__
+    const T& data_in_cell(int item) const {
+        return (base_ptr + ofst)[item];
+    }
+    */
+
+    __host__ __device__ __forceinline__
+    T& data_at_cell(int cell, int item) {
+        return this[cell].data_in_cell(item);
+    }
+
+    __host__ __device__ __forceinline__
+    T& data_at_index(size_t nc, int index, bool* valid_index_mask) {
+        struct CELL_ITEM_T x = vectormap_index_in_cell(this, nc, index);
+        int cell = x.cell;
+        int item = x.item;
+        *valid_index_mask = (cell != -1);
+        if (cell != -1) {
+            return this[cell].data_in_cell(item);
+        } else {
+            return this[0].data_in_cell(0);
+        }
     }
 };
 
@@ -747,13 +787,13 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
         TAPAS_ASSERT(func_attrs_.binaryVersion != 0);
     }
 
+    // Each Cell_Data in cell_pairs have (1) base_ptr, (2) offset, (3) size,
+    // which respectively mean (1) SharedData::local_bodies_ or let_bodies_,
+    // (2) starting offset of bodies of the cell, and (3) number of bodies of the leaf cell.
+    // This function allocates device memory correspoinding to local_bodies and let_bodies_
+    // and create a copy of host_data, of which base_ptrs are updated to the device memory.
+
     void CopyH2D(CellPairs &host_data) {
-        // A subroutine for apply()
-        // Each Cell_Data in cell_pairs have (1) base_ptr, (2) offset, (3) size,
-        // which respectively mean (1) SharedData::local_bodies_ or let_bodies_,
-        // (2) starting offset of bodies of the cell, and (3) number of bodies of the leaf cell.
-        // This function allocates device memory correspoinding to local_bodies and let_bodies_
-        // and create a copy of host_data, of which base_ptrs are updated to the device memory.
         dev_local_bodies_ = nullptr;
         dev_let_bodies_ = nullptr;
         dev_local_attrs_ = nullptr;
@@ -769,6 +809,7 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
         //int rank = 0;
         //MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         //MPI_Barrier(MPI_COMM_WORLD);
+
         for (size_t i = 0; i < host_data.size(); i++) {
             Cell_Data<Body> &trgb = std::get<0>(host_data[i]); // trg bodies
             Cell_Data<BodyAttr> &trga = std::get<1>(host_data[i]); // trg attr
@@ -829,7 +870,6 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
         printf(";; pairs=%ld\n", vm->cellpairs2_.size());
 #endif
 
-        // cta = cooperative thread array = thread block
         int cta0 = (TAPAS_CEILING(tesla_dev.cta_size, 32) * 32);
         int ctasize = std::min(cta0, func_attrs_.maxThreadsPerBlock);
         assert(ctasize == tesla_dev.cta_size);
@@ -842,25 +882,20 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
         int scratchpadsize = (sizeof(Body) * tilesize);
         size_t nblocks = TAPAS_CEILING(Vectormap::N0, ctasize);
 
-        // TODO
         auto cellpairs = vm->cellpairs2_;
-        CellPairs cellpairs2_dev;
         CopyH2D(cellpairs);
 
         size_t nn = cellpairs.size();
-        //size_t nn = vm->cellpairs2_.size();
-        vm->body_list2().assure_size(nn);
-        vm->attr_list2().assure_size(nn);
+        vm->body_list2().ensure_size(nn);
+        vm->attr_list2().ensure_size(nn);
 
         auto t1 = std::chrono::high_resolution_clock::now();
 
-        auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>(); // compare func
+        auto comp = cellcompare_r<Cell_Data<BV>, Cell_Data<BA>, Cell_Data<BV>>();
         std::sort(cellpairs.begin(), cellpairs.end(), comp);
 
-        // cudamemcpy?
         for (size_t i = 0; i < nn; i++) {
             MapData2 &c = cellpairs[i];
-            // rewirte base_pointer to device memory?
             vm->body_list2().hdata[i] = std::get<0>(c);
             vm->attr_list2().hdata[i] = std::get<1>(c);
         }
@@ -907,7 +942,6 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
                          tilesize, nblocks, ctasize, scratchpadsize,
                          f_, std::get<NL>(args_)...);
 
-        // Report time (In a ad-hoc way using std::cout. Needs refactoring)
         double time_mcopy = (std::chrono::duration<double>(t2 - t1)).count();
 
         CopyD2H();
@@ -916,13 +950,13 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
 
 template <typename T>
 struct Mirror_Data {
-    T* ddata; // device data
-    T* hdata; // host data
+    T* ddata;
+    T* hdata;
     size_t size;
 
-    Mirror_Data() : ddata(nullptr), hdata(nullptr), size(0) {}
+    Mirror_Data() : ddata (nullptr), hdata (nullptr), size (0) {}
 
-    void assure_size(size_t n) {
+    void ensure_size(size_t n) {
         if (size < n) {
             free_data();
             size = n;
@@ -968,17 +1002,18 @@ struct Vectormap_CUDA_Packed
     using CellPairs = std::vector<MapData2>;
 
     // Data for 1-parameter Map()
-    std::mutex pack1_mutex_; // mutex for map1
+    std::mutex pack1_mutex_;
 
     // Data for 2-parameter Map()
     std::vector<MapData2> cellpairs2_;
-    Mirror_Data<Body_List> body_list2_; // body list for 2-parameter Map()
-    Mirror_Data<Attr_List> attr_list2_; // body attr list for 2-parameter Map()
-    std::mutex pack2_mutex_; // mutex for map2
+    Mirror_Data<Body_List> body_list2_;
+    Mirror_Data<Attr_List> attr_list2_;
+    std::mutex pack2_mutex_;
 
     // funct_id_ is used to check if the same Funct is used for all cell pairs.
     // In the current implementation, it is assumed that a single function and
     // the same optional arguments (= Args...) are used to all cell pairs.
+
     std::mutex applier2_mutex_;
     intptr_t funct_id_;
     AbstractApplier<VectorMap> *applier2_;
@@ -1065,11 +1100,6 @@ struct Vectormap_CUDA_Packed
                               c0.data().let_bodies_.size(),
                               f, args...));
                 funct_id_ = Type2Int<Funct>::value();
-
-                // Memo [Jan 18, 2016]
-                // func_id_ is not used as of now. This check value is for when there are multiple kernels
-                // for bodies x bodies product map.
-                // An interaction list is created for each function (stored in a unordered_map of which keys are integers).
             }
             applier2_mutex_.unlock();
         }
