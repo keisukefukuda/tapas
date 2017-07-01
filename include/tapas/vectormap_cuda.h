@@ -603,7 +603,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 #endif
 
     /**
-     * \brief Two argument mapping
+     * \brief Two argument mapping.
      * Implements a map on a GPU.  It extracts vectors of bodies.  It
      * uses a fixed command stream to serialize processing on each cell.
      * A call to cudaDeviceSynchronize() is needed on the caller of
@@ -760,6 +760,24 @@ struct AbstractApplier {
     virtual ~AbstractApplier() {}
 };
 
+/* Argument wrapper for the allpairs interface.  Note NVCC does not
+   allow a device lambda even with "--expt-extended-lambda" (with
+   icc). */
+
+template <class Fn>
+struct P2PFn {
+    Fn f_;
+
+    P2PFn(Fn f) : f_ (f) {}
+
+    template<typename Body, typename Attr>
+    __device__ void operator()(Body& xi, Body& yj, Attr& wi) {
+        Attr zero = {0.0f, 0.0f, 0.0f, 0.0f};
+        vec3 Xperiodic = 0;
+        f_(xi, wi, yj, zero, Xperiodic);
+    }
+};
+
 template <class Vectormap, class Fn, class...Args>
 struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
     Vectormap* vm;
@@ -767,7 +785,7 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
     std::tuple<Args...> args_; // variadic arguments
 
     using Body = typename Vectormap::Body;
-    using BodyAttr = typename Vectormap::BodyAttr;
+    using Attr = typename Vectormap::BodyAttr;
     //using CellPairs = typename Vectormap::CellPairs;
 
     Kernel2_Thunk(Vectormap* vm_, Fn f, Args... args)
@@ -777,7 +795,7 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
 
     void invoke(Vectormap* vm,
                 Vector_Pack<Body>& lbody,
-                Vector_Pack<BodyAttr>& lattr,
+                Vector_Pack<Attr>& lattr,
                 Cell_Data<Body>& r,
                 int tilesize, size_t nblocks, int ctasize,
                 int scratchpadsize) {
@@ -790,7 +808,7 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
     template <int... NL>
     void invoke_impl(Vectormap* vm,
                      Vector_Pack<Body> lbody,
-                     Vector_Pack<BodyAttr> lattr,
+                     Vector_Pack<Attr> lattr,
                      Cell_Data<Body>& r,
                      int tilesize, size_t nblocks, int ctasize,
                      int scratchpadsize,
@@ -804,17 +822,19 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
 
     void invoke(Vectormap* vm,
                 Vector_Pack<Body>& lbody,
-                Vector_Pack<BodyAttr>& lattr,
+                Vector_Pack<Attr>& lattr,
                 Cell_Data<Body>& r,
                 int tilesize, size_t nblocks, int ctasize,
                 int scratchpadsize) {
         TESLA& tesla = vm->tesla_device();
         Vector_Raw<Body> rdata (r.data(), r.size);
-        BodyAttr zero = {0.0f, 0.0f, 0.0f, 0.0f};
+        Attr zero = {0.0f, 0.0f, 0.0f, 0.0f};
+        vec3 Xperiodic = 0;
         int rr[1];
+        P2PFn<Fn> fx (f_);
         allpairs(tesla,
                  tilesize, nblocks, ctasize, scratchpadsize,
-                 /*h*/ 0, /*g*/ f_, /*z*/ zero,
+                 /*h*/ 0, /*g*/ fx, /*z*/ zero,
                  /*r*/ rr, /*x*/ lbody, /*y*/ rdata, /*w*/ lattr);
     }
 

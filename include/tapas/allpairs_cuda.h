@@ -232,9 +232,8 @@ void allpairs_kernel(FnH h, FnG g, Z z, FnF f,
 #pragma unroll 64
             for (unsigned int j = 0; j < jlim; j++) {
                 Y& yj = scratchpad[j];
-                /*if (std::is_function<FnH>::value) {*/
-                /*acc = g(f(xi, yj), acc);*/
-                g(xi, wi, yj, z, XperiodicX);
+		/*acc = g(f(xi, yi), acc);*/
+                g(xi, yj, wi);
             }
         }
         __syncthreads();
@@ -281,7 +280,8 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
 #pragma unroll 64
             for (unsigned int j = 0; j < jlim; j++) {
                 Y& yj = scratchpad[j];
-                g(xi, wi, yj, zero, Xperiodic);
+		/*acc = g(f(xi, yi), acc);*/
+                g(xi, yj, wi);
             }
         }
         __syncthreads();
