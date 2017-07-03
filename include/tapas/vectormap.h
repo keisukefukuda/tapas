@@ -1,8 +1,7 @@
 /* vectormap.h -*- Coding: us-ascii-unix; -*- */
 /* Copyright (C) 2015-2015 RIKEN AICS */
 
-#ifndef TAPAS_VECTORMAP_H_
-#define TAPAS_VECTORMAP_H_
+#pragma once
 
 /* Selector of Direct Map Implementations.  It selects either CPU or
    GPU by instantiating in TapasStaticParams.  It replaces lowest
@@ -15,9 +14,6 @@
 namespace tapas {
 
 #ifdef __CUDACC__
-
-/** Memory allocator for the unified memory.  It will replace the
-    vector allocators. */
 
 template<int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Simple;
@@ -32,6 +28,4 @@ struct Vectormap_CPU;
 
 #endif /*__CUDACC__*/
 
-} // namespace tapas
-
-#endif /*TAPAS_VECTORMAP_H_*/
+}

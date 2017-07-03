@@ -187,9 +187,9 @@ using gpu_vector = std::vector<T, um_allocator<T>>;
 #endif /*GOMI*/
 
 /*
- | fun allpairs H G Z F X Y W =
+ | fun allpairs H G Z X Y W =
  |    map (fn (xi, wi) =>
- |            H (foldl (fn (yi, a) => (G (F xi yi) a)) Z Y) wi)
+ |            H (foldl (fn (yj, a) => (G xi yj wi) a) Z Y) wi)
  |        (zip X W)
 */
 
@@ -202,24 +202,18 @@ void allpairs_kernel(FnH h, FnG g, Z z, FnF f,
                      VecR r, VecX x, VecY y, VecW w,
                      size_t xsz, size_t ysz, int tilesize) {
     /*static_assert(std::is_function<FnG>::value, "Fn g");*/
+    using X = typename VecX::value_type;
+    using Y = typename VecY::value_type;
+    using W = typename VecW::value_type;
     //typedef typename VecR::value_type R;
-    typedef typename VecX::value_type X;
-    typedef typename VecY::value_type Y;
-    typedef typename VecW::value_type W;
     assert(tilesize <= blockDim.x);
     int index = (blockDim.x * blockIdx.x + threadIdx.x);
     extern __shared__ Y scratchpad[];
     int ntiles = TAPAS_CEILING(ysz, tilesize);
 
-    /*AHO*/ vec3 XperiodicX = 0;
-
     X& xi = ((index < xsz) ? x[index] : x[0]);
     W& wi = ((index < xsz) ? w[index] : w[0]);
-#if 0 /*AHO*/
-    typename FnG::result_type acc;
-#else
     Z acc;
-#endif
     acc = z;
     for (int t = 0; t < ntiles; t++) {
         if ((tilesize * t + threadIdx.x) < ysz && threadIdx.x < tilesize) {
@@ -260,7 +254,6 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
     using X = typename VecX::value_type;
     using Y = typename VecY::value_type;
     using W = typename VecW::value_type;
-    vec3 Xperiodic = 0;
 
     int index = (blockDim.x * blockIdx.x + threadIdx.x);
     int ntiles = TAPAS_CEILING(ysz, tilesize);
@@ -269,6 +262,8 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
     X& xi = x[index];
     W& wi = w[index];
 
+    Z acc;
+    acc = zero;
     for (int t = 0; t < ntiles; t++) {
         if ((tilesize * t + threadIdx.x) < ysz && threadIdx.x < tilesize) {
             scratchpad[threadIdx.x] = y[tilesize * t + threadIdx.x];
@@ -280,19 +275,17 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
 #pragma unroll 64
             for (unsigned int j = 0; j < jlim; j++) {
                 Y& yj = scratchpad[j];
-		/*acc = g(f(xi, yi), acc);*/
-                g(xi, yj, wi);
+                acc = g(xi, yj, wi, acc);
+                /*g(xi, yj, wi);*/
             }
         }
         __syncthreads();
     }
-#if 0 /*AHO*/
-    if (index < xsz) {
-        if (std::is_function<FnH>::value) {
+    if (r != 0) {
+        if (index < xsz) {
             r[index] = h(wi, acc);
         }
     }
-#endif
 }
 
 #endif
@@ -303,54 +296,57 @@ static void
 allpairs(TESLA& tesla,
          int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
          FnH h, FnG g, Z z, VecR r, VecX x, VecY y, VecW w) {
-#if 0
-    static std::mutex ap_mutex;
-    static struct cudaFuncAttributes ap_tesla_attr;
+    {
+        size_t xsz = x.size();
+        size_t ysz = y.size();
+        assert(xsz != 0 && ysz != 0);
 
-    if (ap_tesla_attr.binaryVersion == 0) {
-        ap_mutex.lock();
-        cudaError_t ce = cudaFuncGetAttributes(
-            &ap_tesla_attr,
-            &allpairs_kernel<FnH, FnG, Z, VecR, VecX, VecY, VecW>);
-        assert(ce == cudaSuccess);
-        ap_mutex.unlock();
-    }
-    assert(ap_tesla_attr.binaryVersion != 0);
+        /* Overwrite th eparameters. */
 
-    int cta0 = (TAPAS_CEILING(tesla.cta_size, 32) * 32);
-    int ctasize = std::min(cta0, ap_tesla_attr.maxThreadsPerBlock);
-    assert(ctasize == tesla.cta_size);
+#if 1
+        static std::mutex ap_mutex;
+        static struct cudaFuncAttributes ap_tesla_attr;
 
-    typedef typename VecX::value_type X;
-    int tile0 = (tesla.scratchpad_size / sizeof(X));
-    int tile1 = (TAPAS_FLOOR(tile0, 32) * 32);
-    int tilesize = std::min(ctasize, tile1);
-    assert(tilesize > 0);
+        if (ap_tesla_attr.binaryVersion == 0) {
+            ap_mutex.lock();
+            cudaError_t ce = cudaFuncGetAttributes(
+                                                   &ap_tesla_attr,
+                                                   &allpairs_kernel<FnH, FnG, Z, VecR, VecX, VecY, VecW>);
+            assert(ce == cudaSuccess);
+            ap_mutex.unlock();
+        }
+        assert(ap_tesla_attr.binaryVersion != 0);
 
-    int scratchpadsize = (sizeof(X) * tilesize);
-    //size_t nblocks = TAPAS_CEILING(xsz, ctasize);
-    size_t nblocks = ctasize;
+        int cta0 = (TAPAS_CEILING(tesla.cta_size, 32) * 32);
+        int ctasize = std::min(cta0, ap_tesla_attr.maxThreadsPerBlock);
+        assert(ctasize == tesla.cta_size);
+
+        typedef typename VecX::value_type X;
+        int tile0 = (tesla.scratchpad_size / sizeof(X));
+        int tile1 = (TAPAS_FLOOR(tile0, 32) * 32);
+        int tilesize = std::min(ctasize, tile1);
+        assert(tilesize > 0);
+
+        int scratchpadsize = (sizeof(X) * tilesize);
+        size_t nblocks = TAPAS_CEILING(xsz, ctasize);
 #endif
 
-    //tesla_streamid = 0;
-    tesla_streamid++;
-    int s = (tesla_streamid % tesla.n_streams);
+        //tesla_streamid = 0;
+        tesla_streamid++;
+        int s = (tesla_streamid % tesla.n_streams);
 
-    /*AHO*/
-    if (0) {
-        printf("allpairs(nblocks=%ld ctasize=%d"
-               " scratchpadsize=%d tilesize=%d)\n",
-               nblocks, ctasize, scratchpadsize, tilesize);
-        fflush(0);
+        /*AHO*/
+        if (0) {
+            printf("allpairs(nblocks=%ld ctasize=%d"
+                   " scratchpadsize=%d tilesize=%d)\n",
+                   nblocks, ctasize, scratchpadsize, tilesize);
+            fflush(0);
+        }
+
+        allpairs_kernel<<<nblocks, ctasize, scratchpadsize,
+            tesla.streams[s]>>>
+            (h, g, z, r, x, y, w, xsz, ysz, tilesize);
     }
-
-    size_t xsz = x.size();
-    size_t ysz = y.size();
-    assert(xsz != 0 && ysz != 0);
-
-    allpairs_kernel<<<nblocks, ctasize, scratchpadsize,
-        tesla.streams[s]>>>
-        (h, g, z, r, x, y, w, xsz, ysz, tilesize);
 }
 
 BR1_

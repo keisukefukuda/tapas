@@ -24,7 +24,7 @@ namespace tapas BR0_
 
 #define ALLPAIRS 1
 
-#if 0 /*allpairs*/
+#if 0 /*UNUSED*/
 
 /* Table of core counts on an SM by compute-capability. (There is
    likely no way to get the core count; See deviceQuery in CUDA
@@ -69,7 +69,7 @@ struct TESLA {
 #define TAPAS_CEILING(X,Y) (((X) + (Y) - 1) / (Y))
 #define TAPAS_FLOOR(X,Y) ((X) / (Y))
 
-#endif /*allpairs*/
+#endif /*UNUSED*/
 
 namespace {
 
@@ -263,14 +263,14 @@ struct Vector_Pack {
 };
 
 template <class T>
-struct Vector_Raw {
+struct Vector_Raw_cuda {
     using value_type = T;
 
     T* v;
     size_t bodies;
 
     __host__ __device__ __forceinline__
-    Vector_Raw(T* v, size_t size) {
+    Vector_Raw_cuda(T* v, size_t size) {
         this->v = v;
         this->bodies = size;
     }
@@ -290,10 +290,10 @@ struct Vector_Raw {
  * \brief Single argument mapping over bodies on GPU
  */
 
-template <class CA, class V3, class BT, class BT_ATTR, class Fn, class... Args>
+template <class CA, class V3, class BODY, class ATTR, class Fn, class... Args>
 __global__
 void vectormap_cuda_plain_kernel1(const CA c_attr, const V3 c_center,
-                                  const BT* b, BT_ATTR* b_attr,
+                                  const BODY* b, ATTR* b_attr,
                                   size_t sz, Fn f, Args... args) {
   int index = (blockDim.x * blockIdx.x + threadIdx.x);
   if (index < sz) {
@@ -301,16 +301,16 @@ void vectormap_cuda_plain_kernel1(const CA c_attr, const V3 c_center,
   }
 }
 
-template <class Fn, class BT, class BT_ATTR, class CELL_ATTR, class VEC,
+template <class Fn, class BODY, class ATTR, class CELL_ATTR, class VEC,
           template <class T> class CELLDATA, class... Args>
 __global__
 void vectormap_cuda_pack_kernel1(int nmapdata, size_t nbodies,
-                                 CELLDATA<BT>* body_list,
-                                 CELLDATA<BT_ATTR>* attr_list,
+                                 CELLDATA<BODY>* body_list,
+                                 CELLDATA<ATTR>* attr_list,
                                  CELL_ATTR* cell_attrs,
                                  VEC* cell_centers,
                                  Fn f, Args... args) {
-    static_assert(std::is_same<BT_ATTR, kvec4>::value, "attribute type=kvec4");
+    static_assert(std::is_same<ATTR, kvec4>::value, "attribute type=kvec4");
 
     int index = (blockDim.x * blockIdx.x + threadIdx.x);
     if (index < nbodies) {
@@ -332,22 +332,22 @@ void vectormap_cuda_pack_kernel1(int nmapdata, size_t nbodies,
     }
 }
 
-/* (Two argument mapping (each pair)) */
+/* (Two argument mapping) */
 
 /* Accumulates partial acceleration for the 1st vector.  Blocking
    size of the 2nd vector is passed as TILESIZE. */
 
-template <class Fn, class BV, class BA, class... Args>
+template <class Fn, class BODY, class ATTR, class... Args>
 __global__
-void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
+void vectormap_cuda_plain_kernel2(BODY* v0, BODY* v1, ATTR* a0,
                                   size_t n0, size_t n1, int tilesize,
                                   Fn f, Args... args) {
     assert(tilesize <= blockDim.x);
     int index = (blockDim.x * blockIdx.x + threadIdx.x);
-    extern __shared__ BV scratchpad[];
+    extern __shared__ BODY scratchpad[];
     int ntiles = TAPAS_CEILING(n1, tilesize);
-    BV* p0 = ((index < n0) ? &v0[index] : &v0[0]);
-    BA q0 = ((index < n0) ? a0[index] : a0[0]);
+    BODY* p0 = ((index < n0) ? &v0[index] : &v0[0]);
+    ATTR q0 = ((index < n0) ? a0[index] : a0[0]);
     for (int t = 0; t < ntiles; t++) {
         if ((tilesize * t + threadIdx.x) < n1 && threadIdx.x < tilesize) {
             scratchpad[threadIdx.x] = v1[tilesize * t + threadIdx.x];
@@ -356,9 +356,9 @@ void vectormap_cuda_plain_kernel2(BV* v0, BV* v1, BA* a0,
 
         if (index < n0) {
             unsigned int jlim = min(tilesize, (int)(n1 - tilesize * t));
-            /*AHO*/ //#pragma unroll 64
+#pragma unroll 64
             for (unsigned int j = 0; j < jlim; j++) {
-                BV* p1 = &scratchpad[j];
+                BODY* p1 = &scratchpad[j];
                 if (!(v0 == v1 && index == (tilesize * t + j))) {
                     f(p0, p1, q0, args...);
                 }
@@ -406,10 +406,10 @@ void vectormap_cuda_pack_kernel2(Vector_Pack<BODY> lbody,
     }
 }
 
-template <int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
+template <int _DIM, typename _FP, typename _BODY, typename _ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Base {
-    using Body = _BT;
-    using BodyAttr = _BT_ATTR;
+    using Body = _BODY;
+    using BodyAttr = _ATTR;
     using CellAttr = _CELL_ATTR;
 
     /**
@@ -550,12 +550,12 @@ struct Vectormap_CUDA_Base {
     }
 };
 
-template <int _DIM, typename _FP, typename _BT, typename _BT_ATTR, typename _CELL_ATTR>
-struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
-    using Body = _BT;
-    using BodyAttr = _BT_ATTR;
+template <int _DIM, typename _FP, typename _BODY, typename _ATTR, typename _CELL_ATTR>
+struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BODY, _ATTR, _CELL_ATTR> {
+    using Body = _BODY;
+    using Attr = _ATTR;
     using CellAttr = _CELL_ATTR;
-    using Base = Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>;
+    using Base = Vectormap_CUDA_Base<_DIM, _FP, _BODY, _ATTR, _CELL_ATTR>;
 
     /* (One argument mapping) */
 
@@ -616,10 +616,10 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
     template <class Fn, class Cell, class... Args>
     void Plain2(Fn f, Cell& c0, Cell& c1, Args... args) {
         static_assert(std::is_same<Body, typename Cell::BT::type>::value, "inconsistent template arguments");
-        static_assert(std::is_same<BodyAttr, typename Cell::BT_ATTR>::value, "inconsistent template arguments");
+        static_assert(std::is_same<Attr, typename Cell::BT_ATTR>::value, "inconsistent template arguments");
 
-        using BT = Body;
-        using BT_ATTR = BodyAttr;
+        //using BT = Body;
+        //using BT_ATTR = Attr;
 
         auto& data = c0.data();
 
@@ -633,16 +633,16 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
             mutex1.lock();
             CUDA_SAFE_CALL(cudaFuncGetAttributes(
                                                  &tesla_attr1,
-                                                 &vectormap_cuda_plain_kernel2<Fn, BT, BT_ATTR, Args...>));
+                                                 &vectormap_cuda_plain_kernel2<Fn, Body, Attr, Args...>));
             mutex1.unlock();
         }
         assert(tesla_attr1.binaryVersion != 0);
 
         assert(c0.IsLeaf() && c1.IsLeaf());
         /* (Cast to drop const, below). */
-        BT* v0 = (BT*)&(c0.body(0));
-        BT* v1 = (BT*)&(c1.body(0));
-        BT_ATTR* a0 = (BT_ATTR*)&(c0.body_attr(0));
+        Body* v0 = (Body*)&(c0.body(0));
+        Body* v1 = (Body*)&(c1.body(0));
+        Attr* a0 = (Attr*)&(c0.body_attr(0));
         size_t n0 = c0.nb();
         size_t n1 = c1.nb();
         assert(n0 != 0 && n1 != 0);
@@ -669,10 +669,10 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
 #endif
 
         // array of bodies for c0
-        //BT* bodies0 = c0.IsLocal() ? data.local_bodies_ : data.let_bodies_;
+        //Body* bodies0 = c0.IsLocal() ? data.local_bodies_ : data.let_bodies_;
 
         // array of bodies for c1
-        //BT* bodies1 = c1.IsLocal() ? data.local_bodies_ : data.let_bodies_;
+        //Body* bodies1 = c1.IsLocal() ? data.local_bodies_ : data.let_bodies_;
 
         int s = (((unsigned long)&c0 >> 4) % tesla.n_streams);
         vectormap_cuda_plain_kernel2<<<nblocks, ctasize, scratchpadsize,
@@ -684,7 +684,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_AT
      * \fn Vectormap_CUDA_Simple::map2
      * \brief Calls a function FN given by the user on each data pair in the
      *        cells.  f takes arguments of Body&, Body&,
-     *        BodyAttr&, and extra call arguments.
+     *        Attr&, and extra call arguments.
      */
 
     template <class Fn, class Cell, class...Args>
@@ -760,21 +760,31 @@ struct AbstractApplier {
     virtual ~AbstractApplier() {}
 };
 
-/* Argument wrapper for the allpairs interface.  Note NVCC does not
-   allow a device lambda even with "--expt-extended-lambda" (with
+/* Arguments permutation for the allpairs interface.  Note NVCC does
+   not allow a device lambda even with "--expt-extended-lambda" (with
    icc). */
 
 template <class Fn>
-struct P2PFn {
+struct P2PFnF_cuda {
     Fn f_;
 
-    P2PFn(Fn f) : f_ (f) {}
+    P2PFnF_cuda(Fn f) : f_ (f) {}
 
     template<typename Body, typename Attr>
-    __device__ void operator()(Body& xi, Body& yj, Attr& wi) {
-        Attr zero = {0.0f, 0.0f, 0.0f, 0.0f};
+    __device__ Attr operator()(Body& xi, Body& yj, Attr& wi, Attr zero) {
+        //Attr zero = {0.0f, 0.0f, 0.0f, 0.0f};
         vec3 Xperiodic = 0;
         f_(xi, wi, yj, zero, Xperiodic);
+        return zero;
+    }
+};
+
+/* Dummy function for h(wi, acc). */
+
+struct P2PFnG_cuda {
+    template<typename Attr>
+    __device__ Attr operator()(Attr wi, Attr acc) {
+        return acc;
     }
 };
 
@@ -818,7 +828,7 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
                                 f_, std::get<NL>(args_)...);
     }
 
-#else /*ALLPAIRS*/
+#else /*(ALLPAIRS==1)*/
 
     void invoke(Vectormap* vm,
                 Vector_Pack<Body>& lbody,
@@ -827,15 +837,14 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
                 int tilesize, size_t nblocks, int ctasize,
                 int scratchpadsize) {
         TESLA& tesla = vm->tesla_device();
-        Vector_Raw<Body> rdata (r.data(), r.size);
+        Vector_Raw_cuda<Body> rdata (r.data(), r.size);
         Attr zero = {0.0f, 0.0f, 0.0f, 0.0f};
         vec3 Xperiodic = 0;
-        int rr[1];
-        P2PFn<Fn> fx (f_);
+        P2PFnF_cuda<Fn> fx (f_);
         allpairs(tesla,
                  tilesize, nblocks, ctasize, scratchpadsize,
-                 /*h*/ 0, /*g*/ fx, /*z*/ zero,
-                 /*r*/ rr, /*x*/ lbody, /*y*/ rdata, /*w*/ lattr);
+                 /*h*/ P2PFnG_cuda(), /*g*/ fx, /*z*/ zero,
+                 /*r*/ (Attr*)0, /*x*/ lbody, /*y*/ rdata, /*w*/ lattr);
     }
 
 #endif /*ALLPAIRS*/
@@ -878,17 +887,17 @@ struct Mirror_Data {
     }
 };
 
-template <int _DIM, typename _FP, typename _BT,
-          typename _BT_ATTR, typename _CELL_ATTR>
+template <int _DIM, typename _FP, typename _BODY,
+          typename _ATTR, typename _CELL_ATTR>
 struct Vectormap_CUDA_Packed
-    : public Vectormap_CUDA_Base<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR> {
-    using VectorMap = Vectormap_CUDA_Packed<_DIM, _FP, _BT, _BT_ATTR, _CELL_ATTR>;
-    using BT = _BT;
-    using BT_ATTR = _BT_ATTR;
-    using Body = _BT;
-    using Attr = _BT_ATTR;
-    using Body_List = Cell_Data<BT>;
-    using Attr_List = Cell_Data<BT_ATTR>;
+    : public Vectormap_CUDA_Base<_DIM, _FP, _BODY, _ATTR, _CELL_ATTR> {
+    using VectorMap = Vectormap_CUDA_Packed<_DIM, _FP, _BODY, _ATTR, _CELL_ATTR>;
+    //using BT = _BODY;
+    //using BT_ATTR = _ATTR;
+    using Body = _BODY;
+    using Attr = _ATTR;
+    using Body_List = Cell_Data<Body>;
+    using Attr_List = Cell_Data<Attr>;
     using Cell_Data_Triple = std::tuple<Body_List, Attr_List, Body_List>;
     using CellPairs = std::vector<Cell_Data_Triple>;
 
@@ -1043,9 +1052,9 @@ struct Vectormap_CUDA_Packed
 
         TAPAS_ASSERT(funct_id_ == Type2Int<Fn>::value());
 
-        Cell_Data<BT> d0;
-        Cell_Data<BT> d1;
-        Cell_Data<BT_ATTR> a0;
+        Cell_Data<Body> d0;
+        Cell_Data<Body> d1;
+        Cell_Data<Attr> a0;
 
         d0.size = c0.nb();
         d0.base_ptr = c0.body_base_ptr();
@@ -1067,7 +1076,7 @@ struct Vectormap_CUDA_Packed
             pack2_mutex_.lock();
             cellpairs2_.push_back(Cell_Data_Triple(d0, a0, d1));
             // mutual interaction is not supported in this CUDA version.
-            //cellpairs2_.push_back(std::tuple<Cell_Data<BT>, Cell_Data<BT_ATTR>, Cell_Data<BT>>(d1, a1, d0));
+            //cellpairs2_.push_back(std::tuple<Cell_Data<Body>, Cell_Data<Attr>, Cell_Data<Body>>(d1, a1, d0));
             pack2_mutex_.unlock();
         }
     }
