@@ -1,0 +1,109 @@
+# mk (Makefile for all-pairs test)
+
+DATE = $(shell TZ=0 date +'%y%m%d')
+
+MYTHDIR = $(HOME)/lib/myth
+MPIDIR = $(HOME)/lib/yampi
+CUDADIR = /usr/local/cuda
+
+.SUFFIXES: .cxx
+
+all:
+	@echo "USAGE: make -f mk cpu, gpu, run, or clean"
+
+run::
+	mpirun -np 2 ./fmm --numBodies 100000 --ncrit 64 --theta 0.34
+
+run2::
+	mpirun -np 2 ./runnuma.sh ./fmm --threads 8 --numBodies 100000 --ncrit 64 --theta 0.34
+
+EQUATION = Laplace
+BASIS = Spherical
+EXPANSION = 10
+
+# Drop FMM_MUTUAL for GPU.
+
+OPTIMIZE = -O3
+#OPTIMIZE = -g
+
+OPTIONS = -DEQUATION=$(EQUATION) -D$(BASIS) -DEXPANSION=$(EXPANSION) -DFP64
+#OPTIONS += -DFMM_MUTUAL
+OPTIONS += -DUSE_MPI -DMTHREAD=1
+OPTIONS += -DTAPAS_DEBUG=0 -DTAPAS_LOG_LEVEL=0
+
+MPICXX = mpicxx -std=c++11 -Wall -Wextra
+
+CPU_LD = mpic++ -std=c++11 -m64
+
+CPU_CC = $(CPU_LD) -Wall -Wextra -Wno-unused-function
+CPU_CC += $(OPTIMIZE) -xHOST -fp-model fast=2 -no-prec-div
+CPU_CC += -funroll-loops -finline-functions
+CPU_CC += -no-inline-max-per-routine -no-inline-max-per-compile
+CPU_CC += -inline-max-total-size=3000
+CPU_CC += --param max-inline-insns-recursive=2000
+CPU_CC += --param max-inline-recursive-depth=10
+CPU_CC += --param max-inline-insns-single=1000
+
+CPU_INCS = -I. -I../../include -I$(MYTHDIR)/include
+CPU_LIBS = -L$(MYTHDIR)/lib -lmyth -lrt
+#CPU_LIBS = -L$(MYTHDIR)/lib -lmyth-native -lrt
+#-L$(MPIDIR)/lib -lmpi64
+
+#-fopenmp
+#-fno-openmp
+#-fdiagnostics-color=auto
+
+cpu::
+	$(CPU_CC) -UFMM_MUTUAL $(OPTIONS) $(CPU_INCS) tapas_exafmm.cxx $(CPU_LIBS) -o fmm
+	ls -lt fmm
+
+GPU_LD = $(CUDADIR)/bin/nvcc -m64 $(OPTIMIZE)
+
+GPU_CC = $(GPU_LD) -v -x cu -std c++11 -ccbin mpic++
+GPU_CC += --expt-relaxed-constexpr
+GPU_CC += -keep -Xcicc -v -Xptxas -v
+GPU_CC += -Xcicc $(OPTIMIZE) -Xptxas $(OPTIMIZE)
+GPU_CC += --compiler-options -Wall --compiler-options -Wextra
+GPU_CC += --compiler-options -Wno-unused-function
+GPU_CC += --compiler-options -fp-model --compiler-options fast=2
+GPU_CC += --compiler-options -no-prec-div
+GPU_CC += --compiler-options -funroll-loops
+GPU_CC += --compiler-options -finline-functions
+GPU_CC += --compiler-options -no-inline-max-per-routine
+GPU_CC += --compiler-options -no-inline-max-per-compile
+GPU_CC += --compiler-options -inline-max-total-size=3000
+
+GPU_INCS = -I. -I../../include -I$(MYTHDIR)/include
+GPU_LIBS = $(CPU_LIBS) -L$(CUDADIR)/lib64 -lnvToolsExt
+
+#GPU_CC += --compiler-options -fopenmp
+#--linker-options -export-dynamic
+
+gpu35::
+	$(GPU_CC) -arch sm_35 $(OPTIONS) $(GPU_INCS) tapas_exafmm.cxx $(GPU_LIBS) -o fmm
+	ls -lt fmm
+
+gpu37::
+	$(GPU_CC) -arch sm_37 $(OPTIONS) $(GPU_INCS) tapas_exafmm.cxx $(GPU_LIBS) -o fmm
+	ls -lt fmm
+
+GOMI = *_dlink.reg.c *.module_id \
+	ptxas *.fatbin *.fatbin.c *.cubin *.ptx \
+	*.cu.cpp.ii *.cpp[14].ii *.cpp[23].i \
+	*.cudafe[12].c *.cudafe[12].cpp *.cudafe[12].gpu *.cudafe[12].stub.c
+GOMI += tapas_report.csv*
+
+clean::
+	rm -f a.out *.o $(GOMI)
+
+#shopt -s nullglob; rm -f {P2M,partition,bodies,center}.*.*.stderr.txt
+
+FILES = mk
+LAST = ea3b2519ee5abcdd06d5c3379b0210b8d33c84c4
+
+diff::
+	git diff $(LAST) > ~/depot/tapas/allpairs/diff.$(DATE)
+
+bak::
+	rsync -auv $(FILES) ~/depot/tapas/allpairs/
+	(cd ~/depot; make)

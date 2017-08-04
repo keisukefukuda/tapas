@@ -48,6 +48,7 @@ allpairs(TESLA_cpu& tesla,
     int ysz = (int)y.size();
     assert(xsz != 0 && ysz != 0);
 
+    /*pragma simd*/
     for (int i = 0; i < xsz; i++) {
         X& xi = x[i];
         W& wi = w[i];

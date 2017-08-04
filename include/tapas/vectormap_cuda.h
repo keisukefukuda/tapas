@@ -375,6 +375,7 @@ template <class Fn, class BODY, class ATTR, class... Args>
 __global__
 void vectormap_cuda_pack_kernel2(Vector_Pack<BODY> lbody,
                                  Vector_Pack<ATTR> lattr,
+                                 int lsize,
                                  int rsize, BODY* rdata, int tilesize,
                                  Fn f, Args... args) {
     assert(tilesize <= blockDim.x);
@@ -382,7 +383,7 @@ void vectormap_cuda_pack_kernel2(Vector_Pack<BODY> lbody,
     int ntiles = TAPAS_CEILING(rsize, tilesize);
     extern __shared__ BODY scratchpad[];
 
-    bool valid_index = lbody.index_valid(index);
+    /* bool valid_index = lbody.index_valid(index); */
     BODY& p0 = lbody[index];
     ATTR& a0 = lattr[index];
 
@@ -394,7 +395,7 @@ void vectormap_cuda_pack_kernel2(Vector_Pack<BODY> lbody,
         }
         __syncthreads();
 
-        if (valid_index) {
+        if (index < lsize) /* if (valid_index) */ {
             unsigned int jlim = min(tilesize, (int)(rsize - tilesize * t));
 #pragma unroll 64
             for (unsigned int j = 0; j < jlim; j++) {
@@ -458,8 +459,8 @@ struct Vectormap_CUDA_Base {
      * CUDA GPU device information
      */
 
-    TESLA tesla_device_;
-    inline TESLA& tesla_device() { return tesla_device_; }
+    TESLA_DEVICE tesla_device_;
+    inline TESLA_DEVICE& tesla_device() { return tesla_device_; }
 
     /**
      * \brief Setup CUDA devices: allocate 1 GPU per process
@@ -625,7 +626,7 @@ struct Vectormap_CUDA_Simple : public Vectormap_CUDA_Base<_DIM, _FP, _BODY, _ATT
 
         // nvcc's bug? the compiler cannot find base class' member function
         // so we need "Base::"
-        TESLA& tesla = Base::tesla_device();
+        TESLA_DEVICE& tesla = Base::tesla_device();
 
         static std::mutex mutex1;
         static struct cudaFuncAttributes tesla_attr1;
@@ -720,13 +721,13 @@ void invoke_kernel2(Caller* caller,
     using BV = typename Caller::Body;
     using BA = typename Caller::BodyAttr;
 
-    TESLA& tesla = caller->tesla_device();
+    TESLA_DEVICE& tesla = caller->tesla_device();
     tesla_streamid++;
     int s = (tesla_streamid % tesla.n_streams);
 
     vectormap_cuda_pack_kernel2<<<nblocks, ctasize, scratchpadsize,
         tesla.streams[s]>>>
-        (lbody, lattr, r.size, r.data(), tilesize, f, args...);
+        (lbody, lattr, (int)lbody.size(), r.size, r.data(), tilesize, f, args...);
 }
 
 // Utility routine to support delayed dispatch of function template
@@ -836,7 +837,7 @@ struct Kernel2_Thunk : public AbstractApplier<Vectormap> {
                 Cell_Data<Body>& r,
                 int tilesize, size_t nblocks, int ctasize,
                 int scratchpadsize) {
-        TESLA& tesla = vm->tesla_device();
+        TESLA_DEVICE& tesla = vm->tesla_device();
         Vector_Raw_cuda<Body> rdata (r.data(), r.size);
         Attr zero = {0.0f, 0.0f, 0.0f, 0.0f};
         vec3 Xperiodic = 0;
@@ -1187,7 +1188,7 @@ struct Vectormap_CUDA_Packed
         printf(";; pairs=%ld\n", vm->cellpairs2_.size());
 #endif
 
-        TESLA& tesla = vm->tesla_device();
+        TESLA_DEVICE& tesla = vm->tesla_device();
         int cta0 = (TAPAS_CEILING(tesla.cta_size, 32) * 32);
         int ctasize = std::min(cta0, func_attrs_.maxThreadsPerBlock);
         assert(ctasize == tesla.cta_size);

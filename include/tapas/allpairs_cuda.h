@@ -43,7 +43,7 @@ static std::atomic<int> tesla_streamid (0);
    Kepler sm_35).  NCONNECTIONS is the number of physical command
    streams. (default=8 and maximum=32 on Kepler sm_35). */
 
-struct TESLA {
+struct TESLA_DEVICE {
     int gpuno;
     int sm;
     int n_sm;
@@ -60,7 +60,9 @@ struct TESLA {
 #endif
 };
 
-#if 0 /*standalone*/
+#ifdef TAPAS_ALLPAIRS_STANDALONE
+
+static TESLA_DEVICE tesla_device;
 
 static void check_error(const char *msg, const char *file, const int line) {
     cudaError_t ce = cudaGetLastError();
@@ -123,10 +125,10 @@ static void release_tesla() {
     }
 }
 
-static void tapas_start() {}
+static void start_tesla() {}
 
-static void tapas_finish() {
-    check_error("tapas_finish", __FILE__, __LINE__);
+static void finish_tesla() {
+    check_error("finish_tesla", __FILE__, __LINE__);
     cudaError_t ce = cudaDeviceSynchronize();
     if (ce != cudaSuccess) {
 	fprintf(stderr,
@@ -136,10 +138,6 @@ static void tapas_finish() {
 	assert(ce == cudaSuccess);
     }
 }
-
-#endif /*standalone*/
-
-#if 0 /*GOMI*/
 
 /* Memory allocator for GPU unified-memory.  It will replace vector
    allocators.  (MEMO: Its name should be a generic one.) */
@@ -158,15 +156,16 @@ public:
         cudaError_t ce;
         ce = cudaMallocManaged(&p, (sizeof(T) * n), cudaMemAttachGlobal);
         assert(ce == cudaSuccess && p != 0);
-        fprintf(stderr, ";; cudaMallocManaged() p=%p n=%zd\n", p, n);
-        fflush(0);
+        //fprintf(stderr, ";; cudaMallocManaged() p=%p n=%zd\n", p, n);
+        //fflush(0);
         return p;
     }
 
     void deallocate(T* p, size_t n) {
         cudaError_t ce = cudaFree(p);
         assert(ce == cudaSuccess);
-        fprintf(stderr, ";; cudaFree() p=%p n=%zd\n", p, n); fflush(0);
+        //fprintf(stderr, ";; cudaFree() p=%p n=%zd\n", p, n);
+        //fflush(0);
     }
 
     explicit um_allocator() throw() : std::allocator<T>() {}
@@ -184,7 +183,7 @@ public:
 template <typename T>
 using gpu_vector = std::vector<T, um_allocator<T>>;
 
-#endif /*GOMI*/
+#endif /*TAPAS_ALLPAIRS_STANDALONE*/
 
 /*
  | fun allpairs H G Z X Y W =
@@ -276,7 +275,6 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
             for (unsigned int j = 0; j < jlim; j++) {
                 Y& yj = scratchpad[j];
                 acc = g(xi, yj, wi, acc);
-                /*g(xi, yj, wi);*/
             }
         }
         __syncthreads();
@@ -293,8 +291,8 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
 template <class FnH, class FnG, class Z,
           class VecR, class VecX, class VecY, class VecW>
 static void
-allpairs(TESLA& tesla,
-         int tilesize, size_t nblocks, int ctasize, int scratchpadsize,
+allpairs(TESLA_DEVICE& tesla,
+         int tilesize_, size_t nblocks_, int ctasize_, int scratchpadsize_,
          FnH h, FnG g, Z z, VecR r, VecX x, VecY y, VecW w) {
     {
         size_t xsz = x.size();
