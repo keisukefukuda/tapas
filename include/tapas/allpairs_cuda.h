@@ -192,56 +192,6 @@ using gpu_vector = std::vector<T, um_allocator<T>>;
  |        (zip X W)
 */
 
-#if 0 /*AHO*/
-
-template <class FnH, class FnG, class Z, class FnF,
-          class VecR, class VecX, class VecY, class VecW>
-__global__
-void allpairs_kernel(FnH h, FnG g, Z z, FnF f,
-                     VecR r, VecX x, VecY y, VecW w,
-                     size_t xsz, size_t ysz, int tilesize) {
-    /*static_assert(std::is_function<FnG>::value, "Fn g");*/
-    using X = typename VecX::value_type;
-    using Y = typename VecY::value_type;
-    using W = typename VecW::value_type;
-    //typedef typename VecR::value_type R;
-    assert(tilesize <= blockDim.x);
-    int index = (blockDim.x * blockIdx.x + threadIdx.x);
-    extern __shared__ Y scratchpad[];
-    int ntiles = TAPAS_CEILING(ysz, tilesize);
-
-    X& xi = ((index < xsz) ? x[index] : x[0]);
-    W& wi = ((index < xsz) ? w[index] : w[0]);
-    Z acc;
-    acc = z;
-    for (int t = 0; t < ntiles; t++) {
-        if ((tilesize * t + threadIdx.x) < ysz && threadIdx.x < tilesize) {
-            scratchpad[threadIdx.x] = y[tilesize * t + threadIdx.x];
-        }
-        __syncthreads();
-
-        if (index < xsz) {
-            unsigned int jlim = min(tilesize, (int)(ysz - tilesize * t));
-#pragma unroll 64
-            for (unsigned int j = 0; j < jlim; j++) {
-                Y& yj = scratchpad[j];
-		/*acc = g(f(xi, yi), acc);*/
-                g(xi, yj, wi);
-            }
-        }
-        __syncthreads();
-    }
-#if 0 /*AHO*/
-    if (index < xsz) {
-        if (std::is_function<FnH>::value) {
-            r[index] = h(wi, acc);
-        }
-    }
-#endif
-}
-
-#else
-
 template <class FnH, class FnG, class Z,
           class VecR, class VecX, class VecY, class VecW>
 __global__
@@ -285,8 +235,6 @@ void allpairs_kernel(FnH h, FnG g, Z zero,
         }
     }
 }
-
-#endif
 
 template <class FnH, class FnG, class Z,
           class VecR, class VecX, class VecY, class VecW>

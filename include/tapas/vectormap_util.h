@@ -118,6 +118,7 @@ void SetGPU() {
 
   std::stringstream ss;
   ss << rankinnode;
+  /*ss << (rankinnode * 2);*/
   setenv("CUDA_VISIBLE_DEVICES", ss.str().c_str(), 1);
 
   // std::cout << "rank " << rank << " (rank in node = " << rankinnode << ", "
